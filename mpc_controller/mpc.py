@@ -63,21 +63,29 @@ class LocomotionMPC(ControllerAbstract):
 
         self.diverged : bool = False
 
-    def optimize(self) -> Tuple[np.ndarray, np.ndarray]:
+    def optimize(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         return optimized trajectories.
         """
         self.solver.init(self.current_opt_node, self.v_des, self.w_yaw)
-        q_traj, dt_traj = self.solver.solve()
+        q_traj, tau_traj, dt_traj = self.solver.solve()
 
-        return q_traj, dt_traj
+        return q_traj, tau_traj, dt_traj
 
     def get_torques(self, q: np.ndarray, v: np.ndarray, robot_data: Any) -> dict:
         """
         Abstract method to compute torques based on the state and planned trajectories.
         Should be implemented by child classes.
         """
-        pass
+        if self._replan():
+            # Update configuration from simulation
+            self.robot.update(q, v)
+            # Replan trajectory
+            q_traj, _, dt_traj = self.optimize()
+            # Interpolate at sim_dt intervals
+            time_traj = np.cumsum(dt_traj)
+            q_traj_interp = self.interpolate_trajectory(q_traj, time_traj, self.sim_dt)
+
 
     @staticmethod
     def interpolate_trajectory(traj : np.ndarray, time_traj : np.ndarray, sim_dt:float) -> np.ndarray:
@@ -116,14 +124,14 @@ class LocomotionMPC(ControllerAbstract):
         Returns:
             np.ndarray: _description_
         """
-        self.robot.update(q0)
-        q_full_traj = []
+        q_full_traj = [q0]
 
         current_trajectory_time = 0.
         while current_trajectory_time < trajectory_time:
             
+            self.robot.update(q_full_traj[-1])
             # Replan trajectory
-            q_traj, dt_traj = self.optimize()
+            q_traj, _, dt_traj = self.optimize()
             # Interpolate at sim_dt intervals
             time_traj = np.cumsum(dt_traj)
             q_traj_interp = self.interpolate_trajectory(q_traj, time_traj, self.sim_dt)
@@ -142,8 +150,6 @@ class LocomotionMPC(ControllerAbstract):
                     break
 
                 # Record trajectory
-                q_full_traj.append(q_t)
-                # Virtually update the robot...
-                self.robot.update(q_t)
+                q_full_traj.append(q_t)                
 
         return q_full_traj

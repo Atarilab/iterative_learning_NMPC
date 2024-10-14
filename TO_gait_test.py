@@ -11,14 +11,18 @@ robot = MJPinQuadRobotWrapper(
     )
 
 sim = Simulator(robot.mj)
+q0, _ = robot.get_state()
+q0[2] = 0.32
+robot.reset(q0)
 
 solver = QuadrupedAcadosSolver(
     robot.pin,
-    "trot"
+    "trot",
+    recompile=True,
 )
 
-v_des = np.array([0.2, 0., 0.])
+v_des = np.array([0.3, 0., 0.])
 solver.init(v_des=v_des)
-q_traj, dt_traj = solver.solve()
+q_traj, tau_traj, dt_traj = solver.solve(print_time=True)
 
 sim.vis_trajectory(q_traj, dt_traj, loop=True, record_video=True)

@@ -35,9 +35,9 @@ class MPCOptConfig():
     # Replanning frequency
     replanning_freq : int
     # Real time iterations
-    real_time : bool
-    # Fixed contact timings
-    opt_switch_time : bool
+    real_time_it : bool
+    # Enable dt nodes time optimization
+    enable_time_opt : bool
     # Constrained eeff locations
     opt_cnt_pos : bool
     # Use peak constrained
@@ -85,14 +85,14 @@ class MPCCostConfig:
     # length: number of eeff
     W_cnt_f_reg: np.ndarray
     # Weight constraint contact horizontal velocity
-    W_feet_z_vel: np.ndarray
+    foot_pos_constr_stab: np.ndarray
 
     def __post_init__(self):
         assert len(self.W_e_base) == 12, "W_e_base must be of shape 12"
         assert len(self.W_base) == 12, "W_base must be of shape 12"
         assert len(self.W_acc) == 12, "W_acc must be of shape 12"
         assert (len(self.W_swing) == len(self.W_cnt_f_reg) and
-                len(self.W_swing) == len(self.W_feet_z_vel)),\
+                len(self.W_swing) == len(self.foot_pos_constr_stab)),\
                 "W_swing and W_foot should have the same length."
         for i, foot_weight in enumerate(self.W_cnt_f_reg):
             assert len(foot_weight) == 3, f"W_foot[{i}] must be of shape 3"

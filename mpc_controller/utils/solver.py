@@ -3,10 +3,12 @@ import numpy as np
 import pinocchio as pin
 
 from contact_tamp.traj_opt_acados.interface.problem_formuation import ProblemFormulation
-from contact_tamp.traj_opt_acados.models.quadruped import QuadrupedDynamics, AcadosSolverHelper
+# from contact_tamp.traj_opt_acados.models.quadruped import Quadruped
 from mj_pin_wrapper.pin_robot import PinQuadRobotWrapper
+from contact_tamp.traj_opt_acados.interface.acados_helper import AcadosSolverHelper
 from ..config.quadruped.utils import get_quadruped_config
 from .gait_planner import GaitPlanner
+from .dynamics import QuadrupedDynamics
 
 class QuadrupedAcadosSolver(AcadosSolverHelper):
     NAME = "quadruped_solver"
@@ -14,6 +16,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
     def __init__(self,
                  pin_robot : PinQuadRobotWrapper,
                  gait_name : str = "trot",
+                 recompile : bool = True,
+                 use_cython : bool = False,
                  ):
         self.pin_robot = pin_robot
         self.robot_name = pin_robot.model.name
@@ -25,9 +29,11 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.config_gait, self.config_opt, self.config_cost = get_quadruped_config(gait_name, self.robot_name)
         dt_min, dt_max = self.config_opt.get_dt_bounds()
         self.dt_nodes = self.config_opt.get_dt_nodes()
-        problem = ProblemFormulation(dt_min, dt_max)
+        self.enable_time_opt = self.config_opt.enable_time_opt
+        problem = ProblemFormulation(self.dt_nodes, dt_min, dt_max, self.enable_time_opt)
 
         self.dyn = QuadrupedDynamics(self.robot_name, pin_robot.path_urdf, self.feet_frame_names)
+        # self.dyn = Quadruped(pin_robot.path_urdf)
         self.dyn.setup(problem)
 
         super().__init__(
@@ -38,7 +44,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.config_opt.reg_eps_e,
             )
         
-        self.setup(recompile=True, use_cython=False)
+        self.setup(recompile,
+                   use_cython,
+                   self.config_opt.real_time_it)
         self.data = self.get_data_template()
 
         # Gait planner
@@ -56,7 +64,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.data["W"][self.dyn.acc_cost.name] = np.array(self.config_cost.W_acc)
         # Swing cost weights (for each foot)
         self.data["W"][self.dyn.swing_cost.name] = np.array(self.config_cost.W_swing)
-        self.data["W"]["dt"][0] = 0
+        if self.enable_time_opt:
+            self.data["W"]["dt"][0] = 0
 
         # Foot force regularization weights (for each foot)
         for i, foot_cnt in enumerate(self.dyn.feet):
@@ -97,9 +106,10 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         Set up the reference trajectory (yref).
         """       
         # Set the nominal time step
-        self.data["yref"]["dt"][0] = self.dt_nodes
-        self.data["u"]["dt"][0] = self.dt_nodes
-        
+        if self.enable_time_opt:
+            self.data["yref"]["dt"][0] = self.dt_nodes
+            self.data["u"]["dt"][0] = self.dt_nodes
+            
         # Setup reference base pose
         pos, quat = q[:3], q[3:7]
         # Set height to nominal height
@@ -139,20 +149,34 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.set_initial_state(self.data["x"])
         self.set_input_constant(self.data["u"])
 
-    def setup_initial_feet_pos(self, i_node : int = 0):
+    def setup_initial_feet_pos(self,
+                               i_node : int = 0,
+                               plane_normal : List[np.ndarray] | Any = None,
+                               plane_origin : List[np.ndarray] | Any = None,
+                               ):
         """
         Set up the initial position of the feet based on the current
         contact mode and robot configuration.
         """
         feet_pos = self.pin_robot.get_frames_position_world(self.feet_frame_names)
         
-        for i_foot, (foot_cnt, foot_pos) in enumerate(zip(self.dyn.feet, feet_pos)):
-            foot_height = foot_pos[2]
-            self.data["p"][foot_cnt.zf.name][0] = foot_height
-            self.data["p"][foot_cnt.p_gain.name][0] = self.config_cost.W_feet_z_vel[i_foot]
+        for i_foot, (foot_cnt, _) in enumerate(zip(self.dyn.feet, feet_pos)):
+            # foot_height = foot_pos[2]
+
+            # Contact normal
+            if plane_normal is None or plane_origin is None:
+                self.data["p"][foot_cnt.plane_point.name] = np.array([0., 0., 0.])
+                self.data["p"][foot_cnt.plane_normal.name] = np.array([0., 0., 1.])
+            else:
+                assert len(plane_normal) == len(plane_origin) == len(self.feet_frame_names),\
+                    "plane_normal and plane_origine should be the same length"
+                self.data["p"][foot_cnt.plane_point.name] = plane_origin[i_foot]
+                self.data["p"][foot_cnt.plane_normal.name] = plane_normal[i_foot]
 
             # Will be overriden by contact plan
             self.data["p"][foot_cnt.active.name][0] = 1
+            self.data["p"][foot_cnt.p_gain.name][0] = self.config_cost.foot_pos_constr_stab[i_foot]
+
 
         self.set_parameters_constant(self.data["p"])
 
@@ -245,7 +269,26 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self._euler_to_quat_state(q_euler) for
             q_euler in self.states[self.dyn.q.name].T
         ])[1:]
+        v_sol = (self.states[self.dyn.v.name].T)[1:, :]
+        a_sol = (self.inputs[self.dyn.a.name].T)
+        forces = np.array(
+            [self.inputs[f"f_{foot}_{self.dyn.name}"]
+             for foot in self.feet_frame_names]
+            ).swapaxes(-1, 1).swapaxes(0, 1)
+        
         # First one is the current state (??)
-        dt_node_sol = self.inputs["dt"].flatten()
+        if self.enable_time_opt:
+            dt_node_sol = self.inputs["dt"].flatten()
+        else:
+            dt_node_sol = np.full((len(q_sol),), self.dt_nodes)
 
-        return q_sol, dt_node_sol
+        torques_sol = self.dyn.get_torques(
+            self.pin_robot.model,
+            self.pin_robot.data,
+            self.feet_frame_names,
+            q_sol,
+            v_sol,
+            a_sol,
+            forces,
+        )
+        return q_sol, torques_sol, dt_node_sol

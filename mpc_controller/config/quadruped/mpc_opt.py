@@ -7,10 +7,10 @@ from ..config_abstract import MPCOptConfig
 class MPCQuadrupedCyclic(MPCOptConfig):
     time_horizon : float = 1.
     n_nodes : int = 60
-    opt_dt_scale : np.ndarray = np.array([0.5, 2.5])
+    opt_dt_scale : np.ndarray = np.array([0.5, 1.5])
     replanning_freq : int = 2
-    real_time : bool = False
-    opt_switch_time : bool = False
+    enable_time_opt : bool = True
+    real_time_it : bool = False
     opt_cnt_pos : bool = False
     opt_peak : bool = True
     reg_eps: float = 1.0e-6
