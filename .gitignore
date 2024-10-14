@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 c_generated_code/
 acados_ocp.json
+video/
 
 # C extensions
 *.so
