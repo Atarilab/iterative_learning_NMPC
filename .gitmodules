@@ -1,0 +1,6 @@
+[submodule "mj_pin_wrapper"]
+	path = mj_pin_wrapper
+	url = git@github.com:Atarilab/mj_pin_wrapper.git
+[submodule "contact_tamp"]
+	path = contact_tamp
+	url = https://github.com/Atarilab/contact_tamp

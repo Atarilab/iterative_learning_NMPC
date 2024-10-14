@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+c_generated_code/
+acados_ocp.json
 
 # C extensions
 *.so
