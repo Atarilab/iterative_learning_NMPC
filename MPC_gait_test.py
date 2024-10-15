@@ -10,17 +10,18 @@ robot = MJPinQuadRobotWrapper(
     gear_ratio=6.33,
     )
 
-sim = Simulator(robot.mj)
-
 mpc = LocomotionMPC(
     robot.pin,
-    "trot"
+    "trot",
+    debug=True,
 )
+sim = Simulator(robot.mj, controller=mpc)
 
-v_des = np.array([0.3, 0., 0.])
+v_des = np.array([0.0, 0.0, 0.0])
 mpc.set_command(v_des)
 q0 = robot.get_state()[0]
 
-q_traj = mpc.get_traj(q0, 3)
+q_traj = mpc.get_traj(q0, 2)
 
 sim.vis_trajectory(q_traj, loop=True)
+# sim.run(3)

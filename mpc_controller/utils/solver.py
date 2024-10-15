@@ -36,12 +36,15 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # self.dyn = Quadruped(pin_robot.path_urdf)
         self.dyn.setup(problem)
 
+        # Gait planner
+        self.gait_planner = GaitPlanner(self.feet_frame_names, self.dt_nodes, self.config_gait)
+    
         super().__init__(
             problem,
             self.config_opt.n_nodes,
             QuadrupedAcadosSolver.NAME,
-            self.config_opt.reg_eps,
-            self.config_opt.reg_eps_e,
+            self.config_cost.reg_eps,
+            self.config_cost.reg_eps_e,
             )
         
         self.setup(recompile,
@@ -49,9 +52,25 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                    self.config_opt.real_time_it)
         self.data = self.get_data_template()
 
-        # Gait planner
-        self.gait_planner = GaitPlanner(self.feet_frame_names, self.dt_nodes, self.config_gait)
-    
+        # Solver warm start
+        if self.config_opt.max_iter > 0 and not self.config_opt.real_time_it:
+            self.set_max_iter(self.config_opt.max_iter)
+        self.set_warm_start_inner_qp(self.config_opt.warm_start_qp)
+        self.set_warm_start_nlp(self.config_opt.warm_start_nlp)
+        
+        # Init cost
+        self.setup_cost()
+        self.update_cost_weights()
+
+        # Init solution
+        self.q_sol_euler = np.zeros_like(self.states[self.dyn.q.name])
+        self.v_sol = np.zeros_like(self.states[self.dyn.v.name])
+        self.a_sol = np.zeros_like(self.inputs[self.dyn.a.name])
+        self.f_sol = np.zeros((self.config_opt.n_nodes, 4, 3))
+        self.dt_node_sol = np.zeros((self.config_opt.n_nodes))
+
+        self.last_node = 0
+
     def setup_cost(self):
         """
         Set up the running and terminal cost for the solver using weights from the config file.
@@ -77,7 +96,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
     @staticmethod
     def _quat_to_euler_state(q_full: np.ndarray):
-        # Preallocate q_euler with all necessary values directly
         q_euler = np.hstack([
             q_full[:3],
             pin.rpy.matrixToRpy(pin.Quaternion(q_full[6], *q_full[3:6]).toRotationMatrix()),
@@ -88,7 +106,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
     @staticmethod
     def _euler_to_quat_state(q_euler: np.ndarray):
-        # Preallocate q_full with all necessary values directly
         q_full = np.hstack([
             q_euler[:3],
             pin.Quaternion(pin.rpy.rpyToMatrix(q_euler[3:6])).coeffs(),
@@ -96,11 +113,21 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             ])
 
         return q_full
+    
+    @staticmethod
+    def _repeat_last(arr: np.ndarray, n_repeat: int, axis=-1):
+        # Get the last values along the specified axis
+        last_value = np.take(arr, [-1], axis=axis)
+        # Repeat the last values n times along the specified axis
+        repeated_values = np.repeat(last_value, n_repeat, axis=axis)
+        # Concatenate the original array with the repeated values
+        result = np.concatenate([arr, repeated_values], axis=axis)
+        return result
 
     def setup_reference(self,
                         q : np.ndarray,
                         v_des : np.ndarray,
-                        w_yaw : float = 0.
+                        w_yaw : float = 0.,
                         ):
         """
         Set up the reference trajectory (yref).
@@ -111,22 +138,24 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.data["u"]["dt"][0] = self.dt_nodes
             
         # Setup reference base pose
-        pos, quat = q[:3], q[3:7]
-        # Set height to nominal height
-        pos[2] = self.config_gait.nom_height
-        R = pin.Quaternion(quat).toRotationMatrix()
-        rpy_angles = pin.rpy.matrixToRpy(R)
-        # Reference orientation is horizontal
+        rpy_angles = pin.rpy.matrixToRpy(
+            pin.Quaternion(q[6], *q[3:6]).toRotationMatrix()
+            )
         rpy_angles[:2] = 0.
 
         # Setup reference velocities
         w_des = np.array([0., 0., w_yaw])
 
         # Base reference and terminal states
-        base_ref = np.concatenate((pos, rpy_angles, v_des, w_des))
+        base_ref = np.concatenate((q[:3], rpy_angles, v_des, w_des))
         base_ref_e = base_ref.copy()
+        # Set height to nominal height
+        base_ref_e[2] = self.config_gait.nom_height
+        # Reference terminal orientation is horizontal
+        base_ref_e[3:5] = 0.
+        base_ref_e[5] += w_yaw * self.config_opt.time_horizon
+        # Desired final position according to desired vel
         base_ref_e[:2] += v_des[:2] * self.config_opt.time_horizon
-        base_ref_e[6] += w_yaw * self.config_opt.time_horizon
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
         self.data["yref_e"][self.dyn.base_cost.name] = base_ref_e
@@ -150,7 +179,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.set_input_constant(self.data["u"])
 
     def setup_initial_feet_pos(self,
-                               i_node : int = 0,
                                plane_normal : List[np.ndarray] | Any = None,
                                plane_origin : List[np.ndarray] | Any = None,
                                ):
@@ -211,7 +239,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                     n_end += node_w
                     self.params[foot_cnt.active.name][:, n_start : n_end] = 0 # Not active
 
-                    if n_peak > 0:
+                    if (self.config_opt.opt_peak and
+                        n_peak > 0):
                         n_peak += node_w
                         if n_peak < self.config_opt.n_nodes:
                             self.params[foot_cnt.peak.name][:, n_peak] = 1 # Peak constrained (not necessary)
@@ -221,7 +250,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
             # Update last node of optimization window updated    
             node_w = last_node
-
 
     def print_contact_constraints(self):
         print("\nInitial contacts state")
@@ -236,6 +264,44 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         print("\nImpacts")
         print(self.params[self.dyn.impact_active.name])
 
+    def warm_start_traj(self,
+                        start_node: int
+                        ):
+        """
+        Warm start solver with the solution starting after
+        start_node of the last solution.
+
+        Args:
+            start_node (int): Will use optimized node values after <start_node>
+        """
+        # Warm start first values with last solution
+        # q, v, a, forces, dt
+        n_warm_start = self.config_opt.n_nodes - start_node
+        self.states[self.dyn.q.name][:, 1:n_warm_start+1] = self.q_sol_euler[start_node:].T
+        self.states[self.dyn.v.name][:, 1:n_warm_start+1] = self.v_sol[start_node:].T
+        self.inputs[self.dyn.a.name][:, :n_warm_start] = self.a_sol[start_node:].T
+        for i, foot_name in enumerate(self.feet_frame_names):
+            self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, :n_warm_start] = self.f_sol[start_node:, i, :].T
+        if self.enable_time_opt:
+            self.inputs["dt"][:, :n_warm_start] = self.dt_node_sol[start_node:]
+
+        # Set the remaining values with the last solution value
+        if n_warm_start < self.config_opt.n_nodes:
+            last_q = self.q_sol_euler[-1]
+            last_v = self.v_sol[-1]
+            last_a = self.a_sol[-1]
+            last_f = self.f_sol[-1, :, :]
+
+            # Fill the remaining nodes with the last values
+            self.states[self.dyn.q.name][:, n_warm_start+1:] = last_q[:, None]
+            self.states[self.dyn.v.name][:, n_warm_start+1:] = last_v[:, None]
+            self.inputs[self.dyn.a.name][:, n_warm_start:] = last_a[:, None]
+            for i, foot_name in enumerate(self.feet_frame_names):
+                self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, n_warm_start:] = last_f[i, :, None]
+            # Nominal dt
+            if self.enable_time_opt:
+                self.inputs["dt"][:, n_warm_start:] = self.dt_nodes
+            
     def init(self,
               i_node : int = 0,
               v_des : np.ndarray = np.zeros(3),
@@ -250,11 +316,22 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.setup_cost()
         self.setup_reference(q, v_des, w_yaw_des)
         self.setup_initial_state(q, v)
-        self.setup_initial_feet_pos(i_node)
+        self.setup_initial_feet_pos()
         self.setup_contacts(i_node)
+
+        # Warm start nodes
+        if (i_node > 0 and
+            self.config_opt.warm_start_sol):
+            warm_start_node = (i_node - self.last_node) % self.config_opt.n_nodes
+            self.warm_start_traj(warm_start_node)
+            self.update_states()
+            self.update_inputs()
 
         self.update_cost_weights()
         self.update_parameters()
+        self.update_ref()
+
+        self.last_node = i_node
 
     def solve(self,
               print_stats : bool = False,
@@ -265,30 +342,29 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         super().solve(print_stats=print_stats, print_time=print_time)
         self.parse_sol()
 
+        self.q_sol_euler = self.states[self.dyn.q.name].T[1:, :]
+
+        # positions, [n_nodes, 19]
         q_sol = np.array([
             self._euler_to_quat_state(q_euler) for
-            q_euler in self.states[self.dyn.q.name].T
-        ])[1:]
-        v_sol = (self.states[self.dyn.v.name].T)[1:, :]
-        a_sol = (self.inputs[self.dyn.a.name].T)
-        forces = np.array(
-            [self.inputs[f"f_{foot}_{self.dyn.name}"]
+            q_euler in self.q_sol_euler
+        ])
+        # velocities, [n_nodes, 18]
+        self.v_sol = (self.states[self.dyn.v.name].T)[1:, :]
+
+        # acceleration, [n_nodes, 18]
+        self.a_sol = (self.inputs[self.dyn.a.name].T)
+
+        # end effector forces, [n_nodes, 4, 3]
+        self.f_sol = np.array(
+            [self.inputs[f"f_{foot}_{self.dyn.name}"]  # TODO: No string parsing
              for foot in self.feet_frame_names]
             ).swapaxes(-1, 1).swapaxes(0, 1)
         
-        # First one is the current state (??)
+        # dt time, [n_nodes, ]
         if self.enable_time_opt:
-            dt_node_sol = self.inputs["dt"].flatten()
+            self.dt_node_sol = self.inputs["dt"].flatten()
         else:
-            dt_node_sol = np.full((len(q_sol),), self.dt_nodes)
+            self.dt_node_sol = np.full((len(q_sol),), self.dt_nodes)
 
-        torques_sol = self.dyn.get_torques(
-            self.pin_robot.model,
-            self.pin_robot.data,
-            self.feet_frame_names,
-            q_sol,
-            v_sol,
-            a_sol,
-            forces,
-        )
-        return q_sol, torques_sol, dt_node_sol
+        return q_sol, self.v_sol, self.a_sol, self.f_sol, self.dt_node_sol

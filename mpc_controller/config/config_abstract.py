@@ -42,10 +42,17 @@ class MPCOptConfig():
     opt_cnt_pos : bool
     # Use peak constrained
     opt_peak : bool
-    # Reguralization running cost
-    reg_eps: float
-    # Reguralization terminal cost
-    reg_eps_e: float
+    # Solver maximum SQP iterations
+    max_iter : int
+    # Warm start states and inputs with last solution
+    warm_start_sol : bool
+    # Warm start solver IP outer loop
+    warm_start_nlp : bool
+    # Warm start solver IP inner loop
+    warm_start_qp : bool
+    # Interpolation mode (linear, quadratic, cubic)
+    # (check https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp1d.html)
+    interpolation_mode : str
 
     def __post_init__(self):
         assert len(self.opt_dt_scale) == 2, "opt_dt_scale must be of shape 2"
@@ -86,7 +93,15 @@ class MPCCostConfig:
     W_cnt_f_reg: np.ndarray
     # Weight constraint contact horizontal velocity
     foot_pos_constr_stab: np.ndarray
-
+    # Reguralization running cost
+    reg_eps: float
+    # Reguralization terminal cost
+    reg_eps_e: float
+    # gain on joint position
+    Kp : float
+    # gain on joint velocities
+    Kd : float
+    
     def __post_init__(self):
         assert len(self.W_e_base) == 12, "W_e_base must be of shape 12"
         assert len(self.W_base) == 12, "W_base must be of shape 12"

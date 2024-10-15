@@ -60,48 +60,35 @@ class QuadrupedDynamics(FloatingBaseDynamics):
                     foot_frame_name : List[str],
                     q_plan : np.ndarray,
                     v_plan : np.ndarray,
-                    acc_plan : np.ndarray,
-                    forces : np.ndarray,
+                    a_plan : np.ndarray,
+                    f_plan : np.ndarray,
                     ) -> np.ndarray:
         """
-        Return torque plan.
+        Return torques for desired position, velocity, acceleration
+        and external forces plan.
 
         Args:
             q_plan (np.ndarray): State position plan
             v_plan (np.ndarray): State velocity plan
-            acc_plan (np.ndarray): Acceleration plan
-            forces (np.ndarray): Contact forces plan
+            a_plan (np.ndarray): Acceleration plan
+            f_plan (np.ndarray): Contact forces plan
         
         Return:
-            torques: Torques plan.
+            torques:
         """
-        torques = np.zeros((forces.shape[0], model.nv))
+        # Inverse dynamics torques
+        tau_id = pin.rnea(model, data, q_plan, v_plan, a_plan)
 
-        for i, (q, v, acc, f_ext) in enumerate(
-            zip(q_plan, v_plan, acc_plan, forces)
-        ):
-            # Set the current state
-            pin.forwardKinematics(model, data, q)
-            pin.computeJointJacobians(model, data, q)
-            pin.updateFramePlacements(model, data)
+        # Initialize the contact forces vector
+        tau_forces = np.zeros((model.nv,))
 
-            # Compute the mass matrix
-            M = pin.crba(model, data, q)
-            
-            # Compute the Coriolis and gravity terms
-            b = pin.nle(model, data, q, v)
-            
-            # Initialize the contact forces vector
-            contact_forces = np.zeros((model.nv,))
-
-            # Loop through each end-effector and accumulate external forces
-            for ee_name, f_ee in zip(foot_frame_name, f_ext):
-                frame_id = model.getFrameId(ee_name)
-                J_ee = pin.computeFrameJacobian(model, data, q, frame_id, pin.ReferenceFrame.LOCAL)
-                contact_forces += J_ee.T @ np.hstack((f_ee, np.zeros(3)))
-            
-            # Compute the torques using the inverse dynamics equation
-            tau = M @ acc - b - contact_forces
-            torques[i, :] = tau
-            
-        return torques
+        # Loop through each end-effector and accumulate external forces
+        for ee_name, f_ee in zip(foot_frame_name, f_plan):
+            frame_id = model.getFrameId(ee_name)
+            J_ee = pin.computeFrameJacobian(model, data, q_plan, frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+            tau_forces += J_ee.T @ np.hstack((f_ee, np.zeros(3)))
+        
+        # Compute the torques using the inverse dynamics equation
+        tau = (tau_id - tau_forces)[-12:]
+        
+        return tau
