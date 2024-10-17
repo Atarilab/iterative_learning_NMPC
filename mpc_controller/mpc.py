@@ -23,7 +23,7 @@ class LocomotionMPC(ControllerAbstract):
         self.debug = kwargs.get("debug", False)
         self.gait_name = gait_name
 
-        self.solver = QuadrupedAcadosSolver(pin_robot, gait_name)
+        self.solver = QuadrupedAcadosSolver(pin_robot, gait_name, recompile=False)
         config_opt = self.solver.config_opt
 
         self.Kp = self.solver.config_cost.Kp
@@ -52,10 +52,11 @@ class LocomotionMPC(ControllerAbstract):
         """
         return self.sim_step % self.replanning_steps == 0
 
-    def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_des: float = 0.) -> None:
+    def set_command(self, q_b_des : np.ndarray, v_des: np.ndarray = np.zeros((3,)), w_des: float = 0.) -> None:
         """
         Set velocity commands for the MPC.
         """
+        self.q_b_des = q_b_des
         self.v_des = v_des
         self.w_yaw = w_des
 
@@ -73,16 +74,16 @@ class LocomotionMPC(ControllerAbstract):
 
         self.diverged : bool = False
 
-    def optimize(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def optimize(self, initialize: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         return optimized trajectories.
         """
-        self.solver.init(self.current_opt_node, self.v_des, self.w_yaw)
+        self.solver.init(self.current_opt_node, self.q_b_des, self.v_des, self.w_yaw, reset_traj=initialize)
         if self.debug:
             self.solver.print_contact_constraints()
         q_sol, v_sol, a_sol, f_sol, dt_sol = self.solver.solve(print_stats=self.debug, print_time=self.debug)
 
-        return q_sol, v_sol, a_sol, f_sol, dt_sol
+        return q_sol, v_sol, a_sol, f_sol, dt_sol, self.solver.h_sol
 
     def interpolate_trajectory(
         self,
@@ -129,27 +130,33 @@ class LocomotionMPC(ControllerAbstract):
             np.ndarray: _description_
         """
         q_full_traj = [q0]
+        ### todo: initial?
         v_full_traj = [np.zeros(self.robot.nv)]
-
+        h_full_traj = [np.zeros(6)]
+        initialize = True
         current_trajectory_time = 0.
         while current_trajectory_time < trajectory_time:
 
             self.robot.update(q_full_traj[-1], v_full_traj[-1])
+            self.solver.pin_robot.set_h(h_full_traj[-1])
             # Replan trajectory
-            q_traj, v_traj, _, _, dt_traj = self.optimize()
+            q_traj, v_traj, _, _, dt_traj, h_traj = self.optimize(initialize)
+            initialize = False
             # Interpolate at sim_dt intervals
             time_traj = np.cumsum(dt_traj)
             q_traj_interp = self.interpolate_trajectory(q_traj, time_traj)
             v_traj_interp = self.interpolate_trajectory(v_traj, time_traj)
+            h_traj_interp = self.interpolate_trajectory(h_traj, time_traj)
             time_traj += current_trajectory_time
-
+            # input()
             # Apply trajectory virtually to the robot
-            for q_t, v_t in zip(q_traj_interp, v_traj_interp):
+            for q_t, v_t, h_t in zip(q_traj_interp, v_traj_interp, h_traj_interp):
                 self.sim_step += 1
                 current_trajectory_time = round(self.sim_dt + current_trajectory_time, 4)
                 # Record trajectory
                 q_full_traj.append(q_t) 
                 v_full_traj.append(v_t)
+                h_full_traj.append(h_t)
 
                 # Exit loop to replan
                 if self._replan() or current_trajectory_time >= trajectory_time:

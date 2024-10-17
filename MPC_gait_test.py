@@ -18,7 +18,7 @@ mpc = LocomotionMPC(
 sim = Simulator(robot.mj, controller=mpc)
 
 v_des = np.array([0.0, 0.0, 0.0])
-mpc.set_command(v_des)
+mpc.set_command(np.array([0.0, 0.0, 0.27, 0., 0., 0.]), v_des)
 q0 = robot.get_state()[0]
 
 # Open loop MPC
