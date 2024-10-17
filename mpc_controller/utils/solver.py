@@ -108,7 +108,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
     def _euler_to_quat_state(q_euler: np.ndarray):
         q_full = np.hstack([
             q_euler[:3],
-            pin.Quaternion(pin.rpy.rpyToMatrix(q_euler[3:6])).coeffs(),
+            pin.Quaternion(pin.rpy.rpyToMatrix(q_euler[[5, 4, 3]])).coeffs(),
             q_euler[6:]
             ])
 
@@ -312,6 +312,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         current optimization node.
         """
         q, v = self.pin_robot.get_state()
+        print('q: ', q)
+        print('v: ', v)
 
         self.setup_cost()
         self.setup_reference(q, v_des, w_yaw_des)

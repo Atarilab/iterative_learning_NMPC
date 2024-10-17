@@ -129,24 +129,27 @@ class LocomotionMPC(ControllerAbstract):
             np.ndarray: _description_
         """
         q_full_traj = [q0]
+        v_full_traj = [np.zeros(self.robot.nv)]
 
         current_trajectory_time = 0.
         while current_trajectory_time < trajectory_time:
 
-            self.robot.update(q_full_traj[-1])
+            self.robot.update(q_full_traj[-1], v_full_traj[-1])
             # Replan trajectory
-            q_traj, _, _, _, dt_traj = self.optimize()
+            q_traj, v_traj, _, _, dt_traj = self.optimize()
             # Interpolate at sim_dt intervals
             time_traj = np.cumsum(dt_traj)
             q_traj_interp = self.interpolate_trajectory(q_traj, time_traj)
+            v_traj_interp = self.interpolate_trajectory(v_traj, time_traj)
             time_traj += current_trajectory_time
 
             # Apply trajectory virtually to the robot
-            for q_t in q_traj_interp:
+            for q_t, v_t in zip(q_traj_interp, v_traj_interp):
                 self.sim_step += 1
                 current_trajectory_time = round(self.sim_dt + current_trajectory_time, 4)
                 # Record trajectory
                 q_full_traj.append(q_t) 
+                v_full_traj.append(v_t)
 
                 # Exit loop to replan
                 if self._replan() or current_trajectory_time >= trajectory_time:
