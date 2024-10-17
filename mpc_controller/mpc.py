@@ -198,7 +198,6 @@ class LocomotionMPC(ControllerAbstract):
             self.f_plan = self.f_plan.reshape(-1, 4, 3)
 
         plan_step = self.sim_step % self.replanning_steps
-
         torques = self.solver.dyn.get_torques(
             self.robot.model,
             self.robot.data,

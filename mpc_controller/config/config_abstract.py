@@ -82,8 +82,14 @@ class MPCCostConfig:
     # Weights for the running cost of base position, orientation, and velocity
     # [x, w, z, ox, oy, oz, vx, vy, vz, wx, wy, wz]
     W_base: np.ndarray
-    # Weights for acceleration cost
-    # [x, w, z, ox, oy, oz, vx, vy, vz, wx, wy, wz]
+    # Weights for the running cost of joint to nominal joint pos and vel
+    # [hip_FL, shoulder_FL, elbow_FL, ...FR, RL, RR] [pos, vel]
+    W_joint: np.ndarray
+    # Weights for the terminal cost of joint to nominal joint pos and vel
+    # [hip_FL, shoulder_FL, elbow_FL, ...FR, RL, RR] [pos, vel]
+    W_e_joint: np.ndarray
+    # Weights for joint acceleration cost
+    # [hip_FL, shoulder_FL, elbow_FL, ...FR, RL, RR]
     W_acc: np.ndarray
     # Weights for swing cost (eeff motion)
     # length: number of eeff
@@ -106,6 +112,8 @@ class MPCCostConfig:
         assert len(self.W_e_base) == 12, "W_e_base must be of shape 12"
         assert len(self.W_base) == 12, "W_base must be of shape 12"
         assert len(self.W_acc) == 12, "W_acc must be of shape 12"
+        assert len(self.W_joint) == 24, "W_joint must be of shape 24"
+        assert len(self.W_e_joint) == 24, "W_e_joint must be of shape 24"
         assert (len(self.W_swing) == len(self.W_cnt_f_reg) and
                 len(self.W_swing) == len(self.foot_pos_constr_stab)),\
                 "W_swing and W_foot should have the same length."

@@ -40,6 +40,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Gait planner
         self.gait_planner = GaitPlanner(self.feet_frame_names, self.dt_nodes, self.config_gait)
 
+        # Nominal state
+        self.q0, _ = self.pin_robot.get_state()
+
         super().__init__(
             problem,
             self.config_opt.n_nodes,
@@ -86,6 +89,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.data["W"][self.dyn.swing_cost.name] = np.array(self.config_cost.W_swing)
         if self.enable_time_opt:
             self.data["W"]["dt"][0] = 0
+        # Joint cost to ref
+        self.data["W"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_joint)
+        self.data["W_e"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_e_joint)
 
         # Foot force regularization weights (for each foot)
         for i, foot_cnt in enumerate(self.dyn.feet):
@@ -138,6 +144,11 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
         self.data["yref_e"][self.dyn.base_cost.name] = base_ref_e
+
+        # Joint reference is nominal position with zero velocities
+        joint_ref = np.concatenate((self.q0[-self.pin_robot.nu:], np.zeros(self.pin_robot.nu)))
+        self.data["yref"][self.dyn.joint_cost.name] = joint_ref
+        self.data["yref_e"][self.dyn.joint_cost.name] = joint_ref.copy()
 
         self.set_ref_constant(self.data["yref"])
         self.set_ref_terminal(self.data["yref_e"])
@@ -200,7 +211,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         while node_w < self.config_opt.n_nodes:
 
             # Switch
-            switch_node += self.gait_planner.next_switch_in(node_w + i_node)
+            switch_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
             if switch_node <= self.config_opt.n_nodes:
                 self.params[self.dyn.impact_active.name][:, switch_node] = 1
 
@@ -256,27 +267,27 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Warm start first values with last solution
         # q, v, a, forces, dt
         n_warm_start = self.config_opt.n_nodes - start_node
-        self.states[self.dyn.q.name][:, 1:n_warm_start+1] = self.q_sol_euler[start_node:].T
-        self.states[self.dyn.v.name][:, 1:n_warm_start+1] = self.v_sol[start_node:].T
-        self.inputs[self.dyn.a.name][:, :n_warm_start] = self.a_sol[start_node:].T
-        for i, foot_name in enumerate(self.feet_frame_names):
-            self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, :n_warm_start] = self.f_sol[start_node:, i, :].T
+        # self.states[self.dyn.q.name][:, 1:n_warm_start+1] = self.q_sol_euler[start_node:].T
+        # self.states[self.dyn.v.name][:, 1:n_warm_start+1] = self.v_sol[start_node:].T
+        # self.inputs[self.dyn.a.name][:, :n_warm_start] = self.a_sol[start_node:].T
+        # for i, foot_name in enumerate(self.feet_frame_names):
+        #     self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, :n_warm_start] = self.f_sol[start_node:, i, :].T
         if self.enable_time_opt:
             self.inputs["dt"][:, :n_warm_start] = self.dt_node_sol[start_node:]
 
         # Set the remaining values with the last solution value
         if n_warm_start < self.config_opt.n_nodes:
-            last_q = self.q_sol_euler[-1]
-            last_v = self.v_sol[-1]
-            last_a = self.a_sol[-1]
-            last_f = self.f_sol[-1, :, :]
+            # last_q = self.q_sol_euler[-1]
+            # last_v = self.v_sol[-1]
+            # last_a = self.a_sol[-1]
+            # last_f = self.f_sol[-1, :, :]
 
-            # Fill the remaining nodes with the last values
-            self.states[self.dyn.q.name][:, n_warm_start+1:] = last_q[:, None]
-            self.states[self.dyn.v.name][:, n_warm_start+1:] = last_v[:, None]
-            self.inputs[self.dyn.a.name][:, n_warm_start:] = last_a[:, None]
-            for i, foot_name in enumerate(self.feet_frame_names):
-                self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, n_warm_start:] = last_f[i, :, None]
+            # # Fill the remaining nodes with the last values
+            # self.states[self.dyn.q.name][:, n_warm_start+1:] = last_q[:, None]
+            # self.states[self.dyn.v.name][:, n_warm_start+1:] = last_v[:, None]
+            # self.inputs[self.dyn.a.name][:, n_warm_start:] = last_a[:, None]
+            # for i, foot_name in enumerate(self.feet_frame_names):
+            #     self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, n_warm_start:] = last_f[i, :, None]
             # Nominal dt
             if self.enable_time_opt:
                 self.inputs["dt"][:, n_warm_start:] = self.dt_nodes

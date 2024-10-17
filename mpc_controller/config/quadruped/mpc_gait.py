@@ -17,7 +17,7 @@ class QuadrupedTrot(QuadrupedGaitConfig):
     nominal_period: float = 0.5
     stance_ratio: np.ndarray = np.array([0.5, 0.5, 0.5, 0.5])
     phase_offset: np.ndarray = np.array([0.5, 0.0, 0.0, 0.5])
-    nom_height: float = 0.322
+    nom_height: float = 0.3
     step_height: float = 0.05
 
 @dataclass
@@ -32,11 +32,11 @@ class QuadrupedJump(QuadrupedGaitConfig):
 @dataclass
 class QuadrupedCrawl(QuadrupedGaitConfig):
     gait_name: str = "crawl"
-    nominal_period : float = 0.5
-    stance_ratio: np.ndarray = np.array([0.6, 0.6, 0.6, 0.6])
-    phase_offset: np.ndarray = np.array([0.0, 0.5, 0.5, 0.0])
-    nom_height: float = 0.05
-    step_height: float = 0.32
+    nominal_period : float = 1.
+    stance_ratio: np.ndarray = np.array([0.75, 0.75, 0.75, 0.75])
+    phase_offset: np.ndarray = np.array([0.0, 0.25, 0.5, 0.75])
+    nom_height: float = 0.3
+    step_height: float = 0.05
 
 @dataclass
 class QuadrupedPace(QuadrupedGaitConfig):
