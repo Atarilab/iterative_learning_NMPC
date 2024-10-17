@@ -128,7 +128,7 @@ class GaitPlanner():
         i_node_cycle = i_node % self.nodes_per_cycle
 
         # Get next switch
-        switch_node = [round(phase * self.nodes_per_cycle) for phase in self.switch_phase]
+        switch_node = [math.floor(phase * self.nodes_per_cycle) for phase in self.switch_phase]
         i_next_switch = bisect_right(switch_node, i_node_cycle)
         i_next_switch = i_next_switch % len(self.switch_phase)
 

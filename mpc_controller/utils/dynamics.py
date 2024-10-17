@@ -23,6 +23,7 @@ class QuadrupedDynamics(FloatingBaseDynamics):
 
         self.add_contacts(self.feet)
         self.base_cost = self.add_expr(name="base_cost", expr=self.get_base_cost())
+        self.joint_cost = self.add_expr(name="joint_cost", expr=self.get_joint_cost())
         self.acc_cost = self.add_expr(name="acc_cost", expr=self.get_acc_cost())
         self.swing_cost = self.add_expr(name="sw_cost", expr=self.get_swing_foot_cost())
 
@@ -31,6 +32,7 @@ class QuadrupedDynamics(FloatingBaseDynamics):
             f.setup(problem)
         super().setup(problem)
         problem.add_cost(self.base_cost)
+        problem.add_cost(self.joint_cost)
         problem.add_cost(self.acc_cost)
         problem.add_cost(self.swing_cost)
         problem.add_cost_terminal(self.swing_cost)
