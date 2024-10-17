@@ -19,7 +19,7 @@ solver = QuadrupedAcadosSolver(
     recompile=True,
 )
 
-v_des = np.array([0.3, 0., 0.])
+v_des = np.array([0.0, 0.0, 0.0])
 solver.init(v_des=v_des)
 q_traj, _, _, _, dt_traj = solver.solve(print_time=True, print_stats=True)
 
