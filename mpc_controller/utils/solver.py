@@ -92,6 +92,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Joint cost to ref
         self.data["W"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_joint)
         self.data["W_e"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_e_joint)
+        self.data["W_e"][self.dyn.swing_cost.name] = np.array(self.config_cost.W_swing)
 
         # Foot force regularization weights (for each foot)
         for i, foot_cnt in enumerate(self.dyn.feet):
@@ -143,7 +144,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         base_ref_e[:2] += v_des[:2] * self.config_opt.time_horizon
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
+        self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
         self.data["yref_e"][self.dyn.base_cost.name] = base_ref_e
+        self.data["yref_e"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
 
         # Joint reference is nominal position with zero velocities
         joint_ref = np.concatenate((self.q0[-self.pin_robot.nu:], np.zeros(self.pin_robot.nu)))
@@ -208,7 +211,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         switch_node = 0
         
         # While in the current optimization window scheme
-        while node_w < self.config_opt.n_nodes:
+        while node_w < self.config_opt.n_nodes - 5:
 
             # Switch
             switch_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w

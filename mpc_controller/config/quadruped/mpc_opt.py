@@ -5,12 +5,12 @@ from ..config_abstract import MPCOptConfig
 
 @dataclass
 class MPCQuadrupedCyclic(MPCOptConfig):
-    time_horizon : float = .5
-    n_nodes : int = 40
+    time_horizon : float = 0.8
+    n_nodes : int = 50
     opt_dt_scale : np.ndarray = field(default_factory=lambda: np.array([0.75, 1.25]))
-    replanning_freq : int = 10
-    max_iter : int = 5
-    interpolation_mode : str = "quadratic"
+    replanning_freq : int = 50
+    max_iter : int = 10
+    interpolation_mode : str = "linear"
     enable_time_opt : bool = False
     real_time_it : bool = False
     opt_cnt_pos : bool = False
