@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 from ..config_abstract import GaitConfig
 
@@ -15,8 +15,8 @@ class QuadrupedGaitConfig(GaitConfig):
 class QuadrupedTrot(QuadrupedGaitConfig):
     gait_name: str = "trot"
     nominal_period: float = 0.5
-    stance_ratio: np.ndarray = np.array([0.5, 0.5, 0.5, 0.5])
-    phase_offset: np.ndarray = np.array([0.5, 0.0, 0.0, 0.5])
+    stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.5, 0.5, 0.5, 0.5]))
+    phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.5, 0.0, 0.0, 0.5]))
     nom_height: float = 0.322
     step_height: float = 0.05
 
@@ -24,8 +24,8 @@ class QuadrupedTrot(QuadrupedGaitConfig):
 class QuadrupedJump(QuadrupedGaitConfig):
     gait_name: str = "jump"
     nominal_period : float = 0.5
-    stance_ratio: np.ndarray = np.array([0.4, 0.4, 0.4, 0.4])
-    phase_offset: np.ndarray = np.array([0.0, 0.0, 0.0, 0.0])
+    stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.4, 0.4, 0.4, 0.4]))
+    phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0, 0.0]))
     nom_height: float = 0.05
     step_height: float = 0.32
 
@@ -33,8 +33,8 @@ class QuadrupedJump(QuadrupedGaitConfig):
 class QuadrupedCrawl(QuadrupedGaitConfig):
     gait_name: str = "crawl"
     nominal_period : float = 0.5
-    stance_ratio: np.ndarray = np.array([0.6, 0.6, 0.6, 0.6])
-    phase_offset: np.ndarray = np.array([0.0, 0.5, 0.5, 0.0])
+    stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.6, 0.6, 0.6, 0.6]))
+    phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.5, 0.5, 0.0]))
     nom_height: float = 0.05
     step_height: float = 0.32
 
@@ -42,8 +42,8 @@ class QuadrupedCrawl(QuadrupedGaitConfig):
 class QuadrupedPace(QuadrupedGaitConfig):
     gait_name: str = "pace"
     nominal_period : float = 0.5
-    stance_ratio: np.ndarray = np.array([0.6, 0.6, 0.6, 0.6])
-    phase_offset: np.ndarray = np.array([0.0, 0.5, 0.5, 0.0])
+    stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.6, 0.6, 0.6, 0.6]))
+    phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.5, 0.5, 0.0]))
     nom_height: float = 0.05
     step_height: float = 0.32
 
@@ -51,8 +51,8 @@ class QuadrupedPace(QuadrupedGaitConfig):
 class QuadrupedBound(QuadrupedGaitConfig):
     gait_name: str = "bound"
     nominal_period : float = 0.5
-    stance_ratio: np.ndarray = np.array([0.6, 0.6, 0.6, 0.6])
-    phase_offset: np.ndarray = np.array([0.0, 0.5, 0.5, 0.0])
+    stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.6, 0.6, 0.6, 0.6]))
+    phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.5, 0.5, 0.0]))
     nom_height: float = 0.05
     step_height: float = 0.32
 

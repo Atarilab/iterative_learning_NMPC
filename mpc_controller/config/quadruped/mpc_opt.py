@@ -1,5 +1,5 @@
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 from ..config_abstract import MPCOptConfig
 
@@ -7,7 +7,7 @@ from ..config_abstract import MPCOptConfig
 class MPCQuadrupedCyclic(MPCOptConfig):
     time_horizon : float = 0.2
     n_nodes : int = 20
-    opt_dt_scale : np.ndarray = np.array([0.5, 2.5])
+    opt_dt_scale : np.ndarray = field(default_factory=lambda: np.array([0.5, 2.5]))
     replanning_freq : int = 10
     max_iter : int = 50
     interpolation_mode : str = "linear"
