@@ -14,7 +14,7 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     qp_iter: int = 10
     nlp_tol: float = 1e-1 # outer loop SQP tolerance
     qp_tol: float = 5e-3 # inner loop interior point method tolerance
-    recompile: bool = False
+    recompile: bool = True
     use_cython: bool = False
     hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed
     interpolation_mode : str = "linear"
