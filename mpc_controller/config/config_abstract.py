@@ -39,6 +39,8 @@ class MPCOptConfig():
     real_time_it : bool
     # Enable dt nodes time optimization
     enable_time_opt : bool
+    # Enable impact dynamics
+    enable_impact_dyn : bool
     # Constrained eeff locations
     opt_cnt_pos : bool
     # Use peak constrained

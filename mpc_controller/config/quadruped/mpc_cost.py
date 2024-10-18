@@ -24,7 +24,7 @@ class Go2CyclicCost(MPCCostConfig):
     # Updated base running cost weights
     W_base: np.ndarray = __init_np([
         1e2, 1e2, 1e2,      # Base position weights
-        1e2, 1e2, 1e2,      # Base orientation (YRP) weights
+        1e2, 1e2, 1e2,      # Base orientation (ypr) weights
         100, 100, 100,      # Base linear velocity weights
         10, 10, 10,      # Base angular velocity weights
     ])
@@ -32,7 +32,7 @@ class Go2CyclicCost(MPCCostConfig):
     # Updated base terminal cost weights
     W_e_base: np.ndarray = __init_np([
         1e2, 1e2, 1e2,     # Base position weights
-        1e2, 1e2, 1e2,     # Base orientation (YRP) weights
+        1e2, 1e2, 1e2,     # Base orientation (ypr) weights
         100, 100, 100,     # Base linear velocity weights
         10, 10, 10      # Base angular velocity weights
     ])
