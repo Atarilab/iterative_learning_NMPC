@@ -22,8 +22,8 @@ mpc.set_command(np.array([0.0, 0.0, 0.27, 0., 0., 0.]), v_des)
 q0 = robot.get_state()[0]
 
 # Open loop MPC
-q_traj = mpc.get_traj(q0, 1)
-sim.vis_trajectory(q_traj, loop=True, record_video=False)
+# q_traj = mpc.get_traj(q0, 1)
+# sim.vis_trajectory(q_traj, loop=True, record_video=False)
 
 # Close loop MPC in simulation
-# sim.run(3, record_video=True, playback_speed=0.1)
+sim.run(20, record_video=False, playback_speed=1)

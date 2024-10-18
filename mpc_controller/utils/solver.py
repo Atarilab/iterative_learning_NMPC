@@ -17,8 +17,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
     def __init__(self,
                  pin_robot : PinQuadRobotWrapper,
                  gait_name : str = "trot",
-                 recompile : bool = True,
-                 use_cython : bool = False,
                  ):
         self.pin_robot = pin_robot
         self.robot_name = pin_robot.model.name
@@ -51,9 +49,10 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.config_cost.reg_eps_e,
             )
         
-        self.setup(recompile,
-                   use_cython,
-                   self.config_opt.real_time_it)
+        self.setup(self.config_opt.recompile,
+                   self.config_opt.use_cython,
+                   self.config_opt.real_time_it,
+                   self.config_opt.qp_iter)
         self.data = self.get_data_template()
 
         # Solver warm start
@@ -61,6 +60,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.set_max_iter(self.config_opt.max_iter)
         self.set_warm_start_inner_qp(self.config_opt.warm_start_qp)
         self.set_warm_start_nlp(self.config_opt.warm_start_nlp)
+        self.set_qp_tol(self.config_opt.qp_tol)
+        self.set_nlp_tol(self.config_opt.nlp_tol)
         
         # Init cost
         self.setup_cost()
@@ -179,22 +180,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
 
-    def setup_initial_feet_pos(self,
+    def setup_initial_feet_pos1(self,
                                plane_normal : List[np.ndarray] | Any = None,
-                               plane_origin : List[np.ndarray] | Any = None,
-                               ):
-        """
-        Set up the initial position of the feet based on the current
-        contact mode and robot configuration.
-        """
-        feet_pos = self.pin_robot.get_frames_position_world(self.feet_frame_names)
-        
-        for i_foot, (foot_cnt, _) in enumerate(zip(self.dyn.feet, feet_pos)):
-            # foot_height = foot_pos[2]
-
+                               plane_origin : List[np.ndarray] | Any = None,):
+        for i_foot, foot_cnt in enumerate(self.dyn.feet):
             # Contact normal
             if plane_normal is None or plane_origin is None:
-                self.data["p"][foot_cnt.plane_point.name] = np.array([0., 0., 0.])
                 self.data["p"][foot_cnt.plane_normal.name] = np.array([0., 0., 1.])
             else:
                 assert len(plane_normal) == len(plane_origin) == len(self.feet_frame_names),\
@@ -202,12 +193,27 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 self.data["p"][foot_cnt.plane_point.name] = plane_origin[i_foot]
                 self.data["p"][foot_cnt.plane_normal.name] = plane_normal[i_foot]
 
+        for i_foot, foot_cnt in enumerate(self.dyn.feet):
             # Will be overriden by contact plan
             self.data["p"][foot_cnt.active.name][0] = 1
             self.data["p"][foot_cnt.p_gain.name][0] = self.config_cost.foot_pos_constr_stab[i_foot]
 
-
         self.set_parameters_constant(self.data["p"])
+
+    def setup_initial_feet_pos2(self):
+        """
+        Set up the initial position of the feet based on the current
+        contact mode and robot configuration.
+        """
+        feet_pos = self.pin_robot.get_frames_position_world(self.feet_frame_names)
+        
+        for i_foot, (foot_cnt, foot_pos) in enumerate(zip(self.dyn.feet, feet_pos)):
+            # foot_height = foot_pos[2]
+
+            # Contact normal
+            if self.params[foot_cnt.active.name][0, 0] == 1:
+                self.params[foot_cnt.plane_point.name][2, :] = foot_pos[2]
+                print(f'reset: {foot_cnt.frame_name} {foot_pos[2]}')
 
     # TODO: Add contact positions
     def setup_contacts(self, i_node: int = 0):
@@ -253,9 +259,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             node_w = last_node
 
     def print_contact_constraints(self):
-        print("\nInitial contacts state")
-        for foot_cnt in self.dyn.feet:
-            print(self.data["p"][foot_cnt.active.name][0])
+        # print("\nInitial contacts state")
+        # for foot_cnt in self.dyn.feet:
+        #     print(self.data["p"][foot_cnt.active.name][0])
 
         print("\nContacts")
         for foot_cnt in self.dyn.feet:
@@ -323,8 +329,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.setup_cost()
         self.setup_reference(q_b_des, v_des, w_yaw_des)
         self.setup_initial_state(q, v, reset_traj)
-        self.setup_initial_feet_pos()
+        self.setup_initial_feet_pos1()
         self.setup_contacts(i_node)
+        self.setup_initial_feet_pos2()
 
         # Warm start nodes
         if (i_node > 0 and
@@ -357,14 +364,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             q_euler in self.q_sol_euler
         ])
         # velocities, [n_nodes, 18]
-        v_euler_sol = (self.states[self.dyn.v.name].T)[1:, :].copy()
+        self.v_sol_euler = (self.states[self.dyn.v.name].T)[1:, :].copy()
         self.v_sol = np.hstack((
-            v_euler_sol[:, :3],
+            self.v_sol_euler[:, :3],
             np.vstack([
                 euler_derivative_to_local_angular(q_euler, v_euler).reshape(1, -1) for
-                q_euler, v_euler in zip(self.q_sol_euler[:, 3:6], v_euler_sol[:, 3:6])
+                q_euler, v_euler in zip(self.q_sol_euler[:, 3:6], self.v_sol_euler[:, 3:6])
             ]),
-            v_euler_sol[:, 6:]
+            self.v_sol_euler[:, 6:]
         ))
 
         self.h_sol = (self.states[self.dyn.h.name].T)[1:, :].copy()

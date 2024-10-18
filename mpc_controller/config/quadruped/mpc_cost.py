@@ -6,9 +6,9 @@ import numpy as np
 from dataclasses import dataclass, field
 from ..config_abstract import MPCCostConfig
 
-HIP_SHOULDER_ELBOW_SCALE = [20., 3., 0.1]
+HIP_SHOULDER_ELBOW_SCALE = [10., 1, 1]
 # PENALIZE JOINT MOTION
-W_JOINT = 1.e-5
+W_JOINT = 1.
 
 @dataclass
 class Go2CyclicCost(MPCCostConfig):
@@ -17,7 +17,7 @@ class Go2CyclicCost(MPCCostConfig):
 
     # Updated base running cost weights
     W_base: np.ndarray = field(default_factory=lambda: np.array([
-        1e1, 1e1, 1e3,      # Base position weights
+        1e2, 1e2, 1e2,      # Base position weights
         1e2, 1e2, 1e2,      # Base orientation (YRP) weights
         100, 100, 100,      # Base linear velocity weights
         10, 10, 10,      # Base angular velocity weights
@@ -32,10 +32,10 @@ class Go2CyclicCost(MPCCostConfig):
     ]))
 
     # Joint running cost to nominal position and vel (hip, shoulder, elbow)
-    W_joint: np.ndarray = field(default_factory=lambda: np.array(HIP_SHOULDER_ELBOW_SCALE * 4 + HIP_SHOULDER_ELBOW_SCALE * 4) * W_JOINT * 1000)
+    W_joint: np.ndarray = field(default_factory=lambda: np.array(HIP_SHOULDER_ELBOW_SCALE * 4 + [0.] * 3 * 4) * W_JOINT)
 
     # Joint terminal cost to nominal position and vel (hip, shoulder, elbow)
-    W_e_joint: np.ndarray = field(default_factory=lambda: np.array(HIP_SHOULDER_ELBOW_SCALE * 4 + [1., 1., 1.] * 4) * W_JOINT * 1000)
+    W_e_joint: np.ndarray = field(default_factory=lambda: np.array(HIP_SHOULDER_ELBOW_SCALE * 4 + [0.] * 3 * 4) * W_JOINT)
 
     # Acceleration cost weights for joints (hip, shoulder, elbow)
     W_acc: np.ndarray = field(default_factory=lambda: np.array([1e-3] * 12))
@@ -52,8 +52,8 @@ class Go2CyclicCost(MPCCostConfig):
     reg_eps: float = 1.0e-6
     reg_eps_e: float = 1.0e-5
 
-    Kp: float = .8
-    Kd: float = .5
+    Kp: float = 1.0
+    Kd: float = 0.5
 
 class CostConfigFactory():
     AVAILABLE_GAITS = {
