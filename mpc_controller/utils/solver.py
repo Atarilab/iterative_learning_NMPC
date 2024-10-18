@@ -32,7 +32,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         problem = ProblemFormulation(self.dt_nodes, dt_min, dt_max, self.enable_time_opt)
 
         self.dyn = QuadrupedDynamics(self.robot_name, pin_robot.path_urdf, self.feet_frame_names)
-        # self.dyn = Quadruped(pin_robot.path_urdf)
         self.dyn.setup(problem)
 
         # Gait planner
@@ -52,7 +51,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.setup(self.config_opt.recompile,
                    self.config_opt.use_cython,
                    self.config_opt.real_time_it,
-                   self.config_opt.qp_iter)
+                   self.config_opt.max_qp_iter)
         self.data = self.get_data_template()
 
         # Solver warm start

@@ -28,8 +28,8 @@ class LocomotionMPC(ControllerAbstract):
         self.solver = QuadrupedAcadosSolver(pin_robot, gait_name)
         config_opt = self.solver.config_opt
 
-        self.Kp = self.solver.config_cost.Kp
-        self.Kd = self.solver.config_cost.Kd
+        self.Kp = self.solver.config_opt.Kp
+        self.Kd = self.solver.config_opt.Kd
 
         self.sim_dt = sim_dt
         self.dt_nodes : float = self.solver.dt_nodes
