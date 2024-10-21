@@ -20,6 +20,7 @@ def main(close_loop: bool = True,
         robot,
         "trot",
         print_info=print_info,
+        record_traj=True
     )
     v_des = np.array([0.0, 0.0, 0.0])
     mpc.set_command(v_des)
@@ -29,11 +30,16 @@ def main(close_loop: bool = True,
     # Close loop MPC in simulation
     if close_loop:
         sim.run(sim_time, record_video=record_video, playback_speed=1)
+        mpc.plot_traj('q')
+        mpc.plot_traj('f')
     # Open loop MPC
     else:
-        q0 = robot.get_state()[0]
-        q_traj = mpc.get_traj(q0, sim_time)
+        q_traj = mpc.open_loop(sim_time)
+        mpc.plot_traj('q')
+        mpc.plot_traj('v')
+        mpc.plot_traj('f')
         sim.vis_trajectory(q_traj, loop=True, record_video=record_video, playback_speed=1)
+
 
 if __name__ == "__main__":
     # Parse command-line arguments

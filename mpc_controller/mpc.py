@@ -1,5 +1,6 @@
 import time
 from typing import Any, Dict, Tuple
+from matplotlib import pyplot as plt
 import numpy as np
 from bisect import bisect_left
 from scipy.interpolate import interp1d
@@ -20,6 +21,7 @@ class LocomotionMPC(ControllerAbstract):
                  gait_name: str = "trot",
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
+                 record_traj : bool = False,
                  **kwargs
                  ) -> None:
         super().__init__(robot.pin)
@@ -50,17 +52,40 @@ class LocomotionMPC(ControllerAbstract):
         self.f_plan = None
         self.time_traj = np.array([])
 
+        # For plots
+        self.record_traj = record_traj
+        self.q_full = []
+        self.v_full = []
+        self.a_full = []
+        self.f_full = []
+        self.tau_full = []
+
         self.diverged : bool = False
 
     def _replan(self) -> bool:
         """
         Returns true if replanning step.
+        Record trajectory of the last 
         """
-        return self.sim_step % self.replanning_steps == 0
+        replan = self.sim_step % self.replanning_steps == 0
+
+        if self.record_traj and replan and self.plan_step > 0:
+            self._record_traj()
+
+        return replan
     
     def _step(self) -> None:
         self.sim_step += 1
         self.plan_step += 1
+
+    def _record_traj(self) -> None:
+        """
+        Record trajectory of the last plan until self.plan_step.
+        """
+        self.q_full.append(self.q_plan[:self.plan_step])
+        self.v_full.append(self.v_plan[:self.plan_step])
+        self.a_full.append(self.a_plan[:self.plan_step])
+        self.f_full.append(self.f_plan[:self.plan_step])
 
     def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
         """
@@ -125,8 +150,7 @@ class LocomotionMPC(ControllerAbstract):
 
         return interpolated_traj
 
-    def get_traj(self,
-                 q0: np.ndarray,
+    def open_loop(self,
                  trajectory_time : float,
                  ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -139,11 +163,10 @@ class LocomotionMPC(ControllerAbstract):
         Returns:
             np.ndarray: _description_
         """
-        v0 = np.zeros(self.robot.nv)
+        q0, v0 = self.mj_robot.get_state()
         q_full_traj = [q0]
-        q_plan = [q0]
-        v_plan = [v0]
-        steps_since_replan = 0
+        self.q_plan = [q0]
+        self.v_plan = [v0]
         sim_time = 0.
         time_traj = []
         total_opt_time = 0.
@@ -160,7 +183,7 @@ class LocomotionMPC(ControllerAbstract):
                 self.current_opt_node += bisect_left(time_traj, sim_time)
                 print("Replan", "node:", self.current_opt_node, "time:", sim_time)
 
-                q, v = q_plan[steps_since_replan], v_plan[steps_since_replan]
+                q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
                 t_start = time.time()
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
                 total_opt_time += time.time() - t_start
@@ -177,23 +200,22 @@ class LocomotionMPC(ControllerAbstract):
                 time_traj = np.cumsum(dt_sol) - dt_sol[0]
                 # Take only 3 replanning steps ahead of the traj to save compute
                 traj_full_interp = self.interpolate_trajectory(traj_full, time_traj[:  3 * self.replanning_steps])
-                q_plan, v_plan, a_plan, f_plan = np.split(
+                self.q_plan, self.v_plan, self.a_plan, self.f_plan = np.split(
                     traj_full_interp,
                     [q_sol.shape[-1],
                     q_sol.shape[-1] + v_sol.shape[-1], 
                     q_sol.shape[-1] + v_sol.shape[-1] + a_sol.shape[-1]],
                     axis=-1
                 )
-                f_plan = f_plan.reshape(-1, 4, 3)
+                self.f_plan = self.f_plan.reshape(-1, 4, 3)
 
                 time_traj += sim_time
-                steps_since_replan = 0
+                self.plan_step = 0
 
-            # Apply trajectory virtually to the robot until next replan
-            self.sim_step += 1
+            # Simulation step
+            q_full_traj.append(self.q_plan[self.plan_step])
+            self._step()
             sim_time = round(sim_time + self.sim_dt, 4)
-            q_full_traj.append(q_plan[steps_since_replan])
-            steps_since_replan += 1
 
         mean_opt_time = total_opt_time / total_opt_steps
         print("-" * 50)
@@ -280,7 +302,58 @@ class LocomotionMPC(ControllerAbstract):
             for j_name, joint_id
             in self.robot.joint_name2act_id.items()
         }
+
+        # Record trajectories
+        if self.record_traj:
+            self.tau_full.append(torques_pd)
         
         self._step()
 
         return torque_map
+    
+    def plot_traj(self, var_name: str):
+        """
+        Plot one of the recorded plans using time as the x-axis in a subplot with 3 columns.
+
+        Args:
+            var_name (str): Name of the plan to plot. Should be one of:
+                            'q', 'v', 'a', 
+                            'f', 'dt', 'tau'.
+        """
+        # Check if the plan name is valid
+        var_name += "_full"
+        if not hasattr(self, var_name):
+            raise ValueError(f"Plan '{var_name}' does not exist. Choose from: 'q', 'v', 'a', 'f', 'dt', 'tau'.")
+
+        # Get the selected plan and the time intervals (dt)
+        plan = getattr(self, var_name)
+        plan = np.vstack(plan)
+
+        N = len(plan)
+        plan = plan.reshape(N, -1)
+        time = np.linspace(start=0., stop=(N+1)*self.sim_dt, num=N)
+
+        # Number of dimensions in the plan (columns)
+        num_dimensions = plan.shape[1]
+
+        # Calculate the number of rows needed for the subplots
+        num_rows = (num_dimensions + 2) // 3  # +2 to account for remaining dimensions if not divisible by 3
+
+        # Create subplots with 3 columns
+        fig, axs = plt.subplots(num_rows, 3, figsize=(15, 5 * num_rows))
+        axs = axs.flatten()  # Flatten the axes for easy iteration
+
+        # Plot each dimension of the plan on a separate subplot
+        for i in range(num_dimensions):
+            axs[i].plot(time, plan[:, i])
+            axs[i].set_title(f'{var_name} dimension {i+1}')
+            axs[i].set_xlabel('Time (s)')
+            axs[i].set_ylabel(f'{var_name} values')
+            axs[i].grid(True)
+
+        # Turn off unused subplots if there are any
+        for i in range(num_dimensions, len(axs)):
+            fig.delaxes(axs[i])
+
+        plt.tight_layout()
+        plt.show()

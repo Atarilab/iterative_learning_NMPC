@@ -7,7 +7,7 @@ from contact_tamp.traj_opt_acados.interface.acados_helper import HPIPM_MODE
 @dataclass
 class MPCQuadrupedCyclic(MPCOptConfig):
     # MPC Config
-    time_horizon : float = 0.8
+    time_horizon : float = 0.75
     n_nodes : int = 50
     opt_dt_scale : Tuple[float, float] = (0.75, 1.25)
     replanning_freq : int = 50
