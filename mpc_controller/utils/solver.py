@@ -135,10 +135,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         if self.enable_time_opt:
             self.data["yref"]["dt"][0] = self.dt_nodes
             self.data["u"]["dt"][0] = self.dt_nodes
-            
-        # # Setup reference base pose
-        # q_euler = quat_to_ypr_state(q)
-
+        
         # Setup reference velocities
         w_des = np.array([0., 0., w_yaw])
 
@@ -168,14 +165,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.set_ref_terminal(self.data["yref_e"])
 
     def setup_initial_state(self,
-                            q : np.ndarray,
-                            v : np.ndarray | Any = None,
+                            q_euler : np.ndarray,
+                            v_euler : np.ndarray | Any = None,
                             set_state_constant : bool = True):
         """
         Initialize the state (x) of the robot in the solver.
         """        
-        # Use the initial state q0 defined in the cost config
-        q_euler = quat_to_ypr_state(q)
         self.data["x"][self.dyn.q.name] = q_euler
         # Set the state constant in the solver
         if set_state_constant:
@@ -183,8 +178,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
 
-        if v is not None:
-            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v)
+        if v_euler is not None:
+            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_euler)
             pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
             self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
 
@@ -215,7 +210,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         contact mode and robot configuration.
         """
         feet_pos = self.pin_robot.get_frames_position_world(self.feet_frame_names)
-        
+
         for (foot_cnt, foot_height) in zip(self.dyn.feet, feet_pos[:, 2]):
             # Contact status
             if contact_state:
@@ -268,6 +263,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
                 if n_end > last_node:
                     last_node = n_end
+                # Full contact phase, get to next switch
+                elif last_node == 0:
+                    last_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
 
             # Update last node of optimization window updated    
             node_w = last_node
@@ -319,8 +317,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 self.inputs["dt"][:, n_warm_start:] = self.dt_nodes
             
     def init(self,
+              q : np.ndarray,
+              v : np.ndarray | Any = None,
               i_node : int = 0,
-              q_base_des : np.ndarray = np.zeros(6),
               v_des : np.ndarray = np.zeros(3),
               w_yaw_des : float = 0.,
               contact_state : Dict[str, int] = {},
@@ -329,11 +328,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         Setup solver depending on the current configuration and the 
         current optimization node.
         """
+        self.pin_robot.update(q, v)
         first_it = i_node == 0
-        q, v = self.pin_robot.get_state()
-        
-        self.setup_reference(q_base_des, v_des, w_yaw_des)
-        self.setup_initial_state(q, v, first_it)
+        q_euler = quat_to_ypr_state(q)
+
+        self.setup_reference(q_euler[:6], v_des, w_yaw_des)
+        self.setup_initial_state(q_euler, v, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
         self.setup_initial_feet_contact(contact_state)
@@ -376,12 +376,11 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.a_sol = self.inputs[self.dyn.a.name].T.copy()
 
         # end effector forces, [n_nodes, 4, 3]
-        self.f_sol = np.array(
-            [self.inputs[f"f_{foot}_{self.dyn.name}"]  # TODO: No string parsing
-             for foot
-             in self.dyn.feet_frame_names]
-            ).transpose(2, 0, 1).copy()
-        
+        self.f_sol = np.array([
+            self.params[foot_cnt.active.name][:, 1:] * self.inputs[f"f_{foot_cnt.frame_name}_{self.dyn.name}"]
+            for foot_cnt in self.dyn.feet
+        ]).transpose(2, 0, 1).copy()
+
         # dt time, [n_nodes, ]
         if self.enable_time_opt:
             self.dt_node_sol = self.inputs["dt"].flatten()

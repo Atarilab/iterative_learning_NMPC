@@ -16,6 +16,8 @@ class QuadrupedDynamics(FloatingBaseDynamics):
         
         model, data = loadSymModel(model_path)
         self.feet_frame_names = feet_frame_names
+        self.feet_frame_id = [model.getFrameId(ee_name) for ee_name in self.feet_frame_names]
+
         super().__init__(robot_name, model, data)
 
         # note: 0.022 is the foot radius
@@ -56,10 +58,9 @@ class QuadrupedDynamics(FloatingBaseDynamics):
         z = cs.vcat([c.peak * c.get_position()[2] for c in self.feet])
         return z
     
-    @staticmethod
-    def get_torques(model : pin.Model,
+    def get_torques(self,
+                    model : pin.Model,
                     data : pin.Data,
-                    foot_frame_name : List[str],
                     q_plan : np.ndarray,
                     v_plan : np.ndarray,
                     a_plan : np.ndarray,
@@ -79,18 +80,11 @@ class QuadrupedDynamics(FloatingBaseDynamics):
             torques:
         """
         # Inverse dynamics torques
-        tau_id = pin.rnea(model, data, q_plan, v_plan, a_plan)
-
-        # Initialize the contact forces vector
-        tau_forces = np.zeros((model.nv,))
+        tau = pin.rnea(model, data, q_plan, v_plan, a_plan)[-12:]
 
         # Loop through each end-effector and accumulate external forces
-        for ee_name, f_ee in zip(foot_frame_name, f_plan):
-            frame_id = model.getFrameId(ee_name)
-            J_ee = pin.computeFrameJacobian(model, data, q_plan, frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
-            tau_forces += J_ee.T @ np.hstack((f_ee, np.zeros(3)))
-        
-        # Compute the torques using the inverse dynamics equation
-        tau = (tau_id - tau_forces)[-12:]
-        
+        for frame_id, f_ee in zip(self.feet_frame_id, f_plan):
+            J_ee = pin.computeFrameJacobian(model, data, q_plan, frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)[:3, -12:]
+            tau -= f_ee @ J_ee
+
         return tau
