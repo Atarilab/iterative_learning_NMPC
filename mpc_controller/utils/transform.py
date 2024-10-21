@@ -31,7 +31,7 @@ def ypr_to_quat_state_batched(q_euler_batch: np.ndarray):
     q_euler_batch (shape [N, 18]).
     """
     quat_batched = np.array(
-        [pin.Quaternion(pin.rpy.rpyToMatrix(ypr)).coeffs()
+        [pin.Quaternion(pin.rpy.rpyToMatrix(ypr[[2, 1, 0]])).coeffs()
         for ypr
         in q_euler_batch[:, 3:6]]
         )
