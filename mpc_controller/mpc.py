@@ -370,7 +370,7 @@ class LocomotionMPC(ControllerAbstract):
 
         # Plot each dimension of the plan on a separate subplot
         for i in range(num_dimensions):
-            axs[i].plot(time, plan[:, i], 'o-')
+            axs[i].plot(time, plan[:, i])
             axs[i].set_title(f'{var_name} dimension {i+1}')
             axs[i].set_xlabel('Time (s)')
             axs[i].set_ylabel(f'{var_name} values')

@@ -18,7 +18,7 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     max_iter : int = 5
     max_qp_iter: int = 10
     nlp_tol: float = 1e-1
-    qp_tol: float = 1e-4
+    qp_tol: float = 5e-3
     recompile: bool = True
     use_cython: bool = False
     hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed

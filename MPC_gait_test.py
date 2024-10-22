@@ -22,7 +22,7 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True
     )
-    q_des = np.array([0.5, 0.0, 0.27, 0.0, 0., 0.])
+    q_des = np.array([0.5, 0., 0.27, 0.0, 0., 0.])
     v_des = np.array([0.0, 0.0, 0.0])
     mpc.set_command(q_des, v_des)
 
@@ -33,6 +33,7 @@ def main(close_loop: bool = True,
         sim.run(sim_time, record_video=record_video, playback_speed=1)
         mpc.plot_traj('q')
         mpc.plot_traj('f')
+        mpc.show_plots()
     # Open loop MPC
     else:
         q_traj = mpc.open_loop(sim_time)

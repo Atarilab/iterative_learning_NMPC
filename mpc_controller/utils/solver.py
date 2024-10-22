@@ -167,21 +167,23 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
     def setup_initial_state(self,
                             q_euler : np.ndarray,
-                            v_euler : np.ndarray | Any = None,
+                            v_local : np.ndarray | Any = None,
                             set_state_constant : bool = True):
         """
         Initialize the state (x) of the robot in the solver.
         """        
         self.data["x"][self.dyn.q.name] = q_euler
-        # Set the state constant in the solver
-        if v_euler is not None:
-            self.data["x"][self.dyn.v.name] = v_euler
+        if v_local is not None:
+            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_local)
             pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
             self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
+        # Set the state constant in the solver
         if set_state_constant:
             self.set_state_constant(self.data["x"])
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
+
+
     def setup_initial_feet_pos(self,
                                plane_normal : List[np.ndarray] | Any = None,
                                plane_origin : List[np.ndarray] | Any = None,):
@@ -334,15 +336,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         Setup solver depending on the current configuration and the 
         current optimization node.
         """
-        q_euler = quat_to_ypr_state(q)
         # [v_global, w_local, v_joint] -> [v_local, w_local, v_joint]
-        v_local = v_global_linear_to_local_linear(q_euler, v)
+        v_local = v_global_linear_to_local_linear(q, v)
         self.pin_robot.update(q, v_local)
         first_it = i_node == 0
-        v_euler = v_to_euler_derivative(q_euler, v_local)
+        q_euler = quat_to_ypr_state(q)
 
         self.setup_reference(q_base_des, v_des, w_yaw_des)
-        self.setup_initial_state(q_euler, v_euler, first_it)
+        self.setup_initial_state(q_euler, v_local, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
         self.setup_initial_feet_contact(contact_state)

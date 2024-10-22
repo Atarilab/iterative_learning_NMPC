@@ -44,13 +44,13 @@ class Go2CyclicCost(MPCCostConfig):
     W_e_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4 + [0] * 3 * 4, W_JOINT)
 
     # Acceleration cost weights for joints (hip, shoulder, elbow)
-    W_acc: np.ndarray = __init_np([1e-1] * 6 + [1e-3] * 12)
+    W_acc: np.ndarray = __init_np([1e-3] * 12)
     
     # swing cost weights
     W_swing: np.ndarray = __init_np([1e5] * 4)
 
     # force regularization weights for each foot
-    W_cnt_f_reg: np.ndarray = __init_np([[1e-2, 1e-2, 1e-3]] * 4, 1e-4)
+    W_cnt_f_reg: np.ndarray = __init_np([[1e-2, 1e-2, 1e-3]] * 4)
 
     # Feet position constraint stability
     foot_pos_constr_stab: np.ndarray = __init_np([1e2] * 4)
