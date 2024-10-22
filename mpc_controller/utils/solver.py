@@ -138,8 +138,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         
         # Setup reference velocities in local frame
         R_WB = pin.rpy.rpyToMatrix(q_euler[:3][::-1])
-        w_des_local = R_WB.T @ np.array([0., 0., w_yaw])
-
+        w_des_local = (R_WB.T @ np.array([0., 0., w_yaw]))[::-1]
+        # No velocity along z
+        v_des[2] = 0.
         # Base reference and terminal states
         base_ref = np.concatenate((q_euler, v_des, w_des_local))
         base_ref_e = base_ref.copy()
