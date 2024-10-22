@@ -16,12 +16,11 @@ q0, _ = robot.get_state()
 solver = QuadrupedAcadosSolver(
     robot.pin,
     "trot",
-    recompile=True,
 )
 
 v_des = np.array([0.0, 0.0, 0.0])
-solver.init(v_des=v_des)
-q_traj, _, _, _, dt_traj = solver.solve(print_time=True, print_stats=True)
+solver.init(q0, v_des=v_des)
+q_traj, _, _, _, dt_traj = solver.solve()
 solver.print_contact_constraints()
 
 sim.vis_trajectory(q_traj, dt_traj, loop=True, record_video=True)

@@ -30,14 +30,17 @@ class MPCOptConfig():
     time_horizon : float
     # Number of optimization nodes
     n_nodes : int
-    # Bounds time between two nodes
-    opt_dt_scale : np.ndarray
+    # Time bounds between two nodes (min_ratio, max_ratio)
+    # dt_min = min_ratio * dt_nom = min_ratio * (time_horizon / n_nodes)
+    opt_dt_scale : Tuple[float, float]
     # Replanning frequency
     replanning_freq : int
     # Real time iterations
     real_time_it : bool
     # Enable dt nodes time optimization
     enable_time_opt : bool
+    # Enable impact dynamics
+    enable_impact_dyn : bool
     # Constrained eeff locations
     opt_cnt_pos : bool
     # Use peak constrained
@@ -53,6 +56,22 @@ class MPCOptConfig():
     # Interpolation mode (linear, quadratic, cubic)
     # (check https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp1d.html)
     interpolation_mode : str
+    # HPIPM mode
+    hpipm_mode : str
+    # Recompile solver
+    recompile: bool
+    # use_cython in the solver solver
+    use_cython: bool
+    # Maximum qp iteration for one SQP step 
+    max_qp_iter: int 
+    # Outer loop SQP tolerance
+    nlp_tol: float
+    # Inner loop interior point method tolerance
+    qp_tol: float
+    # gain on joint position for torque PD
+    Kp : float
+    # gain on joint velocities for torque PD
+    Kd : float
 
     def __post_init__(self):
         assert len(self.opt_dt_scale) == 2, "opt_dt_scale must be of shape 2"
@@ -103,10 +122,6 @@ class MPCCostConfig:
     reg_eps: float
     # Reguralization terminal cost
     reg_eps_e: float
-    # gain on joint position
-    Kp : float
-    # gain on joint velocities
-    Kd : float
     
     def __post_init__(self):
         assert len(self.W_e_base) == 12, "W_e_base must be of shape 12"

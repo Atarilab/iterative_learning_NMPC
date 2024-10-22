@@ -1,24 +1,29 @@
 import numpy as np
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Tuple
 from ..config_abstract import MPCOptConfig
 from contact_tamp.traj_opt_acados.interface.acados_helper import HPIPM_MODE
 
 @dataclass
 class MPCQuadrupedCyclic(MPCOptConfig):
-    time_horizon : float = 0.8
+    # MPC Config
+    time_horizon : float = 0.75
     n_nodes : int = 50
-    opt_dt_scale : np.ndarray = field(default_factory=lambda: np.array([0.75, 1.25]))
+    opt_dt_scale : Tuple[float, float] = (0.75, 1.25)
     replanning_freq : int = 50
+    interpolation_mode : str = "linear"
+    Kp : float = 1.
+    Kd : float = 0.5
+    # Solver config
     max_iter : int = 5
-    qp_iter: int = 10
-    nlp_tol: float = 1e-1 # outer loop SQP tolerance
-    qp_tol: float = 5e-3 # inner loop interior point method tolerance
+    max_qp_iter: int = 10
+    nlp_tol: float = 1e-1
+    qp_tol: float = 5e-3
     recompile: bool = True
     use_cython: bool = False
     hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed
-    interpolation_mode : str = "linear"
     enable_time_opt : bool = False
+    enable_impact_dyn : bool = False
     real_time_it : bool = False
     opt_cnt_pos : bool = False
     opt_peak : bool = True
