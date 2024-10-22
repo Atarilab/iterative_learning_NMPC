@@ -22,7 +22,7 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True
     )
-    q_des = np.array([0.0, 0.0, 0.27, 0.0, 0., 0.])
+    q_des = np.array([0.5, 0.0, 0.27, 0.0, 0., 0.])
     v_des = np.array([0.0, 0.0, 0.0])
     mpc.set_command(q_des, v_des)
 

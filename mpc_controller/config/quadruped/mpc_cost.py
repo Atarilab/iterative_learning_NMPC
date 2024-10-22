@@ -6,9 +6,10 @@ import numpy as np
 from dataclasses import dataclass, field
 from ..config_abstract import MPCCostConfig
 
-HIP_SHOULDER_ELBOW_SCALE = [2., 1, 1]
+HIP_SHOULDER_ELBOW_SCALE = [5, 1., 1.]
 # PENALIZE JOINT MOTION
 W_JOINT = 1
+
 
 @dataclass
 class Go2CyclicCost(MPCCostConfig):
@@ -22,7 +23,7 @@ class Go2CyclicCost(MPCCostConfig):
 
     # Updated base running cost weights
     W_base: np.ndarray = __init_np([
-        1e2, 1e2, 1e2,      # Base position weights
+        1e3, 1e3, 1e3,      # Base position weights
         1e2, 1e2, 1e2,      # Base orientation (ypr) weights
         100, 100, 100,      # Base linear velocity weights
         10, 10, 10,         # Base angular velocity weights
@@ -30,9 +31,9 @@ class Go2CyclicCost(MPCCostConfig):
 
     # Updated base terminal cost weights
     W_e_base: np.ndarray = __init_np([
-        1e2, 1e2, 1e2,      # Base position weights
-        1e2, 1e2, 1e2,      # Base orientation (ypr) weights
-        1, 1, 1,      # Base linear velocity weights
+        1e3, 1e3, 1e3,     # Base position weights
+        1e2, 1e2, 1e2,     # Base orientation (ypr) weights
+        100, 100, 100,     # Base linear velocity weights
         10, 10, 10      # Base angular velocity weights
     ], 1e2)
 

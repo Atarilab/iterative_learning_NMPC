@@ -10,16 +10,16 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     time_horizon : float = 0.8
     n_nodes : int = 50
     opt_dt_scale : Tuple[float, float] = (0.75, 1.25)
-    replanning_freq : int = 25
+    replanning_freq : int = 20
     interpolation_mode : str = "linear"
-    Kp : float = 1.
-    Kd : float = 0.5
+    Kp : float = 100.
+    Kd : float = 5.
     # Solver config
     max_iter : int = 5
     max_qp_iter: int = 10
     nlp_tol: float = 1e-1
     qp_tol: float = 1e-4
-    recompile: bool = False
+    recompile: bool = True
     use_cython: bool = False
     hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed
     enable_time_opt : bool = False

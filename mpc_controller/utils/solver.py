@@ -143,15 +143,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Base reference and terminal states
         base_ref = np.concatenate((q_euler_des, v_des, w_des))
         base_ref_e = base_ref.copy()
-        # # Set height to nominal height
+        # Set height to nominal height
         # base_ref_e[2] = self.config_gait.nom_height
         # Reference roll, pitch terminal orientation is horizontal
         # base_ref_e[4:6] = 0.
         # # Yaw orientation according to desired velocity
         # base_ref_e[3] += w_yaw * self.config_opt.time_horizon
         # # Desired final position according to desired vel
-        # v_des_global = R_WB @ v_des
-        # base_ref_e[:2] += v_des_global[:2] * self.config_opt.time_horizon
+        # base_ref_e[:2] += v_des[:2] * self.config_opt.time_horizon
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
         self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
@@ -175,17 +174,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         """        
         self.data["x"][self.dyn.q.name] = q_euler
         # Set the state constant in the solver
-
         if v_euler is not None:
             self.data["x"][self.dyn.v.name] = v_euler
             pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
             self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
-
         if set_state_constant:
             self.set_state_constant(self.data["x"])
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
-
     def setup_initial_feet_pos(self,
                                plane_normal : List[np.ndarray] | Any = None,
                                plane_origin : List[np.ndarray] | Any = None,):
@@ -329,7 +325,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
               q : np.ndarray, # mujoco convention
               v : np.ndarray | Any = None, 
               i_node : int = 0,
-              q_des : np.ndarray = np.zeros(6), 
+              q_base_des : np.ndarray = np.zeros(6),
               v_des : np.ndarray = np.zeros(3),
               w_yaw_des : float = 0.,
               contact_state : Dict[str, int] = {},
@@ -345,7 +341,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         first_it = i_node == 0
         v_euler = v_to_euler_derivative(q_euler, v_local)
 
-        self.setup_reference(q_des, v_des, w_yaw_des)
+        self.setup_reference(q_base_des, v_des, w_yaw_des)
         self.setup_initial_state(q_euler, v_euler, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
