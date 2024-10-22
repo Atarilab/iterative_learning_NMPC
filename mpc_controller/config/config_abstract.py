@@ -126,7 +126,7 @@ class MPCCostConfig:
     def __post_init__(self):
         assert len(self.W_e_base) == 12, "W_e_base must be of shape 12"
         assert len(self.W_base) == 12, "W_base must be of shape 12"
-        assert len(self.W_acc) == 12, "W_acc must be of shape 12"
+        assert len(self.W_acc) == 18, "W_acc must be of shape 12"
         assert len(self.W_joint) == 24, "W_joint must be of shape 24"
         assert len(self.W_e_joint) == 24, "W_e_joint must be of shape 24"
         assert (len(self.W_swing) == len(self.W_cnt_f_reg) and

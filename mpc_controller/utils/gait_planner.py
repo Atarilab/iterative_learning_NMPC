@@ -133,7 +133,10 @@ class GaitPlanner():
         i_next_switch = i_next_switch % len(self.switch_phase)
 
         next_switch_node = switch_node[i_next_switch]
-        next_switch_in = abs(next_switch_node - i_node_cycle)
+        if next_switch_node == 0:
+            next_switch_in = abs(self.nodes_per_cycle - i_node_cycle)
+        else:
+            next_switch_in = abs(next_switch_node - i_node_cycle)
 
         return next_switch_in
 

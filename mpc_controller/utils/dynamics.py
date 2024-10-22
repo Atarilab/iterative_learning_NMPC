@@ -52,7 +52,7 @@ class QuadrupedDynamics(FloatingBaseDynamics):
         return cs.vcat([self.q[6:], self.v[6:]])
 
     def get_acc_cost(self):
-        return self.a[6:]
+        return self.a[:]
 
     def get_swing_foot_cost(self):
         z = cs.vcat([c.peak * c.get_position()[2] for c in self.feet])

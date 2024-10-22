@@ -22,7 +22,7 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True
     )
-    q_des = np.array([1.0, 0., 0.265, 0., 0., 0.])
+    q_des = np.array([0.0, 0.0, 0.27, 0.0, 0., 0.])
     v_des = np.array([0.0, 0.0, 0.0])
     mpc.set_command(q_des, v_des)
 
@@ -38,7 +38,9 @@ def main(close_loop: bool = True,
         q_traj = mpc.open_loop(sim_time)
         mpc.plot_traj('q')
         mpc.plot_traj('v')
+        mpc.plot_traj('a')
         mpc.plot_traj('f')
+        mpc.show_plots()
         sim.vis_trajectory(q_traj, loop=True, record_video=record_video, playback_speed=1)
 
 

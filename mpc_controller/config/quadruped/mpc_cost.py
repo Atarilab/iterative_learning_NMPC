@@ -6,10 +6,9 @@ import numpy as np
 from dataclasses import dataclass, field
 from ..config_abstract import MPCCostConfig
 
-HIP_SHOULDER_ELBOW_SCALE = [10., 1., 0.1]
+HIP_SHOULDER_ELBOW_SCALE = [2., 1, 1]
 # PENALIZE JOINT MOTION
-W_JOINT = 1.0
-
+W_JOINT = 1
 
 @dataclass
 class Go2CyclicCost(MPCCostConfig):
@@ -25,7 +24,7 @@ class Go2CyclicCost(MPCCostConfig):
     W_base: np.ndarray = __init_np([
         1e2, 1e2, 1e2,      # Base position weights
         1e2, 1e2, 1e2,      # Base orientation (ypr) weights
-        0, 0, 100,      # Base linear velocity weights
+        100, 100, 100,      # Base linear velocity weights
         10, 10, 10,         # Base angular velocity weights
     ])
 
@@ -33,27 +32,27 @@ class Go2CyclicCost(MPCCostConfig):
     W_e_base: np.ndarray = __init_np([
         1e2, 1e2, 1e2,      # Base position weights
         1e2, 1e2, 1e2,      # Base orientation (ypr) weights
-        0, 0, 100,      # Base linear velocity weights
-        10, 10, 10          # Base angular velocity weights
-    ])
+        1, 1, 1,      # Base linear velocity weights
+        10, 10, 10      # Base angular velocity weights
+    ], 1e2)
 
     # Joint running cost to nominal position and vel (hip, shoulder, elbow)
     W_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4 + [0.] * 3 * 4, W_JOINT)
 
     # Joint terminal cost to nominal position and vel (hip, shoulder, elbow)
-    W_e_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4 + [0.] * 3 * 4, W_JOINT)
+    W_e_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4 + [0] * 3 * 4, W_JOINT)
 
     # Acceleration cost weights for joints (hip, shoulder, elbow)
-    W_acc: np.ndarray = __init_np([1e-3] * 12)
+    W_acc: np.ndarray = __init_np([1e-1] * 6 + [1e-3] * 12)
     
     # swing cost weights
     W_swing: np.ndarray = __init_np([1e5] * 4)
 
     # force regularization weights for each foot
-    W_cnt_f_reg: np.ndarray = __init_np([[1e-2, 1e-2, 1e-3]] * 4)
+    W_cnt_f_reg: np.ndarray = __init_np([[1e-2, 1e-2, 1e-3]] * 4, 1e-4)
 
     # Feet position constraint stability
-    foot_pos_constr_stab: np.ndarray = __init_np([1.0e2] * 4)
+    foot_pos_constr_stab: np.ndarray = __init_np([1e2] * 4)
 
     reg_eps: float = 1.0e-6
     reg_eps_e: float = 1.0e-5
