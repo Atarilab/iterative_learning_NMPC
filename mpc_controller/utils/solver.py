@@ -124,23 +124,24 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         return result
 
     def setup_reference(self,
-                        q_base_des : np.ndarray,
+                        q_euler : np.ndarray,
                         v_des : np.ndarray,
                         w_yaw : float,
                         ):
         """
         Set up the reference trajectory (yref).
-        """       
+        """
         # Set the nominal time step
         if self.enable_time_opt:
             self.data["yref"]["dt"][0] = self.dt_nodes
             self.data["u"]["dt"][0] = self.dt_nodes
         
-        # Setup reference velocities
-        w_des = np.array([0., 0., w_yaw])
+        # Setup reference velocities in local frame
+        R_WB = pin.rpy.rpyToMatrix(q_euler[:3][::-1])
+        w_des_local = R_WB.T @ np.array([0., 0., w_yaw])
 
         # Base reference and terminal states
-        base_ref = np.concatenate((q_base_des, v_des, w_des))
+        base_ref = np.concatenate((q_euler, v_des, w_des_local))
         base_ref_e = base_ref.copy()
         # Set height to nominal height
         base_ref_e[2] = self.config_gait.nom_height
@@ -149,7 +150,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Yaw orientation according to desired velocity
         base_ref_e[3] += w_yaw * self.config_opt.time_horizon
         # Desired final position according to desired vel
-        base_ref_e[:2] += v_des[:2] * self.config_opt.time_horizon
+        v_des_global = R_WB @ v_des
+        base_ref_e[:2] += v_des_global[:2] * self.config_opt.time_horizon
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
         self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
@@ -166,7 +168,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
     def setup_initial_state(self,
                             q_euler : np.ndarray,
-                            v_euler : np.ndarray | Any = None,
+                            v_local : np.ndarray | Any = None,
                             set_state_constant : bool = True):
         """
         Initialize the state (x) of the robot in the solver.
@@ -178,8 +180,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
 
-        if v_euler is not None:
-            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_euler)
+        if v_local is not None:
+            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_local)
             pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
             self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
 
@@ -328,12 +330,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         Setup solver depending on the current configuration and the 
         current optimization node.
         """
-        self.pin_robot.update(q, v)
+        # [v_global, w_local, v_joint] -> [v_local, w_local, v_joint]
+        v_local = v_global_linear_to_local_linear(q, v)
+        self.pin_robot.update(q, v_local)
         first_it = i_node == 0
         q_euler = quat_to_ypr_state(q)
 
         self.setup_reference(q_euler[:6], v_des, w_yaw_des)
-        self.setup_initial_state(q_euler, v, first_it)
+        self.setup_initial_state(q_euler, v_local, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
         self.setup_initial_feet_contact(contact_state)
@@ -367,7 +371,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         
         # velocities, [n_nodes, 18]
         self.v_sol_euler = self.states[self.dyn.v.name].T[1:, :].copy()
-        v_sol = v_to_local_angular_batched(self.q_sol_euler, self.v_sol_euler)
+        v_sol = v_glob_to_local_batched(self.q_sol_euler, self.v_sol_euler)
 
         # Centroidal momentum, [n_nodes, 6]
         self.h_sol = self.states[self.dyn.h.name].T[1:, :].copy()
@@ -377,7 +381,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
         # end effector forces, [n_nodes, 4, 3]
         self.f_sol = np.array([
-            self.params[foot_cnt.active.name][:, 1:] * self.inputs[f"f_{foot_cnt.frame_name}_{self.dyn.name}"]
+            self.inputs[f"f_{foot_cnt.frame_name}_{self.dyn.name}"]
             for foot_cnt in self.dyn.feet
         ]).transpose(2, 0, 1).copy()
 

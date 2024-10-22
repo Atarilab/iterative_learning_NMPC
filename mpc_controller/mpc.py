@@ -8,7 +8,6 @@ from scipy.interpolate import interp1d
 from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
 from .utils.solver import QuadrupedAcadosSolver
-from .utils.transform import quat_to_ypr_state
 
 class LocomotionMPC(ControllerAbstract):
     """
@@ -45,7 +44,6 @@ class LocomotionMPC(ControllerAbstract):
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
-        self.q_base_des = quat_to_ypr_state(self.solver.q0)[:6]
         self.q_plan = None
         self.v_plan = None
         self.a_plan = None
