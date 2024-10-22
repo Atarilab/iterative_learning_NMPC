@@ -142,14 +142,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Base reference and terminal states
         base_ref = np.concatenate((q_base_des, v_des, w_des))
         base_ref_e = base_ref.copy()
-        # Set height to nominal height
-        base_ref_e[2] = self.config_gait.nom_height
+        # # Set height to nominal height
+        # base_ref_e[2] = self.config_gait.nom_height
         # Reference roll, pitch terminal orientation is horizontal
-        base_ref_e[4:6] = 0.
-        # Yaw orientation according to desired velocity
-        base_ref_e[3] += w_yaw * self.config_opt.time_horizon
-        # Desired final position according to desired vel
-        base_ref_e[:2] += v_des[:2] * self.config_opt.time_horizon
+        # base_ref_e[4:6] = 0.
+        # # Yaw orientation according to desired velocity
+        # base_ref_e[3] += w_yaw * self.config_opt.time_horizon
+        # # Desired final position according to desired vel
+        # base_ref_e[:2] += v_des[:2] * self.config_opt.time_horizon
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
         self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
@@ -270,6 +270,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             # Update last node of optimization window updated    
             node_w = last_node
 
+        START_TROT_NODE = 10
+        if i_node < START_TROT_NODE:
+            n_end = START_TROT_NODE - i_node
+            for foot_cnt in self.dyn.feet:
+                self.params[foot_cnt.active.name][:, :n_end] = 1
+
     def print_contact_constraints(self):
         print("\nContacts")
         for foot_cnt in self.dyn.feet:
@@ -320,6 +326,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
               q : np.ndarray,
               v : np.ndarray | Any = None,
               i_node : int = 0,
+              q_des : np.ndarray = np.zeros(6), 
               v_des : np.ndarray = np.zeros(3),
               w_yaw_des : float = 0.,
               contact_state : Dict[str, int] = {},
@@ -331,8 +338,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.pin_robot.update(q, v)
         first_it = i_node == 0
         q_euler = quat_to_ypr_state(q)
-
-        self.setup_reference(q_euler[:6], v_des, w_yaw_des)
+        self.setup_reference(q_des, v_des, w_yaw_des)
         self.setup_initial_state(q_euler, v, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)

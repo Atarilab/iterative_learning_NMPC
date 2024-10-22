@@ -16,11 +16,15 @@ q0, _ = robot.get_state()
 solver = QuadrupedAcadosSolver(
     robot.pin,
     "trot",
+    True,
 )
 
+solver.set_max_iter(50)
+
+q_des = np.array([1.0, 0., 0.265, 0., 0., 0.])
 v_des = np.array([0.0, 0.0, 0.0])
-solver.init(q0, v_des=v_des)
-q_traj, _, _, _, dt_traj = solver.solve()
+solver.init(q0, q_des=q_des, v_des=v_des)
+q_traj, v_traj, _, f_traj, dt_traj = solver.solve()
 solver.print_contact_constraints()
 
-sim.vis_trajectory(q_traj, dt_traj, loop=True, record_video=True)
+sim.vis_trajectory(q_traj, dt_traj, loop=True, record_video=False, playback_speed=0.5)

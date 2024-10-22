@@ -87,10 +87,14 @@ class LocomotionMPC(ControllerAbstract):
         self.a_full.append(self.a_plan[:self.plan_step])
         self.f_full.append(self.f_plan[:self.plan_step])
 
-    def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
+    def set_command(self, 
+                    q_base_des: np.array, 
+                    v_des: np.ndarray = np.zeros((3,)), 
+                    w_yaw: float = 0.) -> None:
         """
         Set velocity commands for the MPC.
         """
+        self.q_base_des = q_base_des
         self.v_des = v_des
         self.w_des[2] = w_yaw
 
@@ -114,7 +118,7 @@ class LocomotionMPC(ControllerAbstract):
         """
         return optimized trajectories.
         """
-        self.solver.init(q, v, self.current_opt_node, self.v_des, self.w_des[2])
+        self.solver.init(q, v, self.current_opt_node, self.q_base_des, self.v_des, self.w_des[2])
         q_sol, v_sol, a_sol, f_sol, dt_sol = self.solver.solve()
 
         return q_sol, v_sol, a_sol, f_sol, dt_sol
@@ -188,23 +192,30 @@ class LocomotionMPC(ControllerAbstract):
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
                 total_opt_time += time.time() - t_start
                 total_opt_steps += 1
-                
+                q_sol = np.vstack((q.reshape(1, -1), q_sol))
+                v_sol = np.vstack((v.reshape(1, -1), v_sol))
                 # Interpolate plan at sim_dt intervals
-                traj_full = np.concatenate((
+                traj_full_state = np.concatenate((
                     q_sol,
                     v_sol,
+                ), axis=-1)
+                traj_full_inputs = np.concatenate((
                     a_sol,
                     f_sol.reshape(-1, 12),
                 ), axis=-1)
 
-                time_traj = np.cumsum(dt_sol) - dt_sol[0]
+                time_traj = np.insert(np.cumsum(dt_sol), 0, 0.)# N + 1
                 # Take only 3 replanning steps ahead of the traj to save compute
-                traj_full_interp = self.interpolate_trajectory(traj_full, time_traj[:  3 * self.replanning_steps])
-                self.q_plan, self.v_plan, self.a_plan, self.f_plan = np.split(
-                    traj_full_interp,
-                    [q_sol.shape[-1],
-                    q_sol.shape[-1] + v_sol.shape[-1], 
-                    q_sol.shape[-1] + v_sol.shape[-1] + a_sol.shape[-1]],
+                state_full_interp = self.interpolate_trajectory(traj_full_state, time_traj[:  3 * self.replanning_steps])
+                inputs_full_interp = self.interpolate_trajectory(traj_full_inputs, time_traj[:-1][:  3 * self.replanning_steps])
+                self.q_plan, self.v_plan = np.split(
+                    state_full_interp,
+                    [q_sol.shape[-1]],
+                    axis=-1
+                )
+                self.a_plan, self.f_plan = np.split(
+                    inputs_full_interp,
+                    [a_sol.shape[-1]],
                     axis=-1
                 )
                 self.f_plan = self.f_plan.reshape(-1, 4, 3)
@@ -345,7 +356,7 @@ class LocomotionMPC(ControllerAbstract):
 
         # Plot each dimension of the plan on a separate subplot
         for i in range(num_dimensions):
-            axs[i].plot(time, plan[:, i])
+            axs[i].plot(time, plan[:, i], 'o-')
             axs[i].set_title(f'{var_name} dimension {i+1}')
             axs[i].set_xlabel('Time (s)')
             axs[i].set_ylabel(f'{var_name} values')

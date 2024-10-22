@@ -22,8 +22,9 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True
     )
+    q_des = np.array([1.0, 0., 0.265, 0., 0., 0.])
     v_des = np.array([0.0, 0.0, 0.0])
-    mpc.set_command(v_des)
+    mpc.set_command(q_des, v_des)
 
     sim = Simulator(robot.mj, controller=mpc)
 
