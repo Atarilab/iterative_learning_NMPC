@@ -116,7 +116,7 @@ class GaitPlanner():
 
                 return start_node, peak_node, end_node
 
-        # Default return if no swing phase is found (should not happen)
+        # Default return if in contact
         return -1, -1, -1
     
     def next_switch_in(self, i_node : int) -> int:

@@ -12,7 +12,8 @@ class QuadrupedDynamics(FloatingBaseDynamics):
     def __init__(self,
                  robot_name: str,
                  model_path: str,
-                 feet_frame_names: List[str]):
+                 feet_frame_names: List[str],
+                 restrict_cnt: bool = False):
         
         model, data = loadSymModel(model_path)
         self.feet_frame_names = feet_frame_names
@@ -21,7 +22,11 @@ class QuadrupedDynamics(FloatingBaseDynamics):
         super().__init__(robot_name, model, data)
 
         # note: 0.022 is the foot radius
-        self.feet = [PointContact(dyn=self, frame=frame_name, mu=QuadrupedDynamics.MU_CONTACT) for frame_name in feet_frame_names]
+        self.feet = [PointContact(
+            dyn=self,
+            frame=frame_name,
+            mu=QuadrupedDynamics.MU_CONTACT,
+            restriction=restrict_cnt) for frame_name in feet_frame_names]
 
         self.add_contacts(self.feet)
         self.base_cost = self.add_expr(name="base_cost", expr=self.get_base_cost())

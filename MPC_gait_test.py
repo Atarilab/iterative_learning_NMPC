@@ -4,6 +4,7 @@ from mj_pin_wrapper.sim_env.utils import RobotModelLoader
 from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
 from mj_pin_wrapper.simulator import Simulator
 from mpc_controller.mpc import LocomotionMPC
+from mpc_controller.utils.sim_visuals import desired_contact_locations_callback
 
 def main(close_loop: bool = True,
          sim_time: float = 3.0,
@@ -27,9 +28,16 @@ def main(close_loop: bool = True,
 
     sim = Simulator(robot.mj, controller=mpc)
 
+    visual_callback = (lambda viewer, step, q, v, data :
+        desired_contact_locations_callback(viewer, step, q, v, data, mpc))
+
     # Close loop MPC in simulation
     if close_loop:
-        sim.run(sim_time, record_video=record_video, playback_speed=1)
+        sim.run(
+            sim_time,
+            record_video=record_video,
+            playback_speed=1,
+            visual_callback_fn=visual_callback)
         mpc.plot_traj('q')
         mpc.plot_traj('f')
     # Open loop MPC

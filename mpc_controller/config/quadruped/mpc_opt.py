@@ -24,6 +24,7 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed
     enable_time_opt : bool = False
     enable_impact_dyn : bool = False
+    restrict_cnt_loc : bool = True
     real_time_it : bool = False
     opt_cnt_pos : bool = False
     opt_peak : bool = True

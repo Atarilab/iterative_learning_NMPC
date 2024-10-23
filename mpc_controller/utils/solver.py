@@ -9,16 +9,18 @@ from contact_tamp.traj_opt_acados.interface.acados_helper import AcadosSolverHel
 from ..config.quadruped.utils import get_quadruped_config
 from ..config.config_abstract import MPCCostConfig
 from .gait_planner import GaitPlanner
+from .raibert_contact_planner import RaiberContactPlanner
 from .dynamics import QuadrupedDynamics
 from .transform import *
 
 class QuadrupedAcadosSolver(AcadosSolverHelper):
     NAME = "quadruped_solver"
-
+    DEFAULT_RANGE_RADIUS = 0.03
     def __init__(self,
                  pin_robot : PinQuadRobotWrapper,
                  gait_name : str = "trot",
                  print_info : bool = False,
+                 height_offset : float = 0.
                  ):
         self.print_info = print_info
         self.pin_robot = pin_robot
@@ -32,13 +34,25 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         dt_min, dt_max = self.config_opt.get_dt_bounds()
         self.dt_nodes = self.config_opt.get_dt_nodes()
         self.enable_time_opt = self.config_opt.enable_time_opt
+
         problem = ProblemFormulation(self.dt_nodes, dt_min, dt_max, self.enable_time_opt)
 
-        self.dyn = QuadrupedDynamics(self.robot_name, pin_robot.path_urdf, self.feet_frame_names)
+        self.dyn = QuadrupedDynamics(
+            self.robot_name,
+            pin_robot.path_urdf,
+            self.feet_frame_names,
+            self.config_opt.restrict_cnt_loc
+            )
+        
         self.dyn.setup(problem)
 
         # Gait planner
         self.gait_planner = GaitPlanner(self.feet_frame_names, self.dt_nodes, self.config_gait)
+        # Contact planner
+        q, _ = self.pin_robot.get_state()
+
+        offset_hip_b = (self.pin_robot.get_hip_pos_world() - q[None, :3])
+        self.contact_planner = RaiberContactPlanner(offset_hip_b, self.config_gait, height_offset)
 
         # Nominal state
         self.q0, _ = self.pin_robot.get_state()
@@ -214,7 +228,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         """
         feet_pos = self.pin_robot.get_frames_position_world(self.feet_frame_names)
 
-        for (foot_cnt, foot_height) in zip(self.dyn.feet, feet_pos[:, 2]):
+        for (foot_cnt, pos) in zip(self.dyn.feet, feet_pos):
             # Contact status
             if contact_state:
                 is_cnt = contact_state[foot_cnt.frame_name]
@@ -222,9 +236,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 is_cnt = self.params[foot_cnt.active.name][0, 0]
 
             if is_cnt == 1:
-                self.params[foot_cnt.plane_point.name][2, :] = foot_height
-
-                if self.print_info: print(f'Reset foot contact {foot_cnt.frame_name}, height {foot_height}')
+                if not self.config_opt.restrict_cnt_loc:
+                    self.params[foot_cnt.plane_point.name][2, :] = pos[2]
+                    if self.print_info: print(f'Reset foot contact {foot_cnt.frame_name}, height {pos[2]}')
+                
+                else:
+                    # Will be override by contact plan
+                    self.params[foot_cnt.plane_point.name][:, :] = pos[:, None]
+                    self.params[foot_cnt.range_radius.name][:, :] = QuadrupedAcadosSolver.DEFAULT_RANGE_RADIUS
 
     # TODO: Add contact positions
     def setup_gait_contacts(self, i_node: int = 0):
@@ -266,9 +285,53 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
                 if n_end > last_node:
                     last_node = n_end
-                # Full contact phase, get to next switch
-                elif last_node == 0:
-                    last_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
+                    
+            # Full contact phase, go to next switch
+            if last_node == 0:
+                last_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
+
+            # Update last node of optimization window updated    
+            node_w = last_node
+
+    def setup_contact_locations(self,
+                                q : np.ndarray,
+                                i_node : int,
+                                v_des : np.ndarray = np.zeros(3),
+                                w_yaw : float = 0.,
+                                ):
+        
+        # Offset applied to the current node to setup the optimization window
+        node_w = 0
+        
+        com_xyz = pin.centerOfMass(self.pin_robot.model, self.pin_robot.data)
+
+        # While in the current optimization window scheme
+        while node_w < self.config_opt.n_nodes:
+
+            # Setup position contact constraints
+            last_node = 0
+            for i_foot, foot_cnt in enumerate(self.dyn.feet):
+
+                # start, peak, end node within the gait
+                n_start, _, n_end = self.gait_planner.get_swing_start_peak_end(foot_cnt.frame_name, node_w + i_node)
+
+                # If swinging, the last swinging node is the first cnt node
+                if 0 <= n_start < n_end:
+                    # Offset to the current node in the window
+                    n_end += node_w
+                    # Time to reach contact
+                    time_to_cnt = n_end * self.dt_nodes
+
+                    # Set contact location constraint
+                    cnt_loc_w = self.contact_planner.next_contact_location(i_foot, q, com_xyz, time_to_cnt, v_des, w_yaw)
+                    self.params[foot_cnt.plane_point.name][:2, n_end:] = cnt_loc_w[:2, None]
+
+                if n_end > last_node:
+                    last_node = n_end
+                    
+            # Full contact phase, go to next switch
+            if last_node == 0:
+                last_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
 
             # Update last node of optimization window updated    
             node_w = last_node
@@ -278,6 +341,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         for foot_cnt in self.dyn.feet:
             print(foot_cnt.frame_name, "contact")
             print(self.params[foot_cnt.active.name])
+            print(self.params[foot_cnt.plane_point.name][:2, :])
 
         print("\nImpacts")
         print(self.params[self.dyn.impact_active.name])
@@ -321,7 +385,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             
     def init(self,
               q : np.ndarray,
-              v : np.ndarray | Any = None,
+              v : np.ndarray = np.zeros(18),
               i_node : int = 0,
               v_des : np.ndarray = np.zeros(3),
               w_yaw_des : float = 0.,
@@ -342,6 +406,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
         self.setup_initial_feet_contact(contact_state)
+        if self.config_opt.restrict_cnt_loc:
+            self.setup_contact_locations(q, i_node, v_des, w_yaw_des)
 
         if self.print_info: self.print_contact_constraints()
 
