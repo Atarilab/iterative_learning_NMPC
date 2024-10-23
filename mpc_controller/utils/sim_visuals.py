@@ -27,7 +27,7 @@ def desired_contact_locations_callback(viewer,
     Visualize the desired contact plan locations in the MuJoCo viewer.
     """
     
-    if sim_step % UPDATE_VISUALS_STEPS == 0: 
+    if sim_step % UPDATE_VISUALS_STEPS == 0 and controller.solver.config_opt.restrict_cnt_loc:
         
         viewer.user_scn.ngeom = 0
         i_geom = 0

@@ -4,10 +4,13 @@ from matplotlib import pyplot as plt
 import numpy as np
 from bisect import bisect_left
 from scipy.interpolate import interp1d
+from math import floor, ceil
+import pinocchio as pin
 
 from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
 from .utils.solver import QuadrupedAcadosSolver
+from .utils.transform import quat_to_ypr_state
 
 class LocomotionMPC(ControllerAbstract):
     """
@@ -44,6 +47,7 @@ class LocomotionMPC(ControllerAbstract):
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
+        self.q_base_des = quat_to_ypr_state(self.robot.get_state()[0])
         self.q_plan = None
         self.v_plan = None
         self.a_plan = None
@@ -102,7 +106,7 @@ class LocomotionMPC(ControllerAbstract):
         self.current_opt_node : int = 0
 
         self.v_des : np.ndarray = np.zeros(3)
-        self.w_des : float = 0.
+        self.w_des : float = np.zeros(3)
 
         self.diverged : bool = False
 
@@ -120,7 +124,8 @@ class LocomotionMPC(ControllerAbstract):
     def interpolate_trajectory(
         self,
         traj : np.ndarray,
-        time_traj : np.ndarray
+        time_traj : np.ndarray,
+        kind: str = "",
         ) -> np.ndarray:
         """
         Interpolate traj at a sim_dt period.
@@ -137,7 +142,7 @@ class LocomotionMPC(ControllerAbstract):
             time_traj,
             traj,
             axis=0,
-            kind=self.solver.config_opt.interpolation_mode,
+            kind = kind if kind else self.solver.config_opt.interpolation_mode,
             fill_value="extrapolate",
             bounds_error=False,
             assume_sorted=True,
@@ -181,29 +186,45 @@ class LocomotionMPC(ControllerAbstract):
                 # Find the corresponding optimization node
                 self.current_opt_node += bisect_left(time_traj, sim_time)
                 print("Replan", "node:", self.current_opt_node, "time:", sim_time)
-
                 q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
+                # if self.sim_step == 0:
+                #     q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
+                # else:
+                #     print('q ', q)
+                #     print('v ', v)
+                #     # idx = self.current_opt_node % self.solver.config_opt.n_nodes
+                #     idx = ceil(self.plan_step / (self.dt_nodes / self.sim_dt))
+                #     q, v = q_sol[idx], v_sol[idx]
+                #     print('qn ', q)
+                #     print('vn ', v)
                 t_start = time.time()
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
                 total_opt_time += time.time() - t_start
                 total_opt_steps += 1
-                
+                q_sol = np.vstack((q.reshape(1, -1), q_sol))
+                v_sol = np.vstack((v.reshape(1, -1), v_sol))
                 # Interpolate plan at sim_dt intervals
-                traj_full = np.concatenate((
+                traj_full_state = np.concatenate((
                     q_sol,
                     v_sol,
+                ), axis=-1)
+                traj_full_inputs = np.concatenate((
                     a_sol,
                     f_sol.reshape(-1, 12),
                 ), axis=-1)
 
-                time_traj = np.cumsum(dt_sol) - dt_sol[0]
-                # Take only one replanning steps ahead of the traj to save compute
-                traj_full_interp = self.interpolate_trajectory(traj_full[:self.replanning_steps], time_traj[:self.replanning_steps])
-                self.q_plan, self.v_plan, self.a_plan, self.f_plan = np.split(
-                    traj_full_interp,
-                    [q_sol.shape[-1],
-                    q_sol.shape[-1] + v_sol.shape[-1], 
-                    q_sol.shape[-1] + v_sol.shape[-1] + a_sol.shape[-1]],
+                time_traj = np.insert(np.cumsum(dt_sol), 0, 0.)# N + 1
+                # Take only 3 replanning steps ahead of the traj to save compute
+                state_full_interp = self.interpolate_trajectory(traj_full_state, time_traj, kind="next")
+                inputs_full_interp = self.interpolate_trajectory(traj_full_inputs, time_traj[:-1], kind="zero")
+                self.q_plan, self.v_plan = np.split(
+                    state_full_interp,
+                    [q_sol.shape[-1]],
+                    axis=-1
+                )
+                self.a_plan, self.f_plan = np.split(
+                    inputs_full_interp,
+                    [a_sol.shape[-1]],
                     axis=-1
                 )
                 self.f_plan = self.f_plan.reshape(-1, 4, 3)
@@ -227,12 +248,12 @@ class LocomotionMPC(ControllerAbstract):
     def _convergence_on_first_iter(self):
         if self.sim_step == 0:
             self.solver.set_max_iter(50)
-            self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
-            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 10.)
+            # self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
+            # self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 10.)
         elif self.sim_step <= self.replanning_steps:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
-            self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
-            self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
+        self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
+        self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
     
     def get_torques(self, q: np.ndarray, v: np.ndarray, robot_data: Any) -> Dict[str, float]:
         """
@@ -252,23 +273,31 @@ class LocomotionMPC(ControllerAbstract):
 
             # Replan trajectory    
             q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
+            q_sol = np.vstack((q, q_sol))
+            v_sol = np.vstack((v, v_sol))
 
             # Interpolate plan at sim_dt intervals
-            traj_full = np.concatenate((
+            state_full = np.concatenate((
                 q_sol,
                 v_sol,
+            ), axis=-1)
+            input_full = np.concatenate((
                 a_sol,
                 f_sol.reshape(-1, 12),
             ), axis=-1)
 
-            self.time_traj = np.cumsum(dt_sol) - dt_sol[0]
-            # Take only replanning steps ahead of the traj to save compute
-            traj_full_interp = self.interpolate_trajectory(traj_full[:self.replanning_steps], self.time_traj[:self.replanning_steps])
-            self.q_plan, self.v_plan, self.a_plan, self.f_plan = np.split(
-                traj_full_interp,
-                [q_sol.shape[-1],
-                 q_sol.shape[-1] + v_sol.shape[-1], 
-                 q_sol.shape[-1] + v_sol.shape[-1] + a_sol.shape[-1]],
+            self.time_traj = np.insert(np.cumsum(dt_sol), 0, 0.)
+            # Take only 3 replanning steps ahead of the traj to save compute
+            state_full_interp = self.interpolate_trajectory(state_full, self.time_traj[:  3 * self.replanning_steps])
+            input_full_interp = self.interpolate_trajectory(input_full, self.time_traj[:-1][:  3 * self.replanning_steps], kind='zero')
+            self.q_plan, self.v_plan = np.split(
+                state_full_interp,
+                [q_sol.shape[-1]],
+                 axis=-1
+            )
+            self.a_plan, self.f_plan = np.split(
+                input_full_interp,
+                [a_sol.shape[-1]],
                  axis=-1
             )
             self.f_plan = self.f_plan.reshape(-1, 4, 3)
@@ -286,8 +315,8 @@ class LocomotionMPC(ControllerAbstract):
         torques = self.solver.dyn.get_torques(
             self.robot.model,
             self.robot.data,
-            self.q_plan[self.plan_step],
-            self.v_plan[self.plan_step],
+            q,
+            v,
             self.a_plan[self.plan_step],
             self.f_plan[self.plan_step],
         )
@@ -355,4 +384,6 @@ class LocomotionMPC(ControllerAbstract):
             fig.delaxes(axs[i])
 
         plt.tight_layout()
+    
+    def show_plots(self):
         plt.show()

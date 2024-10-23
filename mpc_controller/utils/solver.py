@@ -113,7 +113,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Swing cost weights (for each foot)
         self.data["W"][self.dyn.swing_cost.name] = np.array(self.config_cost.W_swing)
         if self.enable_time_opt:
-            self.data["W"]["dt"][0] = 0
+            self.data["W"]["dt"][0] = 1e4
         # Joint cost to ref
         self.data["W"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_joint)
         self.data["W_e"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_e_joint)
@@ -149,24 +149,44 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         if self.enable_time_opt:
             self.data["yref"]["dt"][0] = self.dt_nodes
             self.data["u"]["dt"][0] = self.dt_nodes
-        
+
+        base_ref = q_euler[:12].copy()
+
+        # Horizontal base
+        base_ref[4:6] = 0.
+        # Height to config
+        base_ref[2] = self.config_gait.nom_height
+
         # Setup reference velocities in local frame
-        R_WB = pin.rpy.rpyToMatrix(q_euler[:3][::-1])
-        w_des_local = (R_WB.T @ np.array([0., 0., w_yaw]))[::-1]
-        # No velocity along z
-        v_des[2] = 0.
+        # v_des is in local frame already
+        # w_yaw in global frame
+        R_WB = pin.rpy.rpyToMatrix(q_euler[3:6][::-1])
+        w_des_global = np.array([0., 0., w_yaw])
+        w_des_local = (R_WB.T @ w_des_global)[::-1]
+        base_ref[-3:] = np.round(w_des_local, 2)
+
+        # Compute velocity in global frame
+        # Apply angular velocity
+        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1])
+        R_yaw = pin.rpy.rpyToMatrix(w_des_global * self.config_opt.time_horizon)
+        v_des = R_yaw @ v_des
+        # Vertical velocity to reach desired height
+        v_des[2] = (self.config_gait.nom_height - q_euler[2]) / self.config_opt.time_horizon
+        base_ref[6:9] = v_des
+        v_des_glob = np.round(R_WB @ v_des, 2)
+
+        # Update position and orientation according to desired velocities
+        base_ref[:3] += v_des_glob * self.config_opt.time_horizon
+        base_ref[3] += w_yaw * self.config_opt.time_horizon
+
         # Base reference and terminal states
-        base_ref = np.concatenate((q_euler, v_des, w_des_local))
         base_ref_e = base_ref.copy()
-        # Set height to nominal height
+        # Base height
         base_ref_e[2] = self.config_gait.nom_height
-        # Reference roll, pitch terminal orientation is horizontal
-        base_ref_e[4:6] = 0.
-        # Yaw orientation according to desired velocity
-        base_ref_e[3] += w_yaw * self.config_opt.time_horizon
-        # Desired final position according to desired vel
-        v_des_global = R_WB @ v_des
-        base_ref_e[:2] += v_des_global[:2] * self.config_opt.time_horizon
+        # Base horizontal vel
+        base_ref_e[8] = 0. 
+        # pitch roll vel
+        base_ref_e[-2:] = 0. 
 
         self.data["yref"][self.dyn.base_cost.name] = base_ref
         self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
@@ -189,16 +209,16 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         Initialize the state (x) of the robot in the solver.
         """        
         self.data["x"][self.dyn.q.name] = q_euler
+        if v_local is not None:
+            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_local)
+            pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
+            self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
         # Set the state constant in the solver
         if set_state_constant:
             self.set_state_constant(self.data["x"])
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
 
-        if v_local is not None:
-            self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_local)
-            pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
-            self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
 
     def setup_initial_feet_pos(self,
                                plane_normal : List[np.ndarray] | Any = None,
@@ -261,7 +281,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             if self.config_opt.enable_impact_dyn:
                 switch_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
                 if switch_node <= self.config_opt.n_nodes:
-                    self.params[self.dyn.impact_active.name][:, switch_node] = 0
+                    self.params[self.dyn.impact_active.name][:, switch_node] = 1
 
             # Setup swing constraints
             last_node = 0
@@ -401,7 +421,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         first_it = i_node == 0
         q_euler = quat_to_ypr_state(q)
 
-        self.setup_reference(q_euler[:6], v_des, w_yaw_des)
+        self.setup_reference(q_euler, v_des, w_yaw_des)
         self.setup_initial_state(q_euler, v_local, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
@@ -427,6 +447,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
     def solve(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Solve the optimization problem and parse solution.
+        returns pinocchio states with FreeFlyer
         """
         super().solve(print_stats=self.print_info, print_time=self.print_info)
         self.parse_sol()

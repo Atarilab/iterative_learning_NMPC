@@ -42,11 +42,12 @@ def ypr_to_quat_state_batched(q_euler_batch: np.ndarray) -> np.ndarray:
 
     return q_full_batched
 
-def v_global_linear_to_local_linear(q : np.ndarray, v_glob_linear : np.ndarray) -> np.ndarray:
+def v_global_linear_to_local_linear(q_euler : np.ndarray, v_glob_linear : np.ndarray) -> np.ndarray:
     """
     Transform a velocity state from global linear velocity to local angular vel.
+    Euler -> pinocchio Freeflyer
     """
-    R_BW = pin.rpy.rpyToMatrix(q[3:6][::-1]).T
+    R_BW = pin.rpy.rpyToMatrix(q_euler[3:6][::-1]).T
     v_local_linear = v_glob_linear.copy()
     v_local_linear[3:6] = R_BW @ v_glob_linear[3:6]
 
@@ -93,6 +94,9 @@ def v_to_euler_derivative(q_euler: np.ndarray, v: np.ndarray) -> np.ndarray:
     return v_euler_d
 
 def v_glob_to_local_batched(q_euler_batch: np.ndarray, v_euler_batch: np.ndarray) -> np.ndarray:
+    '''
+    Pinocchio Translation + ZYX -> mujoco
+    '''
     # Rotate the linear velocity using YPR orientation
     rotated_v_batch = np.array([
         pin.rpy.rpyToMatrix(ypr_euler[::-1]).T @ v_euler
@@ -107,7 +111,7 @@ def v_glob_to_local_batched(q_euler_batch: np.ndarray, v_euler_batch: np.ndarray
 
     # Combine the rotated linear velocity and local angular velocity
     v_euler_d = np.hstack((
-        rotated_v_batch,
+        rotated_v_batch[:, :3],
         v_local_batch,
         v_euler_batch[:, 6:]
     ))
