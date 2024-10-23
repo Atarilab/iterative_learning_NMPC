@@ -138,8 +138,7 @@ class LocomotionMPC(ControllerAbstract):
             traj,
             axis=0,
             kind=self.solver.config_opt.interpolation_mode,
-            fill_value=(traj[0], traj[-1]),
-            # fill_value="extrapolate",
+            fill_value="extrapolate",
             bounds_error=False,
             assume_sorted=True,
             )
@@ -198,8 +197,8 @@ class LocomotionMPC(ControllerAbstract):
                 ), axis=-1)
 
                 time_traj = np.cumsum(dt_sol) - dt_sol[0]
-                # Take only 3 replanning steps ahead of the traj to save compute
-                traj_full_interp = self.interpolate_trajectory(traj_full, time_traj[:  3 * self.replanning_steps])
+                # Take only one replanning steps ahead of the traj to save compute
+                traj_full_interp = self.interpolate_trajectory(traj_full[:self.replanning_steps], time_traj[:self.replanning_steps])
                 self.q_plan, self.v_plan, self.a_plan, self.f_plan = np.split(
                     traj_full_interp,
                     [q_sol.shape[-1],
@@ -262,9 +261,9 @@ class LocomotionMPC(ControllerAbstract):
                 f_sol.reshape(-1, 12),
             ), axis=-1)
 
-            self.time_traj = np.cumsum(dt_sol)
-            # Take only 3 replanning steps ahead of the traj to save compute
-            traj_full_interp = self.interpolate_trajectory(traj_full, self.time_traj[:  3 * self.replanning_steps])
+            self.time_traj = np.cumsum(dt_sol) - dt_sol[0]
+            # Take only replanning steps ahead of the traj to save compute
+            traj_full_interp = self.interpolate_trajectory(traj_full[:self.replanning_steps], self.time_traj[:self.replanning_steps])
             self.q_plan, self.v_plan, self.a_plan, self.f_plan = np.split(
                 traj_full_interp,
                 [q_sol.shape[-1],
