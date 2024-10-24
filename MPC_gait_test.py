@@ -23,7 +23,7 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True
     )
-    v_des = np.array([0.3, 0.0, 0.0])
+    v_des = np.array([-0.3, -0.3, 0.0])
     w_yaw = 0.
     mpc.set_command(v_des, w_yaw)
 
@@ -53,6 +53,7 @@ def main(close_loop: bool = True,
         mpc.show_plots()
         sim.vis_trajectory(q_traj, loop=True, record_video=record_video, playback_speed=1)
 
+    mpc.print_timings()
 
 if __name__ == "__main__":
     # Parse command-line arguments

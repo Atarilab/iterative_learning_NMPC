@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 import numpy as np
 import pinocchio as pin
@@ -12,6 +13,7 @@ from .gait_planner import GaitPlanner
 from .raibert_contact_planner import RaiberContactPlanner
 from .dynamics import QuadrupedDynamics
 from .transform import *
+from .profiling import time_fn, print_timings
 
 class QuadrupedAcadosSolver(AcadosSolverHelper):
     NAME = "quadruped_solver"
@@ -22,7 +24,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                  pin_robot : PinQuadRobotWrapper,
                  gait_name : str = "trot",
                  print_info : bool = False,
-                 height_offset : float = 0.
+                 height_offset : float = 0.,
+                 compute_timings : bool = True,
                  ):
         self.print_info = print_info
         self.pin_robot = pin_robot
@@ -93,6 +96,10 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
         self.default_normal = np.array([0., 0., 1.])
         self.last_node = 0
+
+        # Setup timings
+        self.compute_timings = compute_timings
+        self.timings = defaultdict(list)
 
     def update_cost(self, config_cost : MPCCostConfig):
         """
@@ -221,7 +228,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.set_input_constant(self.data["u"])
         self.set_initial_state(self.data["x"])
 
-
     def setup_initial_feet_pos(self,
                                plane_normal : List[np.ndarray] | Any = None,
                                plane_origin : List[np.ndarray] | Any = None,):
@@ -267,7 +273,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                     self.params[foot_cnt.plane_point.name][:, :] = pos[:, None]
                     self.params[foot_cnt.range_radius.name][:, :] = QuadrupedAcadosSolver.DEFAULT_RANGE_RADIUS
 
-    # TODO: Add contact positions
+    @time_fn("setup_gait_contacts")
     def setup_gait_contacts(self, i_node: int = 0):
         """
         Setup contact status in the optimization nodes.
@@ -315,6 +321,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             # Update last node of optimization window updated    
             node_w = last_node
 
+    @time_fn("setup_contact_locations")
     def setup_contact_locations(self,
                                 q : np.ndarray,
                                 i_node : int,
@@ -376,6 +383,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         print("\nImpacts")
         print(self.params[self.dyn.impact_active.name])
 
+    @time_fn("warm_start_traj")
     def warm_start_traj(self,
                         start_node: int
                         ):
@@ -412,7 +420,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             # Nominal dt
             if self.enable_time_opt:
                 self.inputs["dt"][:, n_warm_start:] = self.dt_nodes
-            
+    
+    @time_fn("init_solver")
     def init(self,
               q : np.ndarray,
               v : np.ndarray = np.zeros(18),
@@ -449,14 +458,15 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.config_opt.warm_start_sol):
             warm_start_node = (i_node - self.last_node) % self.config_opt.n_nodes
             self.warm_start_traj(warm_start_node)
-            self.update_states()
-            self.update_inputs()
+            # self.update_states()
+            # self.update_inputs()
 
         self.update_parameters()
-        self.update_ref()
+        # self.update_ref()
 
         self.last_node = i_node
 
+    @time_fn("solve")
     def solve(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Solve the optimization problem and parse solution.
@@ -493,3 +503,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.dt_node_sol = np.full((len(q_sol),), self.dt_nodes)
 
         return q_sol, v_sol, self.a_sol, self.f_sol, self.dt_node_sol
+    
+    def print_timings(self):
+        print_timings(self.timings)

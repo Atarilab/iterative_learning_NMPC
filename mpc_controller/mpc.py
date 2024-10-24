@@ -1,3 +1,4 @@
+from collections import defaultdict
 import time
 from typing import Any, Dict, Tuple
 from matplotlib import pyplot as plt
@@ -11,6 +12,7 @@ from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.transform import quat_to_ypr_state
+from .utils.profiling import time_fn, print_timings
 
 class LocomotionMPC(ControllerAbstract):
     """
@@ -24,6 +26,7 @@ class LocomotionMPC(ControllerAbstract):
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
                  record_traj : bool = False,
+                 compute_timings : bool = True,
                  **kwargs
                  ) -> None:
         super().__init__(robot.pin)
@@ -63,6 +66,10 @@ class LocomotionMPC(ControllerAbstract):
         self.tau_full = []
 
         self.diverged : bool = False
+
+        # Setup timings
+        self.compute_timings = compute_timings
+        self.timings = defaultdict(list)
 
     def _replan(self) -> bool:
         """
@@ -109,7 +116,8 @@ class LocomotionMPC(ControllerAbstract):
         self.w_des : float = np.zeros(3)
 
         self.diverged : bool = False
-
+    
+    @time_fn("optimize")
     def optimize(self,
                  q : np.ndarray,
                  v : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -121,6 +129,7 @@ class LocomotionMPC(ControllerAbstract):
 
         return q_sol, v_sol, a_sol, f_sol, dt_sol
 
+    @time_fn("interpolate_trajectory")
     def interpolate_trajectory(
         self,
         traj : np.ndarray,
@@ -248,12 +257,12 @@ class LocomotionMPC(ControllerAbstract):
     def _convergence_on_first_iter(self):
         if self.sim_step == 0:
             self.solver.set_max_iter(50)
-            # self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
-            # self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 10.)
+            self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 5.)
+            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 5.)
         elif self.sim_step <= self.replanning_steps:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
-        self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
-        self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
+            self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
+            self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
     
     def get_torques(self, q: np.ndarray, v: np.ndarray, robot_data: Any) -> Dict[str, float]:
         """
@@ -288,8 +297,8 @@ class LocomotionMPC(ControllerAbstract):
 
             self.time_traj = np.insert(np.cumsum(dt_sol), 0, 0.)
             # Take only 3 replanning steps ahead of the traj to save compute
-            state_full_interp = self.interpolate_trajectory(state_full, self.time_traj[:  3 * self.replanning_steps])
-            input_full_interp = self.interpolate_trajectory(input_full, self.time_traj[:-1][:  3 * self.replanning_steps], kind='zero')
+            state_full_interp = self.interpolate_trajectory(state_full[:self.replanning_steps], self.time_traj[:self.replanning_steps])
+            input_full_interp = self.interpolate_trajectory(input_full[:self.replanning_steps], self.time_traj[:self.replanning_steps], kind='zero')
             self.q_plan, self.v_plan = np.split(
                 state_full_interp,
                 [q_sol.shape[-1]],
@@ -387,3 +396,8 @@ class LocomotionMPC(ControllerAbstract):
     
     def show_plots(self):
         plt.show()
+
+    def print_timings(self):
+        print()
+        print_timings(self.timings)
+        print_timings(self.solver.timings)
