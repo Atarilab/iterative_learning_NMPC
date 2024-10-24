@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 import numpy as np
 import pinocchio as pin
+import time
 
 from contact_tamp.traj_opt_acados.interface.problem_formuation import ProblemFormulation
 # from contact_tamp.traj_opt_acados.models.quadruped import Quadruped
@@ -399,9 +400,11 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         n_warm_start = self.config_opt.n_nodes - start_node
         if self.print_info: print(f"Warm start size: {n_warm_start}, start_node {start_node}")
 
-        self.states[self.dyn.q.name][:, 1:n_warm_start+1] = self.q_sol_euler[start_node:].T
-        self.states[self.dyn.v.name][:, 1:n_warm_start+1] = self.v_sol_euler[start_node:].T
-        self.states[self.dyn.h.name][:, 1:n_warm_start+1] = self.h_sol[start_node:].T
+        # States [n_nodes + 1]
+        self.states[self.dyn.q.name][:, 1:n_warm_start+1] = self.q_sol_euler[start_node+1:].T
+        self.states[self.dyn.v.name][:, 1:n_warm_start+1] = self.v_sol_euler[start_node+1:].T
+        self.states[self.dyn.h.name][:, 1:n_warm_start+1] = self.h_sol[start_node+1:].T
+        # Inputs [n_nodes]
         self.inputs[self.dyn.a.name][:, :n_warm_start] = self.a_sol[start_node:].T
         for i, foot_name in enumerate(self.feet_frame_names):
             self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, :n_warm_start] = self.f_sol[start_node:, i, :].T
@@ -411,10 +414,13 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Set the remaining values
         if n_warm_start < self.config_opt.n_nodes:
             last_q = self.q_sol_euler[-1]
+            last_v = self.v_sol_euler[-1]
+            last_h = self.h_sol[-1]
+            last_a = self.a_sol[-1]
             self.states[self.dyn.q.name][:, n_warm_start+1:] = last_q[:, None]
-            self.states[self.dyn.v.name][:, n_warm_start+1:] = 0.
-            self.states[self.dyn.h.name][:, n_warm_start+1:] = 0.
-            self.inputs[self.dyn.a.name][:, n_warm_start:] = 0.
+            self.states[self.dyn.v.name][:, n_warm_start+1:] = last_v[:, None]
+            self.states[self.dyn.h.name][:, n_warm_start+1:] = last_h[:, None]
+            self.inputs[self.dyn.a.name][:, n_warm_start:] = last_a[:, None]
             for i, foot_name in enumerate(self.feet_frame_names):
                 self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, n_warm_start:] = 0.
             # Nominal dt
@@ -475,26 +481,26 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         super().solve(print_stats=self.print_info, print_time=self.print_info)
         self.parse_sol()
 
-        self.q_sol_euler = self.states[self.dyn.q.name].T[1:, :].copy()
+        self.q_sol_euler = self.states[self.dyn.q.name].T
 
-        # positions, [n_nodes, 19]
+        # positions, [n_nodes + 1, 19]
         q_sol = ypr_to_quat_state_batched(self.q_sol_euler)
         
-        # velocities, [n_nodes, 18]
-        self.v_sol_euler = self.states[self.dyn.v.name].T[1:, :].copy()
+        # velocities, [n_nodes + 1, 18]
+        self.v_sol_euler = self.states[self.dyn.v.name].T
         v_sol = v_glob_to_local_batched(self.q_sol_euler, self.v_sol_euler)
 
-        # Centroidal momentum, [n_nodes, 6]
-        self.h_sol = self.states[self.dyn.h.name].T[1:, :].copy()
+        # centroidal momentum, [n_nodes + 1, 6]
+        self.h_sol = self.states[self.dyn.h.name].T
 
         # acceleration, [n_nodes, 18]
-        self.a_sol = self.inputs[self.dyn.a.name].T.copy()
+        self.a_sol = self.inputs[self.dyn.a.name].T
 
         # end effector forces, [n_nodes, 4, 3]
         self.f_sol = np.array([
             self.inputs[f"f_{foot_cnt.frame_name}_{self.dyn.name}"]
             for foot_cnt in self.dyn.feet
-        ]).transpose(2, 0, 1).copy()
+        ]).transpose(2, 0, 1)
 
         # dt time, [n_nodes, ]
         if self.enable_time_opt:

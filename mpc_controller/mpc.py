@@ -47,6 +47,10 @@ class LocomotionMPC(ControllerAbstract):
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
+        # Only interpolate first <self.interp_size> solutions of the solver
+        # to save compute
+        replanning_steps = 5
+        self.interp_size : int = int(1 / (self.replanning_freq * self.dt_nodes)) * replanning_steps
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
@@ -162,6 +166,46 @@ class LocomotionMPC(ControllerAbstract):
         interpolated_traj = interp_func(t_interpolated)
 
         return interpolated_traj
+    
+    def interpolate_sol(self,
+                        q_sol : np.ndarray,
+                        v_sol : np.ndarray,
+                        a_sol : np.ndarray,
+                        f_sol : np.ndarray,
+                        dt_sol : np.ndarray,
+                        ) -> Tuple[np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
+        """
+        Interpolate solution found by the solver at sim dt time intervals.
+        Repeat for inputs.
+        Linear interpolation for states.
+        """
+        # Interpolate plan at sim_dt intervals
+        state_full = np.concatenate((
+            q_sol,
+            v_sol,
+        ), axis=-1)
+        input_full = np.concatenate((
+            a_sol,
+            f_sol.reshape(-1, 12),
+        ), axis=-1)
+
+        time_traj = np.cumsum(dt_sol) - dt_sol
+
+        state_full_interp = self.interpolate_trajectory(state_full[:self.interp_size], time_traj[:self.interp_size])
+        input_full_interp = self.interpolate_trajectory(input_full[:self.interp_size], time_traj[:min(self.interp_size, len(input_full))], kind='zero')
+        q_plan, v_plan = np.split(
+            state_full_interp,
+            [q_sol.shape[-1]],
+                axis=-1
+        )
+        a_plan, f_plan = np.split(
+            input_full_interp,
+            [a_sol.shape[-1]],
+                axis=-1
+        )
+        f_plan = f_plan.reshape(-1, 4, 3)
+
+        return q_plan, v_plan, a_plan, f_plan, time_traj
 
     def open_loop(self,
                  trajectory_time : float,
@@ -182,8 +226,6 @@ class LocomotionMPC(ControllerAbstract):
         self.v_plan = [v0]
         sim_time = 0.
         time_traj = []
-        total_opt_time = 0.
-        total_opt_steps = 0
 
         while sim_time <= trajectory_time:
 
@@ -195,48 +237,20 @@ class LocomotionMPC(ControllerAbstract):
                 # Find the corresponding optimization node
                 self.current_opt_node += bisect_left(time_traj, sim_time)
                 print("Replan", "node:", self.current_opt_node, "time:", sim_time)
-                q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
-                # if self.sim_step == 0:
-                #     q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
-                # else:
-                #     print('q ', q)
-                #     print('v ', v)
-                #     # idx = self.current_opt_node % self.solver.config_opt.n_nodes
-                #     idx = ceil(self.plan_step / (self.dt_nodes / self.sim_dt))
-                #     q, v = q_sol[idx], v_sol[idx]
-                #     print('qn ', q)
-                #     print('vn ', v)
-                t_start = time.time()
-                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
-                total_opt_time += time.time() - t_start
-                total_opt_steps += 1
-                q_sol = np.vstack((q.reshape(1, -1), q_sol))
-                v_sol = np.vstack((v.reshape(1, -1), v_sol))
-                # Interpolate plan at sim_dt intervals
-                traj_full_state = np.concatenate((
-                    q_sol,
-                    v_sol,
-                ), axis=-1)
-                traj_full_inputs = np.concatenate((
-                    a_sol,
-                    f_sol.reshape(-1, 12),
-                ), axis=-1)
 
-                time_traj = np.insert(np.cumsum(dt_sol), 0, 0.)# N + 1
-                # Take only 3 replanning steps ahead of the traj to save compute
-                state_full_interp = self.interpolate_trajectory(traj_full_state, time_traj, kind="next")
-                inputs_full_interp = self.interpolate_trajectory(traj_full_inputs, time_traj[:-1], kind="zero")
-                self.q_plan, self.v_plan = np.split(
-                    state_full_interp,
-                    [q_sol.shape[-1]],
-                    axis=-1
-                )
-                self.a_plan, self.f_plan = np.split(
-                    inputs_full_interp,
-                    [a_sol.shape[-1]],
-                    axis=-1
-                )
-                self.f_plan = self.f_plan.reshape(-1, 4, 3)
+                q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
+
+                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
+                q_sol[0] = q
+                v_sol[0] = v
+
+                (
+                self.q_plan,
+                self.v_plan,
+                self.a_plan,
+                self.f_plan,
+                time_traj,
+                ) = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
                 time_traj += sim_time
                 self.plan_step = 0
@@ -246,19 +260,13 @@ class LocomotionMPC(ControllerAbstract):
             self._step()
             sim_time = round(sim_time + self.sim_dt, 4)
 
-        mean_opt_time = total_opt_time / total_opt_steps
-        print("-" * 50)
-        print("Mean optimization time:", mean_opt_time * 1000, "ms")
-        print("Replanning period:", self.replanning_steps * self.sim_dt * 1000, "ms")
-        print("-" * 50)
-
         return q_full_traj
     
     def _convergence_on_first_iter(self):
         if self.sim_step == 0:
             self.solver.set_max_iter(50)
-            self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 5.)
-            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 5.)
+            self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
+            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 2.)
         elif self.sim_step <= self.replanning_steps:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
@@ -272,7 +280,6 @@ class LocomotionMPC(ControllerAbstract):
         if self._replan():
             time_start = time.time()
             sim_time = round(robot_data.time, 4)
-            self.plan_step = 0
 
             # Find the optimization node of the last plan corresponding to the current simulation time
             self.current_opt_node += bisect_left(self.time_traj, sim_time)
@@ -282,38 +289,23 @@ class LocomotionMPC(ControllerAbstract):
 
             # Replan trajectory    
             q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
-            q_sol = np.vstack((q, q_sol))
-            v_sol = np.vstack((v, v_sol))
+            q_sol[0] = q
+            v_sol[0] = v
 
-            # Interpolate plan at sim_dt intervals
-            state_full = np.concatenate((
-                q_sol,
-                v_sol,
-            ), axis=-1)
-            input_full = np.concatenate((
-                a_sol,
-                f_sol.reshape(-1, 12),
-            ), axis=-1)
-
-            self.time_traj = np.insert(np.cumsum(dt_sol), 0, 0.)
-            # Take only 3 replanning steps ahead of the traj to save compute
-            state_full_interp = self.interpolate_trajectory(state_full[:self.replanning_steps], self.time_traj[:self.replanning_steps])
-            input_full_interp = self.interpolate_trajectory(input_full[:self.replanning_steps], self.time_traj[:self.replanning_steps], kind='zero')
-            self.q_plan, self.v_plan = np.split(
-                state_full_interp,
-                [q_sol.shape[-1]],
-                 axis=-1
-            )
-            self.a_plan, self.f_plan = np.split(
-                input_full_interp,
-                [a_sol.shape[-1]],
-                 axis=-1
-            )
-            self.f_plan = self.f_plan.reshape(-1, 4, 3)
+            (
+            self.q_plan,
+            self.v_plan,
+            self.a_plan,
+            self.f_plan,
+            self.time_traj,
+            ) = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
             self.time_traj += sim_time
 
             time_end = time.time()
+
+            self.plan_step = 0
+
             if self.print_info:
                 replanning_time = time_end - time_start
                 print("-" * 50)
