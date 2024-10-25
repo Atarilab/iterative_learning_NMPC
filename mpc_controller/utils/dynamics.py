@@ -21,7 +21,6 @@ class QuadrupedDynamics(FloatingBaseDynamics):
 
         super().__init__(robot_name, model, data)
 
-        # note: 0.022 is the foot radius
         self.feet = [PointContact(
             dyn=self,
             frame=frame_name,

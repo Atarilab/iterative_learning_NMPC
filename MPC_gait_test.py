@@ -23,7 +23,7 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True
     )
-    v_des = np.array([-0.3, -0.3, 0.0])
+    v_des = np.array([0.1, 0.0, 0.0])
     w_yaw = 0.
     mpc.set_command(v_des, w_yaw)
 
@@ -41,7 +41,7 @@ def main(close_loop: bool = True,
             visual_callback_fn=visual_callback)
         mpc.plot_traj('q')
         mpc.plot_traj('v')
-        mpc.plot_traj('f')
+        mpc.plot_traj('tau')
         mpc.show_plots()
     # Open loop MPC
     else:

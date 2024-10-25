@@ -18,8 +18,8 @@ from .profiling import time_fn, print_timings
 
 class QuadrupedAcadosSolver(AcadosSolverHelper):
     NAME = "quadruped_solver"
-    DEFAULT_RANGE_RADIUS = 0.03
-    STAND_PHASE_NODES = 2
+    DEFAULT_RANGE_RADIUS = 0.01
+    STAND_PHASE_NODES = 0
 
     def __init__(self,
                  pin_robot : PinQuadRobotWrapper,
@@ -47,7 +47,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.robot_name,
             pin_robot.path_urdf,
             self.feet_frame_names,
-            self.config_opt.restrict_cnt_loc
+            not(self.config_opt.opt_cnt_pos)
             )
         
         self.dyn.setup(problem)
@@ -246,6 +246,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             # Will be overriden by contact plan
             self.data["p"][foot_cnt.active.name][0] = 1
             self.data["p"][foot_cnt.p_gain.name][0] = self.config_cost.foot_pos_constr_stab[i_foot]
+            if not self.config_opt.opt_cnt_pos:
+                self.data["p"][foot_cnt.restrict.name][0] = 1
 
         self.set_parameters_constant(self.data["p"])
 
@@ -265,13 +267,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 is_cnt = self.params[foot_cnt.active.name][0, 0]
 
             if is_cnt == 1:
-                if not self.config_opt.restrict_cnt_loc:
+                if self.config_opt.opt_cnt_pos:
                     self.params[foot_cnt.plane_point.name][2, :] = pos[2]
                     if self.print_info: print(f'Reset foot contact {foot_cnt.frame_name}, height {pos[2]}')
                 
                 else:
                     # Will be override by contact plan
-                    self.params[foot_cnt.plane_point.name][:, :] = pos[:, None]
+                    self.params[foot_cnt.plane_point.name][:2, :] = pos[:2, None]
+                    self.params[foot_cnt.plane_point.name][2, :] = 0.
                     self.params[foot_cnt.range_radius.name][:, :] = QuadrupedAcadosSolver.DEFAULT_RANGE_RADIUS
 
     @time_fn("setup_gait_contacts")
@@ -379,7 +382,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         for foot_cnt in self.dyn.feet:
             print(foot_cnt.frame_name, "contact")
             print(self.params[foot_cnt.active.name])
-            print(self.params[foot_cnt.plane_point.name][:2, :])
+            print(np.unique(self.params[foot_cnt.plane_point.name], axis=1).T)
 
         print("\nImpacts")
         print(self.params[self.dyn.impact_active.name])
@@ -451,7 +454,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)
         self.setup_initial_feet_contact(contact_state)
-        if self.config_opt.restrict_cnt_loc:
+        if not self.config_opt.opt_cnt_pos:
             self.setup_contact_locations(q, i_node, v_des, w_yaw_des)
 
         if i_node < QuadrupedAcadosSolver.STAND_PHASE_NODES:

@@ -41,8 +41,6 @@ class MPCOptConfig():
     enable_time_opt : bool
     # Enable impact dynamics
     enable_impact_dyn : bool
-    # Restrict contact location (use a predefined contact plan)
-    restrict_cnt_loc : bool
     # Constrained eeff locations
     opt_cnt_pos : bool
     # Use peak constrained
