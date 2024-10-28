@@ -21,9 +21,9 @@ def main(close_loop: bool = True,
         robot,
         "trot",
         print_info=print_info,
-        record_traj=True
+        record_traj=True,
     )
-    v_des = np.array([0.1, 0.0, 0.0])
+    v_des = np.array([0.3, 0.0, 0.0])
     w_yaw = 0.
     mpc.set_command(v_des, w_yaw)
 

@@ -181,7 +181,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         R_yaw = pin.rpy.rpyToMatrix(w_des_global * self.config_opt.time_horizon)
         v_des = R_yaw @ v_des
         # Vertical velocity to reach desired height
-        v_des[2] = (self.config_gait.nom_height - q_euler[2]) / self.config_opt.time_horizon
         base_ref[6:9] = v_des
         v_des_glob = np.round(R_WB @ v_des, 2)
 
@@ -397,7 +396,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
         Args:
             start_node (int): Will use optimized node values after <start_node>
-        """       
+        """
         # Warm start first values with last solution
         # q, v, a, forces, dt
         n_warm_start = self.config_opt.n_nodes - start_node
@@ -484,30 +483,30 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         super().solve(print_stats=self.print_info, print_time=self.print_info)
         self.parse_sol()
 
-        self.q_sol_euler = self.states[self.dyn.q.name].T
+        self.q_sol_euler = self.states[self.dyn.q.name].T.copy()
 
         # positions, [n_nodes + 1, 19]
         q_sol = ypr_to_quat_state_batched(self.q_sol_euler)
         
         # velocities, [n_nodes + 1, 18]
-        self.v_sol_euler = self.states[self.dyn.v.name].T
+        self.v_sol_euler = self.states[self.dyn.v.name].T.copy()
         v_sol = v_glob_to_local_batched(self.q_sol_euler, self.v_sol_euler)
 
         # centroidal momentum, [n_nodes + 1, 6]
-        self.h_sol = self.states[self.dyn.h.name].T
+        self.h_sol = self.states[self.dyn.h.name].T.copy()
 
         # acceleration, [n_nodes, 18]
-        self.a_sol = self.inputs[self.dyn.a.name].T
+        self.a_sol = self.inputs[self.dyn.a.name].T.copy()
 
         # end effector forces, [n_nodes, 4, 3]
         self.f_sol = np.array([
             self.inputs[f"f_{foot_cnt.frame_name}_{self.dyn.name}"]
             for foot_cnt in self.dyn.feet
-        ]).transpose(2, 0, 1)
+        ]).transpose(2, 0, 1).copy()
 
         # dt time, [n_nodes, ]
         if self.enable_time_opt:
-            self.dt_node_sol = self.inputs["dt"].flatten()
+            self.dt_node_sol = self.inputs["dt"].flatten().copy()
         else:
             self.dt_node_sol = np.full((len(q_sol),), self.dt_nodes)
 

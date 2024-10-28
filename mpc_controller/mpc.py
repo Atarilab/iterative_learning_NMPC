@@ -6,7 +6,7 @@ import numpy as np
 from bisect import bisect_left
 from scipy.interpolate import interp1d
 from math import floor, ceil
-import pinocchio as pin
+from concurrent.futures import ThreadPoolExecutor, Future
 
 from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
@@ -47,10 +47,7 @@ class LocomotionMPC(ControllerAbstract):
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
-        # Only interpolate first <self.interp_size> solutions of the solver
-        # to save compute
-        replanning_steps = 5
-        self.interp_size : int = int(1 / (self.replanning_freq * self.dt_nodes)) * replanning_steps
+        self.use_delay : bool = config_opt.use_delay
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
@@ -75,12 +72,20 @@ class LocomotionMPC(ControllerAbstract):
         self.compute_timings = compute_timings
         self.timings = defaultdict(list)
 
+        # Multiprocessing
+        self.executor = ThreadPoolExecutor(max_workers=1)  # One thread for asynchronous optimization
+        self.optimize_future: Future = None                # Store the future result of optimize
+        self.plan_submitted = False                        # Flag to indicate if a new plan is ready
+
     def _replan(self) -> bool:
         """
         Returns true if replanning step.
         Record trajectory of the last 
         """
         replan = self.sim_step % self.replanning_steps == 0
+
+        if self.use_delay:
+            replan = replan and (self.optimize_future is None or self.optimize_future.done())
 
         if self.record_traj and replan and self.plan_step > 0:
             self._record_traj()
@@ -95,10 +100,12 @@ class LocomotionMPC(ControllerAbstract):
         """
         Record trajectory of the last plan until self.plan_step.
         """
-        self.q_full.append(self.q_plan[:self.plan_step])
-        self.v_full.append(self.v_plan[:self.plan_step])
-        self.a_full.append(self.a_plan[:self.plan_step])
-        self.f_full.append(self.f_plan[:self.plan_step])
+        start = self.delay
+        end = start + self.plan_step
+        self.q_full.append(self.q_plan[start : end])
+        self.v_full.append(self.v_plan[start : end])
+        self.a_full.append(self.a_plan[start : end])
+        self.f_full.append(self.f_plan[start : end])
 
     def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
         """
@@ -191,8 +198,8 @@ class LocomotionMPC(ControllerAbstract):
 
         time_traj = np.cumsum(dt_sol) - dt_sol
 
-        state_full_interp = self.interpolate_trajectory(state_full[:self.interp_size], time_traj[:self.interp_size])
-        input_full_interp = self.interpolate_trajectory(input_full[:self.interp_size], time_traj[:min(self.interp_size, len(input_full))], kind='zero')
+        state_full_interp = self.interpolate_trajectory(state_full, time_traj)
+        input_full_interp = self.interpolate_trajectory(input_full, time_traj[:-1], kind='nearest')
         q_plan, v_plan = np.split(
             state_full_interp,
             [q_sol.shape[-1]],
@@ -206,7 +213,7 @@ class LocomotionMPC(ControllerAbstract):
         f_plan = f_plan.reshape(-1, 4, 3)
 
         return q_plan, v_plan, a_plan, f_plan, time_traj
-
+            
     def open_loop(self,
                  trajectory_time : float,
                  ) -> Tuple[np.ndarray, np.ndarray]:
@@ -266,7 +273,7 @@ class LocomotionMPC(ControllerAbstract):
         if self.sim_step == 0:
             self.solver.set_max_iter(50)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
-            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 2.)
+            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 5.)
         elif self.sim_step <= self.replanning_steps:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
@@ -277,54 +284,66 @@ class LocomotionMPC(ControllerAbstract):
         Abstract method to compute torques based on the state and planned trajectories.
         Should be implemented by child classes.
         """
+        # Start a new optimization asynchronously if it's time to replan
         if self._replan():
-            time_start = time.time()
-            sim_time = round(robot_data.time, 4)
+            self.start_time = time.time()
 
             # Find the optimization node of the last plan corresponding to the current simulation time
+            sim_time = round(robot_data.time, 4)
             self.current_opt_node += bisect_left(self.time_traj, sim_time)
+            self.q_opt, self.v_opt = q.copy(), v.copy()
         
             # On first iteration
             self._convergence_on_first_iter()
 
-            # Replan trajectory    
-            q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
-            q_sol[0] = q
-            v_sol[0] = v
+            # Set up asynchronous optimize call
+            self.optimize_future = self.executor.submit(self.optimize, self.q_opt, self.v_opt)
+            self.time_start_plan = sim_time
+            self.plan_submitted = True
 
-            (
-            self.q_plan,
-            self.v_plan,
-            self.a_plan,
-            self.f_plan,
-            self.time_traj,
-            ) = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
+            # Wait for the solver if no delay
+            while not self.use_delay and not self.optimize_future.done():
+                time.sleep(1.0e-3)
 
-            self.time_traj += sim_time
+        # Check if the future is done and the new plan is ready to be used
+        if (self.plan_submitted and self.optimize_future.done() or
+            self.sim_step == 0):
+            sim_time = round(robot_data.time, 4)
 
-            time_end = time.time()
+            try:
+                # Retrieve new plan from future
+                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
+                q_sol[0] = self.q_opt
+                v_sol[0] = self.v_opt
 
-            self.plan_step = 0
+                # Interpolate plan
+                self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
-            if self.print_info:
-                replanning_time = time_end - time_start
-                print("-" * 50)
-                print(f"------ Replan node: {self.current_opt_node} at sim time {sim_time}")
-                print(f"------ Replanning time: {replanning_time * 1000:3f} ms")
-                print("-" * 50)
+                # Apply delay
+                replanning_time = time.time() - self.start_time
+                self.plan_step = 0
+                self.delay = round(replanning_time / self.sim_dt) if self.use_delay else 0
 
+                self.plan_submitted = False
+                self.time_traj += self.time_start_plan
+
+            except Exception as e:
+                print("Optimization error:", e)
+                self.plan_submitted = False
+        
+        plan_step = self.plan_step + self.delay
         torques = self.solver.dyn.get_torques(
             self.robot.model,
             self.robot.data,
             q,
             v,
-            self.a_plan[self.plan_step],
-            self.f_plan[self.plan_step],
+            self.a_plan[plan_step],
+            self.f_plan[plan_step],
         )
 
         torques_pd = (torques +
-                      self.Kp * (self.q_plan[self.plan_step, -12:] - q[-12:]) +
-                      self.Kd * (self.v_plan[self.plan_step, -12:] - v[-12:]))
+                      self.Kp * (self.q_plan[plan_step, -12:] - q[-12:]) +
+                      self.Kd * (self.v_plan[plan_step, -12:] - v[-12:]))
 
         torque_map = {
             j_name : torques_pd[joint_id]

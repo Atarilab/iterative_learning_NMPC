@@ -72,6 +72,8 @@ class MPCOptConfig():
     Kp : float
     # gain on joint velocities for torque PD
     Kd : float
+    # Take into acount replanning time (add delay)
+    use_delay : bool
 
     def __post_init__(self):
         assert len(self.opt_dt_scale) == 2, "opt_dt_scale must be of shape 2"
