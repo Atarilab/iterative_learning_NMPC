@@ -50,6 +50,7 @@ class LocomotionMPC(ControllerAbstract):
         self.current_opt_node : int = 0
         self.use_delay : bool = config_opt.use_delay
         self.delay : int = 0
+        self.last : int = 0
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
@@ -91,25 +92,21 @@ class LocomotionMPC(ControllerAbstract):
         if self.use_delay:
             replan = replan and (self.optimize_future is None or self.optimize_future.done())
 
-        if self.record_traj and replan and self.plan_step > 0:
-            self._record_traj()
-
         return replan
     
     def _step(self) -> None:
+        self.increment_base_ref_position()
         self.sim_step += 1
         self.plan_step += 1
 
-    def _record_traj(self) -> None:
+    def _record_plan(self) -> None:
         """
         Record trajectory of the last plan until self.plan_step.
         """
-        start = self.delay
-        end = start + self.plan_step
-        self.q_full.append(self.q_plan[start : end])
-        self.v_full.append(self.v_plan[start : end])
-        self.a_full.append(self.a_plan[start : end])
-        self.f_full.append(self.f_plan[start : end])
+        self.q_full.append(self.q_plan[self.delay : self.plan_step])
+        self.v_full.append(self.v_plan[self.delay : self.plan_step])
+        self.a_full.append(self.a_plan[self.delay : self.plan_step])
+        self.f_full.append(self.f_plan[self.delay : self.plan_step])
 
     def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
         """
@@ -240,7 +237,7 @@ class LocomotionMPC(ControllerAbstract):
         time_traj = np.cumsum(dt_sol) - dt_sol
 
         state_full_interp = self.interpolate_trajectory(state_full, time_traj)
-        input_full_interp = self.interpolate_trajectory(input_full, time_traj[:-1], kind='nearest')
+        input_full_interp = self.interpolate_trajectory(input_full, time_traj[:-1], kind='zero')
         q_plan, v_plan = np.split(
             state_full_interp,
             [q_sol.shape[-1]],
@@ -280,6 +277,10 @@ class LocomotionMPC(ControllerAbstract):
             # Replan trajectory    
             if self._replan():
 
+                # Record trajectory
+                if self.record_traj and self.sim_step > 0:
+                    self._record_plan()
+
                 self._convergence_on_first_iter()
                 
                 # Find the corresponding optimization node
@@ -302,9 +303,9 @@ class LocomotionMPC(ControllerAbstract):
 
                 time_traj += sim_time
                 self.plan_step = 0
-
+                self.delay = 0
+            
             # Simulation step
-            self.increment_base_ref_position()
             q_full_traj.append(self.q_plan[self.plan_step])
             self._step()
             sim_time = round(sim_time + self.sim_dt, 4)
@@ -355,41 +356,43 @@ class LocomotionMPC(ControllerAbstract):
             try:
                 # Retrieve new plan from future
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
-                q_sol[0] = self.q_opt
-                v_sol[0] = self.v_opt
+
+                # Record trajectory
+                if self.record_traj and self.sim_step > 0:
+                    self._record_plan()
 
                 # Interpolate plan
                 self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
                 # Apply delay
-                replanning_time = time.time() - self.start_time
-                self.plan_step = 0
-                if (self.use_delay and self.plan_step != 0):
+                if (self.use_delay and self.sim_step != 0):
+                    replanning_time = time.time() - self.start_time
                     self.delay = round(replanning_time / self.sim_dt)
                 else:
+                    q_sol[0] = self.q_opt
+                    v_sol[0] = self.v_opt
                     self.delay = 0
 
-                self.plan_submitted = False
+                self.plan_step = self.delay
                 self.time_traj += self.time_start_plan
+                self.plan_submitted = False
 
             except Exception as e:
-                print("Optimization error:", e)
+                print("Optimization error:\n", e)
                 self.plan_submitted = False
-        
-        self.increment_base_ref_position()
-        plan_step = self.plan_step + self.delay
+                
         torques = self.solver.dyn.get_torques(
             self.robot.model,
             self.robot.data,
             q,
             v,
-            self.a_plan[plan_step],
-            self.f_plan[plan_step],
+            self.a_plan[self.plan_step],
+            self.f_plan[self.plan_step],
         )
 
         torques_pd = (torques +
-                      self.Kp * (self.q_plan[plan_step, -12:] - q[-12:]) +
-                      self.Kd * (self.v_plan[plan_step, -12:] - v[-12:]))
+                      self.Kp * (self.q_plan[self.plan_step, -12:] - q[-12:]) +
+                      self.Kd * (self.v_plan[self.plan_step, -12:] - v[-12:]))
 
         torque_map = {
             j_name : torques_pd[joint_id]
