@@ -23,7 +23,7 @@ def main(close_loop: bool = True,
         print_info=print_info,
         record_traj=True,
     )
-    v_des = np.array([0.3, 0.0, 0.0])
+    v_des = np.array([0.4, 0.0, 0.0])
     w_yaw = 0.
     mpc.set_command(v_des, w_yaw)
 
@@ -36,6 +36,7 @@ def main(close_loop: bool = True,
     if close_loop:
         sim.run(
             sim_time,
+            real_time=False,
             record_video=record_video,
             playback_speed=1,
             visual_callback_fn=visual_callback)

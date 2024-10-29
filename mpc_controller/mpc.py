@@ -48,6 +48,7 @@ class LocomotionMPC(ControllerAbstract):
         self.plan_step : int = 0
         self.current_opt_node : int = 0
         self.use_delay : bool = config_opt.use_delay
+        self.delay : int = 0
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
@@ -56,6 +57,8 @@ class LocomotionMPC(ControllerAbstract):
         self.v_plan = None
         self.a_plan = None
         self.f_plan = None
+        self.q_opt = None
+        self.v_opt = None
         self.time_traj = np.array([])
 
         # For plots
@@ -322,7 +325,10 @@ class LocomotionMPC(ControllerAbstract):
                 # Apply delay
                 replanning_time = time.time() - self.start_time
                 self.plan_step = 0
-                self.delay = round(replanning_time / self.sim_dt) if self.use_delay else 0
+                if (self.use_delay and self.plan_step != 0):
+                    self.delay = round(replanning_time / self.sim_dt)
+                else:
+                    self.delay = 0
 
                 self.plan_submitted = False
                 self.time_traj += self.time_start_plan

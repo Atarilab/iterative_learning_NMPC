@@ -272,8 +272,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 
                 else:
                     # Will be override by contact plan
-                    self.params[foot_cnt.plane_point.name][:2, :] = pos[:2, None]
-                    self.params[foot_cnt.plane_point.name][2, :] = 0.
+                    self.params[foot_cnt.plane_point.name][:, :] = pos[:, None]
                     self.params[foot_cnt.range_radius.name][:, :] = QuadrupedAcadosSolver.DEFAULT_RANGE_RADIUS
 
     @time_fn("setup_gait_contacts")
@@ -357,6 +356,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                     # Set contact location constraint
                     cnt_loc_w = self.contact_planner.next_contact_location(i_foot, q, com_xyz, time_to_cnt, v_des, w_yaw)
                     self.params[foot_cnt.plane_point.name][:2, n_end:] = cnt_loc_w[:2, None]
+                    self.params[foot_cnt.plane_point.name][2, n_end:] = 0.0
 
                 if n_end > last_node:
                     last_node = n_end
@@ -416,6 +416,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Set the remaining values
         if n_warm_start < self.config_opt.n_nodes:
             last_q = self.q_sol_euler[-1]
+            last_q[2] = self.config_gait.nom_height
             last_v = self.v_sol_euler[-1]
             last_h = self.h_sol[-1]
             last_a = self.a_sol[-1]

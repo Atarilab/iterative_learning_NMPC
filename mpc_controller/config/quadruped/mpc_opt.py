@@ -12,8 +12,8 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     opt_dt_scale : Tuple[float, float] = (0.75, 1.25)
     replanning_freq : int = 20
     interpolation_mode : str = "linear"
-    Kp : float = 15.
-    Kd : float = 3.
+    Kp : float = 10.
+    Kd : float = 5.
     use_delay : bool = True
     # Solver config
     max_iter : int = 1
@@ -26,7 +26,7 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     enable_time_opt : bool = False
     enable_impact_dyn : bool = False
     real_time_it : bool = False
-    opt_cnt_pos : bool = True
+    opt_cnt_pos : bool = False
     opt_peak : bool = True
     warm_start_sol : bool = True
     warm_start_nlp : bool = True
