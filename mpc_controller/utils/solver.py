@@ -19,7 +19,6 @@ from .profiling import time_fn, print_timings
 class QuadrupedAcadosSolver(AcadosSolverHelper):
     NAME = "quadruped_solver"
     DEFAULT_RANGE_RADIUS = 0.01
-    STAND_PHASE_NODES = 0
 
     def __init__(self,
                  pin_robot : PinQuadRobotWrapper,
@@ -340,14 +339,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             # Update last node of optimization window updated    
             node_w = last_node
 
-    def set_stand_phase(self, n_nodes : int):
-        """
-        Set up a stand phase for the n_nodes first nodes.
-        """
-        for foot_cnt, foot_pos in zip(self.dyn.feet, self.pin_robot.get_foot_pos_world()):
-            self.params[foot_cnt.active.name][:, :n_nodes] = 1 # Active
-            self.params[foot_cnt.plane_point.name][:2, :n_nodes] = foot_pos[:2, None]
-
     def print_contact_constraints(self):
         print("\nContacts")
         for foot_cnt in self.dyn.feet:
@@ -429,9 +420,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.setup_initial_feet_contact(contact_state)
         if not self.config_opt.opt_cnt_pos:
             self.setup_contact_locations(q, i_node, v_des, w_yaw_des)
-
-        if i_node < QuadrupedAcadosSolver.STAND_PHASE_NODES:
-            self.set_stand_phase(QuadrupedAcadosSolver.STAND_PHASE_NODES - i_node)
 
         if self.print_info: self.print_contact_constraints()
 
