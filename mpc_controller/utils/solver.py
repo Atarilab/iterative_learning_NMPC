@@ -148,9 +148,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         return result
 
     def setup_reference(self,
-                        q_euler : np.ndarray,
-                        v_des : np.ndarray,
-                        w_yaw : float,
+                        q_base_des : np.ndarray,
                         ):
         """
         Set up the reference trajectory (yref).
@@ -160,44 +158,18 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.data["yref"]["dt"][0] = self.dt_nodes
             self.data["u"]["dt"][0] = self.dt_nodes
 
-        base_ref = q_euler[:12].copy()
-
-        # Horizontal base
-        base_ref[4:6] = 0.
-        # Height to config
-        base_ref[2] = self.config_gait.nom_height
-
-        # Setup reference velocities in local frame
-        # v_des is in local frame already
-        # w_yaw in global frame
-        R_WB = pin.rpy.rpyToMatrix(q_euler[3:6][::-1])
-        w_des_global = np.array([0., 0., w_yaw])
-        w_des_local = (R_WB.T @ w_des_global)[::-1]
-        base_ref[-3:] = np.round(w_des_local, 2)
-
-        # Compute velocity in global frame
-        # Apply angular velocity
-        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1])
-        R_yaw = pin.rpy.rpyToMatrix(w_des_global * self.config_opt.time_horizon)
-        v_des = R_yaw @ v_des
-        # Vertical velocity to reach desired height
-        base_ref[6:9] = v_des
-        v_des_glob = np.round(R_WB @ v_des, 2)
-
-        # Update position and orientation according to desired velocities
-        base_ref[:3] += v_des_glob * self.config_opt.time_horizon
-        base_ref[3] += w_yaw * self.config_opt.time_horizon
-
         # Base reference and terminal states
-        base_ref_e = base_ref.copy()
+        base_ref_e = q_base_des.copy()
         # Base height
         base_ref_e[2] = self.config_gait.nom_height
-        # Base horizontal vel
-        base_ref_e[8] = 0. 
-        # pitch roll vel
+        # Base vertical vel
+        base_ref_e[8] = 0.
+        # Base pitch roll
+        base_ref_e[4:6] = 0. 
+        # Base pitch roll vel
         base_ref_e[-2:] = 0. 
 
-        self.data["yref"][self.dyn.base_cost.name] = base_ref
+        self.data["yref"][self.dyn.base_cost.name] = q_base_des
         self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
         self.data["yref_e"][self.dyn.base_cost.name] = base_ref_e
         self.data["yref_e"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
@@ -433,6 +405,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
     @time_fn("init_solver")
     def init(self,
               q : np.ndarray,
+              base_ref : np.ndarray,
               v : np.ndarray = np.zeros(18),
               i_node : int = 0,
               v_des : np.ndarray = np.zeros(3),
@@ -449,7 +422,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         first_it = i_node == 0
         q_euler = quat_to_ypr_state(q)
 
-        self.setup_reference(q_euler, v_des, w_yaw_des)
+        self.setup_reference(base_ref)
         self.setup_initial_state(q_euler, v_local, first_it)
         self.setup_initial_feet_pos()
         self.setup_gait_contacts(i_node)

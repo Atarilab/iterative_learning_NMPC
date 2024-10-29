@@ -7,6 +7,7 @@ from bisect import bisect_left
 from scipy.interpolate import interp1d
 from math import floor, ceil
 from concurrent.futures import ThreadPoolExecutor, Future
+import pinocchio as pin
 
 from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
@@ -52,14 +53,14 @@ class LocomotionMPC(ControllerAbstract):
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
-        self.q_base_des = quat_to_ypr_state(self.robot.get_state()[0])
-        self.q_plan = None
-        self.v_plan = None
-        self.a_plan = None
-        self.f_plan = None
-        self.q_opt = None
-        self.v_opt = None
-        self.time_traj = np.array([])
+        self.base_ref : np.ndarray = np.zeros(12)
+        self.q_plan : np.ndarray = None
+        self.v_plan : np.ndarray = None
+        self.a_plan : np.ndarray = None
+        self.f_plan : np.ndarray = None
+        self.q_opt : np.ndarray = None
+        self.v_opt : np.ndarray = None
+        self.time_traj : np.ndarray = np.array([])
 
         # For plots
         self.record_traj = record_traj
@@ -117,6 +118,42 @@ class LocomotionMPC(ControllerAbstract):
         self.v_des = v_des
         self.w_des[2] = w_yaw
 
+    def compute_base_ref(self) -> np.ndarray:
+        """
+        Compute base reference for the solver.
+        """
+        t_horizon = self.solver.config_opt.time_horizon
+        # Height to config
+        base_ref = self.base_ref.copy()
+        base_ref[2] = self.solver.config_gait.nom_height
+        # Horizontal base
+        base_ref[4:6] = 0.
+
+        # Setup reference velocities in local frame
+        # v_des is in local frame already
+        # w_yaw in global frame
+        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1])
+        w_des_local = (R_WB.T @ self.w_des)[::-1]
+        base_ref[-3:] = np.round(w_des_local, 1)
+
+        # Compute velocity in global frame
+        # Apply angular velocity
+        R_yaw = pin.rpy.rpyToMatrix(self.w_des * t_horizon)
+        base_ref[6:9] = R_yaw @ self.v_des
+        v_des_glob = np.round(R_WB @ self.v_des, 1)
+
+        # Update position and orientation according to desired velocities
+        base_ref[:2] += v_des_glob[:2] * t_horizon
+        base_ref[3] += self.w_des[-1] * t_horizon
+
+        return base_ref
+
+    def increment_base_ref_position(self, ):
+        R_WB = pin.rpy.rpyToMatrix(self.base_ref[3:6][::-1])
+        v_des_glob = np.round(R_WB @ self.v_des, 1)
+        self.base_ref[:2] += v_des_glob[:2] * self.sim_dt
+        self.base_ref[3] += self.w_des[-1] * self.sim_dt
+
     def reset(self) -> None:
         """
         Reset the controller state and reinitialize parameters.
@@ -138,7 +175,8 @@ class LocomotionMPC(ControllerAbstract):
         """
         return optimized trajectories.
         """
-        self.solver.init(q, v, self.current_opt_node, self.v_des, self.w_des[2])
+        base_ref = self.compute_base_ref()
+        self.solver.init(q, base_ref, v, self.current_opt_node, self.v_des, self.w_des[2])
         q_sol, v_sol, a_sol, f_sol, dt_sol = self.solver.solve()
 
         return q_sol, v_sol, a_sol, f_sol, dt_sol
@@ -266,6 +304,7 @@ class LocomotionMPC(ControllerAbstract):
                 self.plan_step = 0
 
             # Simulation step
+            self.increment_base_ref_position()
             q_full_traj.append(self.q_plan[self.plan_step])
             self._step()
             sim_time = round(sim_time + self.sim_dt, 4)
@@ -337,6 +376,7 @@ class LocomotionMPC(ControllerAbstract):
                 print("Optimization error:", e)
                 self.plan_submitted = False
         
+        self.increment_base_ref_position()
         plan_step = self.plan_step + self.delay
         torques = self.solver.dyn.get_torques(
             self.robot.model,

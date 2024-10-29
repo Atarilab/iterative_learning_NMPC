@@ -26,7 +26,7 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     enable_time_opt : bool = False
     enable_impact_dyn : bool = False
     real_time_it : bool = False
-    opt_cnt_pos : bool = False
+    opt_cnt_pos : bool = True
     opt_peak : bool = True
     warm_start_sol : bool = True
     warm_start_nlp : bool = True
