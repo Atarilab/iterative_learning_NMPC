@@ -104,7 +104,7 @@ class GaitPlanner():
 
         # Find the current and next swing interval
         for (start, end) in self.swing_intervals.get(foot, []):
-            start_node = math.floor(start * self.nodes_per_cycle)
+            start_node = math.ceil(start * self.nodes_per_cycle)
             end_node = math.ceil(end * self.nodes_per_cycle)
 
             # Check if the current phase falls within the current swing interval

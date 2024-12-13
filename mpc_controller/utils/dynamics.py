@@ -13,7 +13,8 @@ class QuadrupedDynamics(FloatingBaseDynamics):
                  robot_name: str,
                  model_path: str,
                  feet_frame_names: List[str],
-                 restrict_cnt: bool = False):
+                 cnt_patch_restriction: bool = False,
+                 ):
         
         model, data = loadSymModel(model_path)
         self.feet_frame_names = feet_frame_names
@@ -25,7 +26,7 @@ class QuadrupedDynamics(FloatingBaseDynamics):
             dyn=self,
             frame=frame_name,
             mu=QuadrupedDynamics.MU_CONTACT,
-            restriction=restrict_cnt) for frame_name in feet_frame_names]
+            patch_restriction=cnt_patch_restriction) for frame_name in feet_frame_names]
 
         self.add_contacts(self.feet)
         self.base_cost = self.add_expr(name="base_cost", expr=self.get_base_cost())

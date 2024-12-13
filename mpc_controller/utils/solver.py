@@ -18,7 +18,6 @@ from .profiling import time_fn, print_timings
 
 class QuadrupedAcadosSolver(AcadosSolverHelper):
     NAME = "quadruped_solver"
-    DEFAULT_RANGE_RADIUS = 0.01
 
     def __init__(self,
                  pin_robot : PinQuadRobotWrapper,
@@ -34,7 +33,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # TODO: no hard code
         self.robot_name = "go2"
         self.feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
-        
+
         self.config_gait, self.config_opt, self.config_cost = get_quadruped_config(gait_name, self.robot_name)
         dt_min, dt_max = self.config_opt.get_dt_bounds()
         self.dt_nodes = self.config_opt.get_dt_nodes()
@@ -46,19 +45,24 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.robot_name,
             pin_robot.path_urdf,
             self.feet_frame_names,
-            not(self.config_opt.opt_cnt_pos)
+            self.config_opt.cnt_patch_restriction,
             )
-        
+
         self.dyn.setup(problem)
 
         # Gait planner
         self.gait_planner = GaitPlanner(self.feet_frame_names, self.dt_nodes, self.config_gait)
+
         # Contact planner
         q, _ = self.pin_robot.get_state()
-
         offset_hip_b = (self.pin_robot.get_hip_pos_world() - q[None, :3])
-        self.contact_planner = RaiberContactPlanner(offset_hip_b, self.config_gait, height_offset)
-
+        self.contact_planner = RaiberContactPlanner(
+            offset_hip_b,
+            self.config_gait,
+            height_offset,
+            y_offset=0.1,
+            x_offset=0.025)
+        
         # Nominal state
         self.q0, _ = self.pin_robot.get_state()
 
@@ -69,7 +73,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.config_cost.reg_eps,
             self.config_cost.reg_eps_e,
             )
-        
+    
         self.setup(self.config_opt.recompile,
                    self.config_opt.use_cython,
                    self.config_opt.real_time_it,
@@ -82,7 +86,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.set_warm_start_nlp(self.config_opt.warm_start_nlp)
         self.set_qp_tol(self.config_opt.qp_tol)
         self.set_nlp_tol(self.config_opt.nlp_tol)
-        
+
         # Init cost
         self.set_cost()
         self.update_cost_weights()
@@ -112,7 +116,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
     def set_cost(self):
         """
         Set up the running and terminal cost for the solver using weights from the config file.
-        """       
+        """
         # Terminal cost weights (W_e) for base position, orientation, and velocity
         self.data["W_e"][self.dyn.base_cost.name] = np.array(self.config_cost.W_e_base)
         # Running cost weights (W) for base position, orientation, and velocity
@@ -121,17 +125,22 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.data["W"][self.dyn.acc_cost.name] = np.array(self.config_cost.W_acc)
         # Swing cost weights (for each foot)
         self.data["W"][self.dyn.swing_cost.name] = np.array(self.config_cost.W_swing)
-        if self.enable_time_opt:
-            self.data["W"]["dt"][0] = 1e4
         # Joint cost to ref
         self.data["W"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_joint)
         self.data["W_e"][self.dyn.joint_cost.name] = np.array(self.config_cost.W_e_joint)
         self.data["W_e"][self.dyn.swing_cost.name] = np.array(self.config_cost.W_swing)
+        if self.enable_time_opt:
+            self.data["W"]["dt"][0] = np.array(self.config_cost.time_opt)
 
         # Foot force regularization weights (for each foot)
         for i, foot_cnt in enumerate(self.dyn.feet):
             self.data["W"][foot_cnt.f_reg.name] = np.array(self.config_cost.W_cnt_f_reg[i])
-        
+
+            # Foot displacement penalization
+            if self.config_opt.cnt_patch_restriction:
+                self.data["W"][foot_cnt.pos_cost.name] = self.config_cost.W_foot_displacement
+                self.data["W_e"][foot_cnt.pos_cost.name] = self.config_cost.W_foot_displacement
+
         # Apply these costs to the solver
         self.set_cost_weight_constant(self.data["W"])
         self.set_cost_weight_terminal(self.data["W_e"])
@@ -146,83 +155,55 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         result = np.concatenate([arr, repeated_values], axis=axis)
         return result
 
+    @time_fn("setup_reference")
     def setup_reference(self,
-                        q_base_des : np.ndarray,
+                        base_ref : np.ndarray,
+                        base_ref_e : np.ndarray = None,
                         ):
         """
         Set up the reference trajectory (yref).
         """
+        if base_ref_e is None:
+            base_ref_e = base_ref.copy()
+        
         # Set the nominal time step
         if self.enable_time_opt:
-            self.data["yref"]["dt"][0] = self.dt_nodes
-            self.data["u"]["dt"][0] = self.dt_nodes
+            self.cost_ref["dt"][:] = self.dt_nodes
 
-        # Base reference and terminal states
-        base_ref_e = q_base_des.copy()
-        # Base height
-        base_ref_e[2] = self.config_gait.nom_height
-        # Base vertical vel
-        base_ref_e[8] = 0.
-        # Base pitch roll
-        base_ref_e[4:6] = 0. 
-        # Base pitch roll vel
-        base_ref_e[-2:] = 0. 
-
-        self.data["yref"][self.dyn.base_cost.name] = q_base_des
-        self.data["yref"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
+        self.cost_ref[self.dyn.base_cost.name][:] = base_ref[:, None]
+        self.cost_ref[self.dyn.swing_cost.name][:] = self.config_gait.step_height
         self.data["yref_e"][self.dyn.base_cost.name] = base_ref_e
         self.data["yref_e"][self.dyn.swing_cost.name][:] = self.config_gait.step_height
 
         # Joint reference is nominal position with zero velocities
         joint_ref = np.concatenate((self.q0[-self.pin_robot.nu:], np.zeros(self.pin_robot.nu)))
-        self.data["yref"][self.dyn.joint_cost.name] = joint_ref
+        self.cost_ref[self.dyn.joint_cost.name] = joint_ref[:, None]
         self.data["yref_e"][self.dyn.joint_cost.name] = joint_ref.copy()
 
-        self.set_ref_constant(self.data["yref"])
         self.set_ref_terminal(self.data["yref_e"])
 
     def setup_initial_state(self,
                             q_euler : np.ndarray,
-                            v_local : np.ndarray | Any = None,
-                            set_state_constant : bool = True):
+                            v_local : np.ndarray | Any = None):
         """
         Initialize the state (x) of the robot in the solver.
         """        
         self.data["x"][self.dyn.q.name] = q_euler
+
         if v_local is not None:
+            # v local, w local -> v world, v euler world
             self.data["x"][self.dyn.v.name] = v_to_euler_derivative(q_euler, v_local)
-            pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
             self.data["x"][self.dyn.h.name] = self.pin_robot.data.hg.np
-        # Set the state constant in the solver
-        if set_state_constant:
-            self.set_state_constant(self.data["x"])
-            self.set_input_constant(self.data["u"])
+
         self.set_initial_state(self.data["x"])
 
+        if self.config_opt.enable_time_opt:
+            self.inputs["dt"][:] = self.dt_nodes
+
     def setup_initial_feet_pos(self,
-                               plane_normal : List[np.ndarray] | Any = None,
-                               plane_origin : List[np.ndarray] | Any = None,):
-        for i_foot, foot_cnt in enumerate(self.dyn.feet):
-            # Contact normal
-            if plane_normal is None or plane_origin is None:
-                self.data["p"][foot_cnt.plane_normal.name] = self.default_normal
-            else:
-                assert len(plane_normal) == len(plane_origin) == len(self.feet_frame_names),\
-                    "plane_normal and plane_origine should be the same length"
-                self.data["p"][foot_cnt.plane_point.name] = plane_origin[i_foot]
-                self.data["p"][foot_cnt.plane_normal.name] = plane_normal[i_foot]
-
-        for i_foot, foot_cnt in enumerate(self.dyn.feet):
-            # Will be overriden by contact plan
-            self.data["p"][foot_cnt.active.name][0] = 1
-            self.data["p"][foot_cnt.p_gain.name][0] = self.config_cost.foot_pos_constr_stab[i_foot]
-            if not self.config_opt.opt_cnt_pos:
-                self.data["p"][foot_cnt.restrict.name][0] = 1
-
-        self.set_parameters_constant(self.data["p"])
-
-    def setup_initial_feet_contact(self,
-                                   contact_state: Dict[str, int] = {}):
+                                first_it : bool = False,
+                                contact_state: Dict[str, int] = {},
+                                ):
         """
         Set up the initial position of the feet based on the current
         contact mode and robot configuration.
@@ -233,28 +214,39 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             # Contact status
             if contact_state:
                 is_cnt = contact_state[foot_cnt.frame_name]
-            else:
+            else: # From the contact planner
                 is_cnt = self.params[foot_cnt.active.name][0, 0]
 
-            if is_cnt == 1:
-                if self.config_opt.opt_cnt_pos:
-                    self.params[foot_cnt.plane_point.name][2, :] = pos[2]
-                    if self.print_info: print(f'Reset foot contact {foot_cnt.frame_name}, height {pos[2]}')
-                
-                else:
-                    # Will be override by contact plan
-                    self.params[foot_cnt.plane_point.name][:, :] = pos[:, None]
-                    self.params[foot_cnt.range_radius.name][:, :] = QuadrupedAcadosSolver.DEFAULT_RANGE_RADIUS
-
+            # If contact, setup initial contact location and normal
+            if is_cnt == 1 or first_it:
+                next_swing = np.argmin(self.params[foot_cnt.active.name][0, :])
+                self.params[foot_cnt.plane_point.name][:, :next_swing+1] = pos[:, None]
+                if self.print_info: print(f'Reset foot contact {foot_cnt.frame_name}, height {pos[2]}')
+    
+    def init_contacts_parameters(self):
+        # Fill contact parameters, will be overriden by gait planner
+        for i_foot, foot_cnt in enumerate(self.dyn.feet):
+            self.params[foot_cnt.active.name][:] = 1.
+            self.params[foot_cnt.plane_normal.name][:] = self.default_normal[:, None]
+            self.params[foot_cnt.plane_point.name][:] = np.zeros((3,1))
+            self.params[foot_cnt.p_gain.name][:] = self.config_cost.W_foot_pos_constr_stab[i_foot]
+            
+            if (self.config_opt.cnt_patch_restriction):
+                self.params[foot_cnt.restrict.name][:] = 0.
+                if (self.config_opt.cnt_patch_restriction):
+                    self.params[foot_cnt.range_radius.name][:] = self.config_cost.cnt_radius
+            
     @time_fn("setup_gait_contacts")
     def setup_gait_contacts(self, i_node: int = 0):
         """
         Setup contact status in the optimization nodes.
         """
+        self.init_contacts_parameters()
+
         # Offset applied to the current node to setup the optimization window
         node_w = 0
         switch_node = 0
-        
+    
         # While in the current optimization window scheme
         while node_w < self.config_opt.n_nodes:
 
@@ -273,25 +265,26 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
                 # If swinging
                 if 0 <= n_start < n_end:
-                    # Apply offset
+                    # Apply window offset
                     n_start += node_w
                     n_end += node_w
                     self.params[foot_cnt.active.name][:, n_start : n_end] = 0 # Not active
-
+                    
+                    # Set peak constraints
                     if (self.config_opt.opt_peak and
-                        n_peak > 0):
+                        n_peak >= 0):
                         n_peak += node_w
                         if n_peak < self.config_opt.n_nodes:
-                            self.params[foot_cnt.peak.name][:, n_peak] = 1 # Peak constrained (not necessary)
+                            self.params[foot_cnt.peak.name][:, n_peak] = 1
 
                 if n_end > last_node:
                     last_node = n_end
-                    
+
             # Full contact phase, go to next switch
             if last_node == 0:
                 last_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
 
-            # Update last node of optimization window updated    
+            # Update last node of optimization window updated
             node_w = last_node
 
     @time_fn("setup_contact_locations")
@@ -301,12 +294,13 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                                 v_des : np.ndarray = np.zeros(3),
                                 w_yaw : float = 0.,
                                 ):
-        
+        time = i_node * self.dt_nodes
+        self.contact_planner.remove_cnt_before(time)
+        com_xyz = pin.centerOfMass(self.pin_robot.model, self.pin_robot.data)
+
         # Offset applied to the current node to setup the optimization window
         node_w = 0
         
-        com_xyz = pin.centerOfMass(self.pin_robot.model, self.pin_robot.data)
-
         # While in the current optimization window scheme
         while node_w < self.config_opt.n_nodes:
 
@@ -321,23 +315,38 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 if 0 <= n_start < n_end:
                     # Offset to the current node in the window
                     n_end += node_w
-                    # Time to reach contact
-                    time_to_cnt = n_end * self.dt_nodes
 
-                    # Set contact location constraint
-                    cnt_loc_w = self.contact_planner.next_contact_location(i_foot, q, com_xyz, time_to_cnt, v_des, w_yaw)
-                    self.params[foot_cnt.plane_point.name][:2, n_end:] = cnt_loc_w[:2, None]
-                    self.params[foot_cnt.plane_point.name][2, n_end:] = 0.0
+                    if n_end <= self.config_opt.n_nodes:
+                        # Time to reach contact
+                        time_cnt = time + n_end * self.dt_nodes
 
+                        # Set contact location constraint
+                        cnt_loc_w = self.contact_planner.next_contact_location(
+                            i_foot,
+                            q,
+                            com_xyz,
+                            time,
+                            time_cnt,
+                            v_des, w_yaw)
+                        self.params[foot_cnt.plane_point.name][:, n_end:] = cnt_loc_w[:, None]
+                        self.cost_ref[foot_cnt.pos_cost.name][:, n_end:] = cnt_loc_w[:, None]
+
+                        # Set restriction constraint (only on the first contact node)
+                        self.params[foot_cnt.restrict.name][:, n_end] = 1
+                            
                 if n_end > last_node:
                     last_node = n_end
-                    
+
             # Full contact phase, go to next switch
             if last_node == 0:
                 last_node = self.gait_planner.next_switch_in(i_node + node_w) + node_w
 
-            # Update last node of optimization window updated    
+            # Update last node of optimization window updated
             node_w = last_node
+
+        # Set reference for terminal contact
+        for i_foot, foot_cnt in enumerate(self.dyn.feet):
+            self.cost_ref_terminal[foot_cnt.pos_cost.name] = self.params[foot_cnt.plane_point.name][:, -1]
 
     def print_contact_constraints(self):
         print("\nContacts")
@@ -346,22 +355,27 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             print(self.params[foot_cnt.active.name])
             print(np.unique(self.params[foot_cnt.plane_point.name], axis=1).T)
 
-        print("\nImpacts")
-        print(self.params[self.dyn.impact_active.name])
+        if self.config_opt.cnt_patch_restriction:
+            print("\nRestriction")
+            print(self.params[foot_cnt.restrict.name])
 
-    @time_fn("warm_start_traj")
-    def warm_start_traj(self,
-                        start_node: int
+    @time_fn("warm_start_solver")
+    def warm_start_solver(self,
+                        i_node: int,
+                        repeat_last : bool = False,
                         ):
         """
         Warm start solver with the solution starting after
         start_node of the last solution.
 
         Args:
-            start_node (int): Will use optimized node values after <start_node>
+            i_node (int): Current optimization node.
+            repeat_last (bool): Repeat last values for the last non warm started nodes.
         """
+
         # Warm start first values with last solution
         # q, v, a, forces, dt
+        start_node = i_node - self.last_node
         n_warm_start = self.config_opt.n_nodes - start_node
         if self.print_info: print(f"Warm start size: {n_warm_start}, start_node {start_node}")
 
@@ -369,34 +383,57 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.states[self.dyn.q.name][:, 1:n_warm_start+1] = self.q_sol_euler[start_node+1:].T
         self.states[self.dyn.v.name][:, 1:n_warm_start+1] = self.v_sol_euler[start_node+1:].T
         self.states[self.dyn.h.name][:, 1:n_warm_start+1] = self.h_sol[start_node+1:].T
+        
         # Inputs [n_nodes]
         self.inputs[self.dyn.a.name][:, :n_warm_start] = self.a_sol[start_node:].T
+        
         for i, foot_name in enumerate(self.feet_frame_names):
             self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, :n_warm_start] = self.f_sol[start_node:, i, :].T
+            if repeat_last:
+                self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, n_warm_start:] = 0.
+
+        # dt [n_nodes]
         if self.enable_time_opt:
             self.inputs["dt"][:, :n_warm_start] = self.dt_node_sol[start_node:]
 
-        # Set the remaining values
-        if n_warm_start < self.config_opt.n_nodes:
-            last_q = self.q_sol_euler[-1]
-            last_q[2] = self.config_gait.nom_height
-            last_v = self.v_sol_euler[-1]
-            last_h = self.h_sol[-1]
-            last_a = self.a_sol[-1]
-            self.states[self.dyn.q.name][:, n_warm_start+1:] = last_q[:, None]
-            self.states[self.dyn.v.name][:, n_warm_start+1:] = last_v[:, None]
-            self.states[self.dyn.h.name][:, n_warm_start+1:] = last_h[:, None]
-            self.inputs[self.dyn.a.name][:, n_warm_start:] = last_a[:, None]
-            for i, foot_name in enumerate(self.feet_frame_names):
-                self.inputs[f"f_{foot_name}_{self.dyn.name}"][:, n_warm_start:] = 0.
-            # Nominal dt
+        if repeat_last and n_warm_start < self.config_opt.n_nodes:
+            self.states[self.dyn.q.name][:, n_warm_start:] = self.q_sol_euler[None, -1].T
+            self.states[self.dyn.v.name][:, n_warm_start:] = self.v_sol_euler[None, -1].T
+            self.states[self.dyn.h.name][:, n_warm_start:] = self.h_sol[None, -1].T
+            self.inputs[self.dyn.a.name][:, n_warm_start:] = self.a_sol[None, -1].T
+            
+            # set to nominal dt
             if self.enable_time_opt:
                 self.inputs["dt"][:, n_warm_start:] = self.dt_nodes
+
+        # Dual variables
+        self.warm_start_dual("lam", start_node, repeat_last=True)
+
+        # Update last opt node
+        self.last_node = i_node
     
+    def update_pin(self, q: np.array, v_local:np.array) -> None:
+        """
+        Update pin data.
+        """
+        self.pin_robot.update(q, v_local)
+        pin.computeCentroidalMomentum(self.pin_robot.model, self.pin_robot.data)
+
+    @time_fn("update_solver")
+    def update_solver(self) -> None:
+        """
+        Set data in the solver.
+        """
+        self.update_states()
+        self.update_inputs()
+        self.update_parameters()
+        self.update_ref()
+
     @time_fn("init_solver")
     def init(self,
               q : np.ndarray,
               base_ref : np.ndarray,
+              base_ref_e : np.ndarray = None,
               v : np.ndarray = np.zeros(18),
               i_node : int = 0,
               v_des : np.ndarray = np.zeros(3),
@@ -404,37 +441,36 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
               contact_state : Dict[str, int] = {},
               ):
         """
-        Setup solver depending on the current configuration and the 
+        Setup solver depending on the current configuration and the
         current optimization node.
         """
+        first_it = i_node == 0
+
         # [v_global, w_local, v_joint] -> [v_local, w_local, v_joint]
         v_local = v_global_linear_to_local_linear(q, v)
-        self.pin_robot.update(q, v_local)
-        first_it = i_node == 0
-        q_euler = quat_to_ypr_state(q)
+        self.update_pin(q, v_local)
 
-        self.setup_reference(base_ref)
-        self.setup_initial_state(q_euler, v_local, first_it)
-        self.setup_initial_feet_pos()
+        # Base reference position and velocities in world frame
+        self.setup_reference(base_ref, base_ref_e)
+
+        # q quat [x, y, z, w] -> q euler [z, y, x]
+        q_euler = quat_to_ypr_state(q)
+        self.setup_initial_state(q_euler, v_local)
+        
+        # Setup contact sequence and locations
         self.setup_gait_contacts(i_node)
-        self.setup_initial_feet_contact(contact_state)
-        if not self.config_opt.opt_cnt_pos:
+        self.setup_initial_feet_pos(first_it, contact_state)
+        if self.config_opt.cnt_patch_restriction:
             self.setup_contact_locations(q, i_node, v_des, w_yaw_des)
 
         if self.print_info: self.print_contact_constraints()
 
-        # Warm start nodes
+        # Warm start solver
         if (not first_it and
             self.config_opt.warm_start_sol):
-            warm_start_node = (i_node - self.last_node) % self.config_opt.n_nodes
-            self.warm_start_traj(warm_start_node)
-            # self.update_states()
-            # self.update_inputs()
+            self.warm_start_solver(i_node)
 
-        self.update_parameters()
-        # self.update_ref()
-
-        self.last_node = i_node
+        self.update_solver()
 
     @time_fn("solve")
     def solve(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -470,9 +506,9 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         if self.enable_time_opt:
             self.dt_node_sol = self.inputs["dt"].flatten().copy()
         else:
-            self.dt_node_sol = np.full((len(q_sol),), self.dt_nodes)
+            self.dt_node_sol = np.full((len(self.a_sol),), self.dt_nodes)
 
         return q_sol, v_sol, self.a_sol, self.f_sol, self.dt_node_sol
-    
+
     def print_timings(self):
         print_timings(self.timings)

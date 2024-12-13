@@ -30,7 +30,7 @@ def main(close_loop: bool = True,
     sim = Simulator(robot.mj, controller=mpc)
 
     visual_callback = (lambda viewer, step, q, v, data :
-        desired_contact_locations_callback(viewer, step, q, v, data, mpc))
+        desired_contact_locations_callback(viewer, step, q, v, data, mpc.solver))
 
     # Close loop MPC in simulation
     if close_loop:
@@ -40,21 +40,26 @@ def main(close_loop: bool = True,
             record_video=record_video,
             playback_speed=1,
             visual_callback_fn=visual_callback)
-        mpc.plot_traj('q')
-        mpc.plot_traj('v')
-        mpc.plot_traj('tau')
-        mpc.show_plots()
+
     # Open loop MPC
     else:
         q_traj = mpc.open_loop(sim_time)
-        mpc.plot_traj('q')
-        mpc.plot_traj('v')
-        mpc.plot_traj('a')
-        mpc.plot_traj('f')
-        mpc.show_plots()
-        sim.vis_trajectory(q_traj, loop=True, record_video=record_video, playback_speed=1)
+        sim.vis_trajectory(
+            q_traj,
+            loop=True,
+            record_video=record_video,
+            playback_speed=1,
+            visual_callback_fn=visual_callback
+            )
 
     mpc.print_timings()
+
+    mpc.plot_traj('q')
+    mpc.plot_traj('v')
+    mpc.plot_traj('a')
+    mpc.plot_traj('f')
+    mpc.plot_traj('tau')
+    mpc.show_plots()
 
 if __name__ == "__main__":
     # Parse command-line arguments

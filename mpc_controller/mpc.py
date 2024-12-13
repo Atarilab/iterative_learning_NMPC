@@ -1,9 +1,10 @@
 from collections import defaultdict
+import math
 import time
 from typing import Any, Dict, Tuple
 from matplotlib import pyplot as plt
 import numpy as np
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from scipy.interpolate import interp1d
 from math import floor, ceil
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -70,6 +71,7 @@ class LocomotionMPC(ControllerAbstract):
         self.a_full = []
         self.f_full = []
         self.tau_full = []
+        self.dt_full = []
 
         self.diverged : bool = False
 
@@ -115,16 +117,24 @@ class LocomotionMPC(ControllerAbstract):
         self.v_des = v_des
         self.w_des[2] = w_yaw
 
-    def compute_base_ref(self) -> np.ndarray:
+    def compute_base_ref(self, q : np.ndarray) -> np.ndarray:
         """
         Compute base reference for the solver.
         """
         t_horizon = self.solver.config_opt.time_horizon
+
+        # Set position
+        base_ref = np.zeros(12)
+        base_ref[:2] = np.round(q[:2], 1)
         # Height to config
-        base_ref = self.base_ref.copy()
         base_ref[2] = self.solver.config_gait.nom_height
-        # Horizontal base
-        base_ref[4:6] = 0.
+        # Set yaw
+        qx, qy, qz, qw = q[3:7]
+        yaw = math.atan2(2.0*(qy*qx + qw*qz), -1. + 2. * (qw*qw + qx*qx))
+        base_ref[3] = yaw
+
+        # Copy base ref without velocities
+        base_ref_e = base_ref.copy()
 
         # Setup reference velocities in local frame
         # v_des is in local frame already
@@ -136,14 +146,22 @@ class LocomotionMPC(ControllerAbstract):
         # Compute velocity in global frame
         # Apply angular velocity
         R_yaw = pin.rpy.rpyToMatrix(self.w_des * t_horizon)
-        base_ref[6:9] = R_yaw @ self.v_des
+        base_ref[6:9] = self.v_des
+        base_ref_e[6:9] = R_yaw @ self.v_des
         v_des_glob = np.round(R_WB @ self.v_des, 1)
 
-        # Update position and orientation according to desired velocities
-        base_ref[:2] += v_des_glob[:2] * t_horizon
-        base_ref[3] += self.w_des[-1] * t_horizon
+        base_ref[:2] += v_des_glob[:2] * t_horizon / 2
+        base_ref[3] += self.w_des[-1] * t_horizon / 2
+        base_ref_e[:2] += v_des_glob[:2] * t_horizon
+        base_ref_e[3] += self.w_des[-1] * t_horizon
+        # Base vertical vel
+        base_ref_e[8] = 0.
+        # Base pitch roll
+        base_ref_e[4:6] = 0.
+        # Base pitch roll vel
+        base_ref_e[-2:] = 0.
 
-        return base_ref
+        return base_ref, base_ref_e
 
     def increment_base_ref_position(self, ):
         R_WB = pin.rpy.rpyToMatrix(self.base_ref[3:6][::-1])
@@ -172,8 +190,16 @@ class LocomotionMPC(ControllerAbstract):
         """
         return optimized trajectories.
         """
-        base_ref = self.compute_base_ref()
-        self.solver.init(q, base_ref, v, self.current_opt_node, self.v_des, self.w_des[2])
+        base_ref, base_ref_e = self.compute_base_ref(q)
+        self.solver.init(
+            q,
+            base_ref,
+            base_ref_e,
+            v,
+            self.current_opt_node,
+            self.v_des,
+            self.w_des[2]
+            )
         q_sol, v_sol, a_sol, f_sol, dt_sol = self.solver.solve()
 
         return q_sol, v_sol, a_sol, f_sol, dt_sol
@@ -234,7 +260,8 @@ class LocomotionMPC(ControllerAbstract):
             f_sol.reshape(-1, 12),
         ), axis=-1)
 
-        time_traj = np.cumsum(dt_sol) - dt_sol
+        time_traj = np.cumsum(dt_sol)
+        time_traj = np.concatenate(([0.], time_traj))
 
         state_full_interp = self.interpolate_trajectory(state_full, time_traj)
         input_full_interp = self.interpolate_trajectory(input_full, time_traj[:-1], kind='zero')
@@ -284,10 +311,12 @@ class LocomotionMPC(ControllerAbstract):
                 self._convergence_on_first_iter()
                 
                 # Find the corresponding optimization node
-                self.current_opt_node += bisect_left(time_traj, sim_time)
-                print("Replan", "node:", self.current_opt_node, "time:", sim_time)
-
+                self.current_opt_node += bisect_right(time_traj, sim_time - self.sim_dt)
+                print("Replan", "node:", self.current_opt_node, "time:", round(sim_time, 3))
                 q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
+                # linear velocity to global frame as in mujoco
+                R = pin.Quaternion(q0[3:7]).toRotationMatrix()
+                v[:3] = R @ v[:3]
 
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
                 q_sol[0] = q
@@ -302,13 +331,13 @@ class LocomotionMPC(ControllerAbstract):
                 ) = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
                 time_traj += sim_time
-                self.plan_step = 0
+                self.plan_step = 1
                 self.delay = 0
             
             # Simulation step
             q_full_traj.append(self.q_plan[self.plan_step])
             self._step()
-            sim_time = round(sim_time + self.sim_dt, 4)
+            sim_time = sim_time + self.sim_dt
 
         return q_full_traj
     
@@ -316,7 +345,7 @@ class LocomotionMPC(ControllerAbstract):
         if self.sim_step == 0:
             self.solver.set_max_iter(50)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
-            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 5.)
+            self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 10.)
         elif self.sim_step <= self.replanning_steps:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
@@ -340,8 +369,8 @@ class LocomotionMPC(ControllerAbstract):
             self._convergence_on_first_iter()
 
             # Set up asynchronous optimize call
-            self.optimize_future = self.executor.submit(self.optimize, self.q_opt, self.v_opt)
             self.time_start_plan = sim_time
+            self.optimize_future = self.executor.submit(self.optimize, self.q_opt, self.v_opt)
             self.plan_submitted = True
 
             # Wait for the solver if no delay
