@@ -49,13 +49,16 @@ class Go2CyclicCost(MPCCostConfig):
     W_swing: np.ndarray = __init_np([1e5] * 4)
 
     # force regularization weights for each foot
-    W_cnt_f_reg: np.ndarray = __init_np([[1e-1, 1e-1, 1e-3]] * 4)
+    W_cnt_f_reg: np.ndarray = __init_np([[1e-1, 1e-1, 1e-2]] * 4)
 
     # Feet position constraint stability
     W_foot_pos_constr_stab: np.ndarray = __init_np([5e1] * 4)
 
     # Foot displacement penalization
     W_foot_displacement: np.ndarray = __init_np([1e3])
+
+    # Contact restriction radius
+    cnt_radius: float = 0.015 # m
 
     # Time opt cost
     time_opt: np.ndarray = __init_np([1.0e4])

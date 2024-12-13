@@ -122,6 +122,8 @@ class MPCCostConfig:
     W_foot_pos_constr_stab: np.ndarray
     # Foot displacement from target penalization
     W_foot_displacement: np.ndarray
+    # Default contact radius for contact restriction
+    cnt_radius: float
     # Time opt cost
     time_opt: np.ndarray
     # Reguralization running cost
