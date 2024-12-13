@@ -9,24 +9,24 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     # MPC Config
     time_horizon : float = 1.
     n_nodes : int = 50
-    opt_dt_scale : Tuple[float, float] = (0.75, 1.25)
+    opt_dt_scale : Tuple[float, float] = (0.5, 1.75)
     replanning_freq : int = 20
-    interpolation_mode : str = "linear"
-    Kp : float = 10.
-    Kd : float = 5.
+    interpolation_mode : str = "quadratic"
+    Kp : float = 25
+    Kd : float = 3
     use_delay : bool = True
     # Solver config
     max_iter : int = 1
-    max_qp_iter: int = 10
+    max_qp_iter: int = 6
     nlp_tol: float = 1e-1
-    qp_tol: float = 5e-3
+    qp_tol: float = 1e-2
     recompile: bool = True
     use_cython: bool = False
     hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed
     enable_time_opt : bool = False
     enable_impact_dyn : bool = False
     real_time_it : bool = False
-    opt_cnt_pos : bool = True
+    cnt_patch_restriction : bool = True
     opt_peak : bool = True
     warm_start_sol : bool = True
     warm_start_nlp : bool = True

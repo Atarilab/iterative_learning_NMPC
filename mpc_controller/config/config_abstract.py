@@ -41,8 +41,8 @@ class MPCOptConfig():
     enable_time_opt : bool
     # Enable impact dynamics
     enable_impact_dyn : bool
-    # Constrained eeff locations
-    opt_cnt_pos : bool
+    # Constrained eeff locations within a patch
+    cnt_patch_restriction : bool
     # Use peak constrained
     opt_peak : bool
     # Solver maximum SQP iterations
@@ -119,7 +119,11 @@ class MPCCostConfig:
     # length: number of eeff
     W_cnt_f_reg: np.ndarray
     # Weight constraint contact horizontal velocity
-    foot_pos_constr_stab: np.ndarray
+    W_foot_pos_constr_stab: np.ndarray
+    # Foot displacement from target penalization
+    W_foot_displacement: np.ndarray
+    # Time opt cost
+    time_opt: np.ndarray
     # Reguralization running cost
     reg_eps: float
     # Reguralization terminal cost
@@ -132,7 +136,7 @@ class MPCCostConfig:
         assert len(self.W_joint) == 24, "W_joint must be of shape 24"
         assert len(self.W_e_joint) == 24, "W_e_joint must be of shape 24"
         assert (len(self.W_swing) == len(self.W_cnt_f_reg) and
-                len(self.W_swing) == len(self.foot_pos_constr_stab)),\
+                len(self.W_swing) == len(self.W_foot_pos_constr_stab)),\
                 "W_swing and W_foot should have the same length."
         for i, foot_weight in enumerate(self.W_cnt_f_reg):
             assert len(foot_weight) == 3, f"W_foot[{i}] must be of shape 3"

@@ -17,17 +17,17 @@ class QuadrupedTrot(QuadrupedGaitConfig):
     nominal_period: float = 0.5
     stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.5, 0.5, 0.5, 0.5]))
     phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.5, 0.0, 0.0, 0.5]))
-    nom_height: float = 0.3
+    nom_height: float = 0.30
     step_height: float = 0.05
 
 @dataclass
 class QuadrupedJump(QuadrupedGaitConfig):
     gait_name: str = "jump"
-    nominal_period : float = 0.5
+    nominal_period : float = 50
     stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.4, 0.4, 0.4, 0.4]))
     phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0, 0.0]))
-    nom_height: float = 0.05
-    step_height: float = 0.32
+    nom_height: float = 0.3
+    step_height: float = 0.05
 
 @dataclass
 class QuadrupedCrawl(QuadrupedGaitConfig):
