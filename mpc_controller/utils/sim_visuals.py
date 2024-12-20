@@ -3,7 +3,6 @@ import mujoco.viewer
 import pinocchio as pin
 import numpy as np
 
-from mj_pin_wrapper.abstract.controller import ControllerAbstract
 from mujoco._structs import MjData
 from .solver import QuadrupedAcadosSolver
 
@@ -16,7 +15,7 @@ FEET_COLORS = [
 ]
 N_NEXT_CONTACTS = 12
 SPHERE_RADIUS = 0.012
-    
+
 def desired_contact_locations_callback(viewer,
                                        sim_step: int,
                                        q: np.ndarray,

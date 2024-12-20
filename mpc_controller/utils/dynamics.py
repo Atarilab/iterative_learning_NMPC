@@ -10,17 +10,15 @@ class QuadrupedDynamics(FloatingBaseDynamics):
     MU_CONTACT = 0.7
 
     def __init__(self,
-                 robot_name: str,
-                 model_path: str,
+                 urdf_path,
                  feet_frame_names: List[str],
                  cnt_patch_restriction: bool = False,
                  ):
-        
-        model, data = loadSymModel(model_path)
-        self.feet_frame_names = feet_frame_names
-        self.feet_frame_id = [model.getFrameId(ee_name) for ee_name in self.feet_frame_names]
 
-        super().__init__(robot_name, model, data)
+        model, data = loadSymModel(urdf_path)
+        self.feet_frame_id = [model.getFrameId(ee_name) for ee_name in feet_frame_names]
+
+        super().__init__(model.name, model, data)
 
         self.feet = [PointContact(
             dyn=self,

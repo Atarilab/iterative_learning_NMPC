@@ -1,7 +1,7 @@
 from collections import defaultdict
 import math
 import time
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 from matplotlib import pyplot as plt
 import numpy as np
 from bisect import bisect_left, bisect_right
@@ -10,20 +10,21 @@ from math import floor, ceil
 from concurrent.futures import ThreadPoolExecutor, Future
 import pinocchio as pin
 
-from mj_pin_wrapper.mj_pin_robot import MJPinQuadRobotWrapper
-from mj_pin_wrapper.abstract.controller import ControllerAbstract
+from mj_pin.utils import PinController
 from .utils.solver import QuadrupedAcadosSolver
-from .utils.transform import quat_to_ypr_state
 from .utils.profiling import time_fn, print_timings
 
-class LocomotionMPC(ControllerAbstract):
+class LocomotionMPC(PinController):
     """
     Abstract base class for an MPC controller.
     This class defines the structure for an MPC controller
     where specific optimization methods can be implemented by inheriting classes.
     """
     def __init__(self,
-                 robot: MJPinQuadRobotWrapper,
+                 pin_model,
+                 path_urdf : str,
+                 feet_frame_names : List[str],
+                 joint_ref : np.ndarray = None,
                  gait_name: str = "trot",
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
@@ -31,12 +32,28 @@ class LocomotionMPC(ControllerAbstract):
                  compute_timings : bool = True,
                  **kwargs
                  ) -> None:
-        super().__init__(robot.pin)
-        self.mj_robot = robot.mj
+        super().__init__(pin_model)
+
         self.gait_name = gait_name
         self.print_info = print_info
 
-        self.solver = QuadrupedAcadosSolver(robot.pin, gait_name, print_info)
+        nu = pin_model.nv - 6
+        if joint_ref is None:
+            if pin_model.referenceConfigurations["home"]:
+                joint_ref = pin_model.referenceConfigurations["home"][-nu:]
+            else:
+                print("Joint reference not found in pinocchio model. Set to zero.")
+                joint_ref = np.zeros(nu)
+        self.joint_ref = joint_ref[-nu:]
+        
+        self.solver = QuadrupedAcadosSolver(
+            self.pin_model,
+            self.pin_data,
+            path_urdf,
+            feet_frame_names,
+            gait_name,
+            print_info)
+        
         config_opt = self.solver.config_opt
 
         self.Kp = self.solver.config_opt.Kp
@@ -193,9 +210,10 @@ class LocomotionMPC(ControllerAbstract):
         base_ref, base_ref_e = self.compute_base_ref(q)
         self.solver.init(
             q,
+            v,
             base_ref,
             base_ref_e,
-            v,
+            self.joint_ref,
             self.current_opt_node,
             self.v_des,
             self.w_des[2]
@@ -351,36 +369,38 @@ class LocomotionMPC(ControllerAbstract):
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
             self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
     
-    def get_torques(self, q: np.ndarray, v: np.ndarray, robot_data: Any) -> Dict[str, float]:
+    def get_torques(self, sim_step : int, mj_data: Any) -> Dict[str, float]:
         """
-        Abstract method to compute torques based on the state and planned trajectories.
-        Should be implemented by child classes.
+        Compute torques based on robot state in the MuJoCo simulation.
         """
+        # Get state in pinocchio format
+        q, v = self.get_state(mj_data)
+
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
+            # Compute replanning time
             self.start_time = time.time()
 
             # Find the optimization node of the last plan corresponding to the current simulation time
-            sim_time = round(robot_data.time, 4)
+            sim_time = round(mj_data.time, 4)
             self.current_opt_node += bisect_left(self.time_traj, sim_time)
-            self.q_opt, self.v_opt = q.copy(), v.copy()
         
             # On first iteration
             self._convergence_on_first_iter()
 
             # Set up asynchronous optimize call
             self.time_start_plan = sim_time
-            self.optimize_future = self.executor.submit(self.optimize, self.q_opt, self.v_opt)
+            self.optimize_future = self.executor.submit(self.optimize, q, v)
             self.plan_submitted = True
 
             # Wait for the solver if no delay
             while not self.use_delay and not self.optimize_future.done():
                 time.sleep(1.0e-3)
 
-        # Check if the future is done and the new plan is ready to be used
+        # Check if the future is done and if the new plan is ready to be used
         if (self.plan_submitted and self.optimize_future.done() or
             self.sim_step == 0):
-            sim_time = round(robot_data.time, 4)
+            sim_time = round(mj_data.time, 4)
 
             try:
                 # Retrieve new plan from future
@@ -390,7 +410,7 @@ class LocomotionMPC(ControllerAbstract):
                 if self.record_traj and self.sim_step > 0:
                     self._record_plan()
 
-                # Interpolate plan
+                # Interpolate plan at sim_dt interval
                 self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
                 # Apply delay
@@ -398,8 +418,6 @@ class LocomotionMPC(ControllerAbstract):
                     replanning_time = time.time() - self.start_time
                     self.delay = round(replanning_time / self.sim_dt)
                 else:
-                    q_sol[0] = self.q_opt
-                    v_sol[0] = self.v_opt
                     self.delay = 0
 
                 self.plan_step = self.delay
@@ -411,8 +429,8 @@ class LocomotionMPC(ControllerAbstract):
                 self.plan_submitted = False
                 
         torques = self.solver.dyn.get_torques(
-            self.robot.model,
-            self.robot.data,
+            self.pin_model,
+            self.pin_data,
             q,
             v,
             self.a_plan[self.plan_step],
@@ -423,11 +441,7 @@ class LocomotionMPC(ControllerAbstract):
                       self.Kp * (self.q_plan[self.plan_step, -12:] - q[-12:]) +
                       self.Kd * (self.v_plan[self.plan_step, -12:] - v[-12:]))
 
-        torque_map = {
-            j_name : torques_pd[joint_id]
-            for j_name, joint_id
-            in self.robot.joint_name2act_id.items()
-        }
+        torque_map = self.create_torque_map(torques_pd)
 
         # Record trajectories
         if self.record_traj:
