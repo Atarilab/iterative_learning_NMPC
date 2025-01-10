@@ -3,7 +3,7 @@ import math
 from bisect import bisect_right
 from typing import List, Tuple
 from ..config.config_abstract import GaitConfig
-from .contact_plan import CyclicContactPlan
+from ._contact_plan import CyclicContactPlan
 
 class GaitPlanner():
     def __init__(self,

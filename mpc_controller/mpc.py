@@ -6,13 +6,15 @@ from matplotlib import pyplot as plt
 import numpy as np
 from bisect import bisect_left, bisect_right
 from scipy.interpolate import interp1d
-from math import floor, ceil
 from concurrent.futures import ThreadPoolExecutor, Future
 import pinocchio as pin
+import traceback
 
-from mj_pin.utils import PinController
+from mj_pin.utils import PinController, pin_frame_pos
+from .utils.contact_planner import RaiberContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.profiling import time_fn, print_timings
+from .config.quadruped.utils import get_quadruped_config
 
 class LocomotionMPC(PinController):
     """
@@ -21,58 +23,79 @@ class LocomotionMPC(PinController):
     where specific optimization methods can be implemented by inheriting classes.
     """
     def __init__(self,
-                 pin_model,
                  path_urdf : str,
                  feet_frame_names : List[str],
-                 joint_ref : np.ndarray = None,
+                 robot_name : str,
                  gait_name: str = "trot",
+                 joint_ref : np.ndarray = None,
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
                  record_traj : bool = False,
                  compute_timings : bool = True,
-                 **kwargs
                  ) -> None:
-        super().__init__(pin_model)
 
         self.gait_name = gait_name
         self.print_info = print_info
+        
+        # Solver
+        self.config_gait, self.config_opt, self.config_cost = get_quadruped_config(gait_name, robot_name)
+        self.solver = QuadrupedAcadosSolver(
+            path_urdf,
+            feet_frame_names,
+            self.config_opt,
+            self.config_cost,
+            print_info,
+            compute_timings)
 
-        nu = pin_model.nv - 6
+        super().__init__(self.solver.dyn.pin_model)
+
+        # Set joint reference
+        nu = self.solver.dyn.pin_model.nv - 6
         if joint_ref is None:
-            if pin_model.referenceConfigurations["home"]:
-                joint_ref = pin_model.referenceConfigurations["home"][-nu:]
+            if self.solver.dyn.pin_model.referenceConfigurations["home"]:
+                joint_ref = self.solver.dyn.pin_model.referenceConfigurations["home"][-nu:]
             else:
                 print("Joint reference not found in pinocchio model. Set to zero.")
                 joint_ref = np.zeros(nu)
         self.joint_ref = joint_ref[-nu:]
-        
-        self.solver = QuadrupedAcadosSolver(
-            self.pin_model,
-            self.pin_data,
-            path_urdf,
-            feet_frame_names,
-            gait_name,
-            print_info)
-        
-        config_opt = self.solver.config_opt
+               
+        # Contact planner
+        q0, v0 = np.zeros(self.solver.dyn.pin_model.nq), np.zeros(self.solver.dyn.pin_model.nv)
+        q0[-nu:] = self.joint_ref
+        self.solver.dyn.update_pin(q0, v0)
+        self.base_ref_vel_tracking = np.zeros(6)
 
+        offset_hip_b = self.solver.dyn.get_feet_position_w()
+        offset_hip_b[:, -1] = 0.
+        self.contact_planner = RaiberContactPlanner(
+            feet_frame_names,
+            self.solver.dt_nodes,
+            self.config_gait,
+            offset_hip_b,
+            y_offset=0.02,
+            x_offset=0.04,
+            foot_size=0.0085,
+            cache_cnt=False
+            )
+        
+        # Set params
         self.Kp = self.solver.config_opt.Kp
         self.Kd = self.solver.config_opt.Kd
 
         self.sim_dt = sim_dt
         self.dt_nodes : float = self.solver.dt_nodes
-        self.replanning_freq : int = config_opt.replanning_freq
+        self.replanning_freq : int = self.config_opt.replanning_freq
         self.replanning_steps : int = int(1 / (self.replanning_freq * sim_dt))
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
-        self.use_delay : bool = config_opt.use_delay
+        self.use_delay : bool = self.config_opt.use_delay
         self.delay : int = 0
         self.last : int = 0
 
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
-        self.base_ref : np.ndarray = np.zeros(12)
+        self.base_ref_vel_tracking : np.ndarray = np.zeros(12)
         self.q_plan : np.ndarray = None
         self.v_plan : np.ndarray = None
         self.a_plan : np.ndarray = None
@@ -82,7 +105,7 @@ class LocomotionMPC(PinController):
         self.time_traj : np.ndarray = np.array([])
 
         # For plots
-        self.record_traj = record_traj
+        self.record_traj = record_traj or print_info
         self.q_full = []
         self.v_full = []
         self.a_full = []
@@ -134,7 +157,13 @@ class LocomotionMPC(PinController):
         self.v_des = v_des
         self.w_des[2] = w_yaw
 
-    def compute_base_ref(self, q : np.ndarray) -> np.ndarray:
+    def increment_base_ref_position(self, ):
+        R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
+        v_des_glob = np.round(R_WB @ self.v_des, 1)
+        self.base_ref_vel_tracking[:2] += v_des_glob[:2] * self.sim_dt
+        self.base_ref_vel_tracking[3] += self.w_des[-1] * self.sim_dt
+
+    def compute_base_ref(self, q_mj : np.ndarray) -> np.ndarray:
         """
         Compute base reference for the solver.
         """
@@ -142,35 +171,47 @@ class LocomotionMPC(PinController):
 
         # Set position
         base_ref = np.zeros(12)
-        base_ref[:2] = np.round(q[:2], 1)
+        base_ref[:2] = np.round(q_mj[:2], 2)
         # Height to config
-        base_ref[2] = self.solver.config_gait.nom_height
+        base_ref[2] = self.config_gait.nom_height
         # Set yaw
-        qx, qy, qz, qw = q[3:7]
+        qw, qx, qy, qz = q_mj[3:7]
         yaw = math.atan2(2.0*(qy*qx + qw*qz), -1. + 2. * (qw*qw + qx*qx))
-        base_ref[3] = yaw
+        base_ref[3] = round(yaw, 1)
 
-        # Copy base ref without velocities
-        base_ref_e = base_ref.copy()
-
-        # Setup reference velocities in local frame
-        # v_des is in local frame already
+        # Setup reference velocities in global frame
+        # v_des is in local frame
         # w_yaw in global frame
-        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1])
-        w_des_local = (R_WB.T @ self.w_des)[::-1]
-        base_ref[-3:] = np.round(w_des_local, 1)
+        R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
+        v_des_glob = np.round(R_WB @ self.v_des, 1)
+        base_ref[6:9] = v_des_glob
+        base_ref[-3:] = self.w_des[::-1]
+
+        # Terminal reference, copy base ref
+        base_ref_e = base_ref.copy()
 
         # Compute velocity in global frame
         # Apply angular velocity
         R_yaw = pin.rpy.rpyToMatrix(self.w_des * t_horizon)
-        base_ref[6:9] = self.v_des
-        base_ref_e[6:9] = R_yaw @ self.v_des
-        v_des_glob = np.round(R_WB @ self.v_des, 1)
+        base_ref_e[6:9] = R_yaw @ base_ref[6:9]
 
-        base_ref[:2] += v_des_glob[:2] * t_horizon / 2
-        base_ref[3] += self.w_des[-1] * t_horizon / 2
-        base_ref_e[:2] += v_des_glob[:2] * t_horizon
-        base_ref_e[3] += self.w_des[-1] * t_horizon
+        base_ref_e[:2] = self.base_ref_vel_tracking[:2] + v_des_glob[:2] * t_horizon
+        # Clip base ref in direction of the motion
+        # (don't go too far if the robot is too slow)
+        # TODO Fix when using contact restriction (clipping wrong)
+        base_ref_e[:2] = np.clip(base_ref_e[:2],
+                -base_ref[:2] * v_des_glob[:2] + v_des_glob[:2] * t_horizon,
+                 base_ref[:2] * v_des_glob[:2] + v_des_glob[:2] * t_horizon,
+                )
+        
+        base_ref_e[3] = self.base_ref_vel_tracking[3] + self.w_des[-1] * t_horizon
+        base_ref_e[3] = np.clip(base_ref_e[3],
+                -base_ref[3] + self.w_des[-1] * t_horizon * 1.2,
+                 base_ref[3] + self.w_des[-1] * t_horizon * 1.2,
+                )
+        # Set the base ref inbetween
+        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.5
+        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
         # Base vertical vel
         base_ref_e[8] = 0.
         # Base pitch roll
@@ -179,12 +220,6 @@ class LocomotionMPC(PinController):
         base_ref_e[-2:] = 0.
 
         return base_ref, base_ref_e
-
-    def increment_base_ref_position(self, ):
-        R_WB = pin.rpy.rpyToMatrix(self.base_ref[3:6][::-1])
-        v_des_glob = np.round(R_WB @ self.v_des, 1)
-        self.base_ref[:2] += v_des_glob[:2] * self.sim_dt
-        self.base_ref[3] += self.w_des[-1] * self.sim_dt
 
     def reset(self) -> None:
         """
@@ -202,21 +237,40 @@ class LocomotionMPC(PinController):
     
     @time_fn("optimize")
     def optimize(self,
-                 q : np.ndarray,
-                 v : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 q_mj : np.ndarray,
+                 v_mj : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         return optimized trajectories.
         """
-        base_ref, base_ref_e = self.compute_base_ref(q)
+        # Update model state based on current MuJoCo state
+        q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
+        self.solver.dyn.update_pin(q, v)
+
+        # Base reference
+        base_ref, base_ref_e = self.compute_base_ref(q_mj)
+
+        # Contact parameters
+        cnt_sequence = self.contact_planner.get_contacts(self.current_opt_node, self.config_opt.n_nodes+1)
+        swing_peak = None
+        if self.config_opt.opt_peak:
+            swing_peak = self.contact_planner.get_peaks(self.current_opt_node, self.config_opt.n_nodes+1)
+        cnt_locations = None
+        if self.config_opt.cnt_patch_restriction:
+            com_xyz = pin.centerOfMass(self.solver.dyn.pin_model, self.solver.dyn.pin_data)
+            self.contact_planner.set_state(q[:3], v[:3], q[3:6][::-1], com_xyz, self.v_des, self.w_des[-1])
+            cnt_locations = self.contact_planner.get_locations(self.current_opt_node, self.config_opt.n_nodes+1)
+
         self.solver.init(
+            self.current_opt_node,
             q,
             v,
             base_ref,
             base_ref_e,
             self.joint_ref,
-            self.current_opt_node,
-            self.v_des,
-            self.w_des[2]
+            self.config_gait.step_height,
+            cnt_sequence,
+            cnt_locations,
+            swing_peak,
             )
         q_sol, v_sol, a_sol, f_sol, dt_sol = self.solver.solve()
 
@@ -326,7 +380,7 @@ class LocomotionMPC(PinController):
                 if self.record_traj and self.sim_step > 0:
                     self._record_plan()
 
-                self._convergence_on_first_iter()
+                self.set_convergence_on_first_iter()
                 
                 # Find the corresponding optimization node
                 self.current_opt_node += bisect_right(time_traj, sim_time - self.sim_dt)
@@ -359,7 +413,7 @@ class LocomotionMPC(PinController):
 
         return q_full_traj
     
-    def _convergence_on_first_iter(self):
+    def set_convergence_on_first_iter(self):
         if self.sim_step == 0:
             self.solver.set_max_iter(50)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
@@ -374,7 +428,7 @@ class LocomotionMPC(PinController):
         Compute torques based on robot state in the MuJoCo simulation.
         """
         # Get state in pinocchio format
-        q, v = self.get_state(mj_data)
+        q_mj, v_mj = mj_data.qpos, mj_data.qvel
 
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
@@ -384,14 +438,22 @@ class LocomotionMPC(PinController):
             # Find the optimization node of the last plan corresponding to the current simulation time
             sim_time = round(mj_data.time, 4)
             self.current_opt_node += bisect_left(self.time_traj, sim_time)
-        
-            # On first iteration
-            self._convergence_on_first_iter()
+            
+            # Set solver parameters on first iteration
+            self.set_convergence_on_first_iter()
 
             # Set up asynchronous optimize call
             self.time_start_plan = sim_time
-            self.optimize_future = self.executor.submit(self.optimize, q, v)
+            self.optimize_future = self.executor.submit(self.optimize, q_mj, v_mj)
             self.plan_submitted = True
+
+            if self.print_info:
+                print()
+                print("#"*10, "Replan", "#"*10)
+                print("Current node:", self.current_opt_node,
+                      "Sim time:", sim_time,
+                      "Sim step:", self.sim_step)
+                print()
 
             # Wait for the solver if no delay
             while not self.use_delay and not self.optimize_future.done():
@@ -424,13 +486,16 @@ class LocomotionMPC(PinController):
                 self.time_traj += self.time_start_plan
                 self.plan_submitted = False
 
+                # Plot current state vs optimization plan
+                # self.plot_current_vs_plan(q_mj, v_mj)
+
             except Exception as e:
-                print("Optimization error:\n", e)
+                print("Optimization error:\n")
+                print(traceback.format_exc())
                 self.plan_submitted = False
-                
-        torques = self.solver.dyn.get_torques(
-            self.pin_model,
-            self.pin_data,
+        
+        q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
+        torques = self.solver.dyn.id_torques(
             q,
             v,
             self.a_plan[self.plan_step],
@@ -438,8 +503,8 @@ class LocomotionMPC(PinController):
         )
 
         torques_pd = (torques +
-                      self.Kp * (self.q_plan[self.plan_step, -12:] - q[-12:]) +
-                      self.Kd * (self.v_plan[self.plan_step, -12:] - v[-12:]))
+                      self.Kp * (self.q_plan[self.plan_step, -self.nu:] - q_mj[-self.nu:]) +
+                      self.Kd * (self.v_plan[self.plan_step, -self.nu:] - v_mj[-self.nu:]))
 
         torque_map = self.create_torque_map(torques_pd)
 
@@ -450,6 +515,35 @@ class LocomotionMPC(PinController):
         self._step()
 
         return torque_map
+        
+    def plot_current_vs_plan(self, q_mj: np.ndarray, v_mj: np.ndarray):
+        """
+        Plot the current state vs the optimization plan.
+        """
+        time_points = np.linspace(0, len(self.q_plan) * self.sim_dt, len(self.q_plan))
+
+        fig, axs = plt.subplots(2, 1, figsize=(12, 8))
+
+        # Plot positions
+        axs[0].plot(time_points, self.q_plan[:, -3:], label="Planned Position")
+        axs[0].scatter([self.plan_step * self.sim_dt]*3, [q_mj[-3:]], color="red", label="Current Position")
+        axs[0].set_title("Position Comparison")
+        axs[0].set_xlabel("Time (s)")
+        axs[0].set_ylabel("Position")
+        axs[0].grid()
+        axs[0].legend()
+
+        # Plot velocities
+        axs[1].plot(time_points, self.v_plan[:, -3:], label="Planned Velocity")
+        axs[1].scatter([self.plan_step * self.sim_dt]*3, [v_mj[-3:]], color="red", label="Current Velocity")
+        axs[1].set_title("Velocity Comparison")
+        axs[1].set_xlabel("Time (s)")
+        axs[1].set_ylabel("Velocity")
+        axs[1].grid()
+        axs[1].legend()
+
+        plt.tight_layout()
+        plt.show()
     
     def plot_traj(self, var_name: str):
         """

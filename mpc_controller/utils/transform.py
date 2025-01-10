@@ -75,7 +75,7 @@ def local_angular_to_euler_derivative(ypr_euler: np.ndarray, w_local: np.ndarray
     cy = np.cos(ypr_euler[1])
     sy = np.sin(ypr_euler[1])
     transform_ = np.array([[0, sx / cy, cx / cy], [0, cx, -sx], [1, sx * sy / cy, cx * sy / cy]])
-    return transform_ @ w_local.reshape(-1, 1);
+    return transform_ @ w_local;
 
 def euler_derivative_to_local_angular(ypr_euler: np.ndarray, v_euler : np.ndarray) -> np.ndarray:
     cx = np.cos(ypr_euler[2])
@@ -83,7 +83,7 @@ def euler_derivative_to_local_angular(ypr_euler: np.ndarray, v_euler : np.ndarra
     cy = np.cos(ypr_euler[1])
     sy = np.sin(ypr_euler[1])
     transform_ = np.array([[-sy, 0, 1], [cy * sx, cx, 0], [cx * cy, -sx, 0]])
-    return transform_ @ v_euler.reshape(-1, 1)
+    return transform_ @ v_euler
 
 def v_to_euler_derivative(q_euler: np.ndarray, v: np.ndarray) -> np.ndarray:
     v_euler_d = np.concatenate((
@@ -93,27 +93,124 @@ def v_to_euler_derivative(q_euler: np.ndarray, v: np.ndarray) -> np.ndarray:
             ))
     return v_euler_d
 
-def v_glob_to_local_batched(q_euler_batch: np.ndarray, v_euler_batch: np.ndarray) -> np.ndarray:
-    '''
-    Pinocchio Translation + ZYX -> mujoco
-    '''
-    # Rotate the linear velocity using YPR orientation
-    rotated_v_batch = np.array([
-        pin.rpy.rpyToMatrix(ypr_euler[::-1]).T @ v_euler
-        for ypr_euler, v_euler in zip(q_euler_batch[:, 3:6], v_euler_batch[:, :3])
-    ])
+# def v_glob_to_local_batched(q_euler_batch: np.ndarray, v_euler_batch: np.ndarray) -> np.ndarray:
+#     '''
+#     Pinocchio Translation + ZYX -> mujoco
+#     '''
+#     # Rotate the linear velocity using YPR orientation
+#     rotated_v_batch = np.array([
+#         pin.rpy.rpyToMatrix(ypr_euler[::-1]).T @ v_euler
+#         for ypr_euler, v_euler in zip(q_euler_batch[:, 3:6], v_euler_batch[:, :3])
+#     ])
 
-    # Convert the angular velocity from global euler to local frame
-    v_local_batch = np.array([
-        euler_derivative_to_local_angular(ypr_euler, w_euler)
-        for ypr_euler, w_euler in zip(q_euler_batch[:, 3:6], v_euler_batch[:, 3:6])
-    ]).reshape(-1, 3)
+#     # Convert the angular velocity from global euler to local frame
+#     v_local_batch = np.array([
+#         euler_derivative_to_local_angular(ypr_euler, w_euler)
+#         for ypr_euler, w_euler in zip(q_euler_batch[:, 3:6], v_euler_batch[:, 3:6])
+#     ]).reshape(-1, 3)
 
-    # Combine the rotated linear velocity and local angular velocity
-    v_euler_d = np.hstack((
-        rotated_v_batch[:, :3],
-        v_local_batch,
-        v_euler_batch[:, 6:]
-    ))
+#     # Combine the rotated linear velocity and local angular velocity
+#     v_euler_d = np.hstack((
+#         rotated_v_batch[:, :3],
+#         v_local_batch,
+#         v_euler_batch[:, 6:]
+#     ))
     
-    return v_euler_d
+#     return v_euler_d
+
+# def v_glob_to_local_batched(q_euler_batch: np.ndarray, v_euler_batch: np.ndarray) -> np.ndarray:
+#     """
+#     Converts global velocities to local velocities using the adjoint transformation matrix (batched).
+
+#     Args:
+#         q_euler_batch (np.ndarray): Batch of euler-based states [N, 18]. Euler angles in YPR order.
+#         v_euler_batch (np.ndarray): Batch of global velocities [N, 18].
+
+#     Returns:
+#         np.ndarray: Local velocities [N, 18].
+#     """
+#     # Compute rotation matrices for all states
+#     rotation_matrices = np.array([
+#         pin.rpy.rpyToMatrix(ypr[::-1]).T for ypr in q_euler_batch[:, 3:6]
+#     ])  # Shape: [N, 3, 3]
+
+#     # Compute skew-symmetric matrices for all positions
+#     N = q_euler_batch.shape[0]
+#     p_skew = np.zeros((N, 3, 3))
+#     p_skew[:, 0, 1] = -q_euler_batch[:, 2]
+#     p_skew[:, 0, 2] = q_euler_batch[:, 1]
+#     p_skew[:, 1, 0] = q_euler_batch[:, 2]
+#     p_skew[:, 1, 2] = -q_euler_batch[:, 0]
+#     p_skew[:, 2, 0] = -q_euler_batch[:, 1]
+#     p_skew[:, 2, 1] = q_euler_batch[:, 0]
+
+#     # Compute the adjoint matrices for all states
+#     adjoint_top = rotation_matrices
+#     adjoint_bottom = -np.einsum("nij,njk->nik", rotation_matrices, p_skew)
+#     adjoint = np.zeros((N, 6, 6))
+#     adjoint[:, :3, :3] = adjoint_top
+#     adjoint[:, 3:, :3] = adjoint_bottom
+#     adjoint[:, 3:, 3:] = rotation_matrices
+
+#     # Apply the adjoint matrices to transform the velocities
+#     v_global = v_euler_batch[:, :6].reshape(-1, 6, 1)  # Shape: [N, 6, 1]
+#     v_local = np.einsum("nij,njk->nik", adjoint, v_global).reshape(-1, 6)  # Shape: [N, 6]
+
+#     # Combine the transformed linear/angular velocities with joint velocities
+#     v_local_batched = np.hstack((v_local, v_euler_batch[:, 6:]))
+
+#     return v_local_batched
+
+def v_glob_to_local_batched(q_euler_batch: np.ndarray, v_euler_batch: np.ndarray) -> np.ndarray:
+    """
+    Converts global velocities to local velocities using the adjoint transformation matrix (batched).
+
+    Args:
+        q_euler_batch (np.ndarray): Batch of euler-based states [N, 18]. Euler angles in YPR order.
+        v_euler_batch (np.ndarray): Batch of global velocities [N, 18].
+
+    Returns:
+        np.ndarray: Local velocities [N, 18].
+    """
+    # Compute rotation matrices for all states
+    rotation_matrices = np.array([
+        pin.rpy.rpyToMatrix(ypr[::-1]).T for ypr in q_euler_batch[:, 3:6]
+    ])  # Shape: [N, 3, 3]
+
+    # Compute skew-symmetric matrices for all positions
+    N = q_euler_batch.shape[0]
+    p_skew = np.zeros((N, 3, 3))
+    p_skew[:, 0, 1] = -q_euler_batch[:, 2]
+    p_skew[:, 0, 2] = q_euler_batch[:, 1]
+    p_skew[:, 1, 0] = q_euler_batch[:, 2]
+    p_skew[:, 1, 2] = -q_euler_batch[:, 0]
+    p_skew[:, 2, 0] = -q_euler_batch[:, 1]
+    p_skew[:, 2, 1] = q_euler_batch[:, 0]
+
+    # Compute the adjoint matrices for all states
+    adjoint_bottom = np.einsum("nij,njk->nik", -p_skew, rotation_matrices)
+    adjoint = np.zeros((N, 6, 6))
+    adjoint[:, :3, :3] = rotation_matrices
+    adjoint[:, 3:, :3] = adjoint_bottom
+    adjoint[:, 3:, 3:] = rotation_matrices
+
+    # Apply the adjoint matrices to transform the velocities
+    v_global = v_euler_batch[:, :6].reshape(-1, 6, 1)  # Shape: [N, 6, 1]
+    v_local = np.einsum("nij,njk->nik", adjoint, v_global).reshape(-1, 6)  # Shape: [N, 6]
+
+    # Combine the transformed linear/angular velocities with joint velocities
+    v_local_batched = np.hstack((v_local, v_euler_batch[:, 6:]))
+
+
+    quat = pin.Quaternion(pin.rpy.rpyToMatrix(q_euler_batch[0, 3:6][::-1])).coeffs()
+    
+    # Build SE3 transform from position and quaternion
+    T_WB = pin.XYZQUATToSE3(np.concatenate((q_euler_batch[0, :3], quat)))
+    # Define velocity in the world frame
+    v_W = pin.Motion(linear=v_euler_batch[0, :3], angular=v_euler_batch[0, 3:6])
+    # Transform velocity to the base frame using Pinocchio's adjoint operator
+    v_B_pin = T_WB.actInv(v_W)
+    print(v_B_pin)
+    print(v_local[0])
+
+    return v_local_batched

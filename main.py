@@ -1,43 +1,71 @@
 from typing import List
-import os
+import pinocchio as pin
 import numpy as np
 from mj_pin.abstract import VisualCallback # type: ignore
 from mj_pin.simulator import Simulator # type: ignore
-from mj_pin.utils import load_mj_pin, load_pin, mj_frame_pos # type: ignore
+from mj_pin.utils import load_mj_pin   # type: ignore
 
 from mpc_controller.mpc import LocomotionMPC
 
-class FeetVisualCallback(VisualCallback):
-    def __init__(self, mj_model, feet_names : List[str], update_step = 1):
+class ReferenceVisualCallback(VisualCallback):
+    def __init__(self, mpc_controller, update_step = 1):
         super().__init__(update_step)
-        self.mj_model = mj_model
-        self.feet_names = feet_names
+        self.mpc = mpc_controller
+        self.radius = 0.01
 
     def _add_visuals(self, mj_data):
-        radius = 0.03
-        for i, f_name in enumerate(self.feet_names):
-            pos = mj_frame_pos(self.mj_model, mj_data, f_name)
-            self.add_sphere(pos, radius, self.colors_id[i])
+        # Contact locations
+        for i, foot_cnt in enumerate(self.mpc.solver.dyn.feet):
+            cnt_pos = self.mpc.solver.params[foot_cnt.plane_point.name]
+            cnt_pos_unique = np.unique(cnt_pos, axis=1).T
+            for pos in cnt_pos_unique:
+                if np.sum(pos) == 0.: continue
+                self.add_sphere(pos, self.radius, self.colors_id[i])
+
+        # Base reference
+        BLACK = VisualCallback.BLACK
+        BLACK[-1] = 0.5
+        base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
+        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
+        self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
+        
+        # Base reference
+        BLACK = VisualCallback.BLACK
+        BLACK[-1] = 0.5
+        base_ref = self.mpc.solver.cost_ref_terminal[self.mpc.solver.dyn.base_cost.name]
+        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
+        self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
+
 
 if __name__ == "__main__":
-    mj_model, pin_model, robot_desc = load_mj_pin("go2", from_mjcf=False)
+    SIM_DT = 1.0e-3
+    ROBOT_NAME = "go2"
+
+    mj_model, _, robot_desc = load_mj_pin(ROBOT_NAME, from_mjcf=False)
     feet_frame_names = [f + "_foot" for f in robot_desc.eeff_frame_name]
 
     mpc = LocomotionMPC(
-        pin_model,
         path_urdf=robot_desc.urdf_path,
         feet_frame_names = feet_frame_names,
+        robot_name=ROBOT_NAME,
         joint_ref = robot_desc.q0,
-        sim_dt=mj_model.opt.timestep,
+        sim_dt=SIM_DT,
         print_info=False,
         )
     
-    v_des = [.5, 0., 0.]
-    mpc.set_command(v_des)
+    v_des = [0.5, 0.0, 0.0]
+    mpc.set_command(v_des, 0.0)
     
-    vis_feet_pos = FeetVisualCallback(mj_model, robot_desc.eeff_frame_name)
+    vis_feet_pos = ReferenceVisualCallback(mpc)
 
-    sim = Simulator(mj_model)
+    sim = Simulator(mj_model, sim_dt=SIM_DT)
 
-    sim.run(controller=mpc,
-            visual_callback=vis_feet_pos)
+    sim.run(
+        sim_time=10,
+        controller=mpc,
+        visual_callback=vis_feet_pos)
+    
+    mpc.print_timings()
+    mpc.plot_traj("f")
+    mpc.plot_traj("tau")
+    mpc.show_plots()
