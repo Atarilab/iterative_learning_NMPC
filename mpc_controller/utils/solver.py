@@ -314,7 +314,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 self.inputs["dt"][:, n_warm_start:] = self.dt_nodes
 
         # Dual variables
-        self.warm_start_dual("lam", start_node, n_warm_start, repeat_last=repeat_last)
+        self.warm_start_multipliers(start_node, n_warm_start, repeat_last=repeat_last)
 
         # Update last opt node
         self.last_node = i_node
