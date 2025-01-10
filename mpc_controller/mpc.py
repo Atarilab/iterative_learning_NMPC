@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 import pinocchio as pin
 import traceback
 
-from mj_pin.utils import PinController, pin_frame_pos
+from mj_pin.utils import PinController
 from .utils.contact_planner import RaiberContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.profiling import time_fn, print_timings
@@ -184,6 +184,7 @@ class LocomotionMPC(PinController):
         # w_yaw in global frame
         R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
         v_des_glob = np.round(R_WB @ self.v_des, 1)
+        v_direction = v_des_glob / np.linalg.norm(v_des_glob)
         base_ref[6:9] = v_des_glob
         base_ref[-3:] = self.w_des[::-1]
 
@@ -200,17 +201,17 @@ class LocomotionMPC(PinController):
         # (don't go too far if the robot is too slow)
         # TODO Fix when using contact restriction (clipping wrong)
         base_ref_e[:2] = np.clip(base_ref_e[:2],
-                -base_ref[:2] * v_des_glob[:2] + v_des_glob[:2] * t_horizon,
-                 base_ref[:2] * v_des_glob[:2] + v_des_glob[:2] * t_horizon,
+                -base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                 base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
                 )
         
         base_ref_e[3] = self.base_ref_vel_tracking[3] + self.w_des[-1] * t_horizon
         base_ref_e[3] = np.clip(base_ref_e[3],
-                -base_ref[3] + self.w_des[-1] * t_horizon * 1.2,
-                 base_ref[3] + self.w_des[-1] * t_horizon * 1.2,
+                -base_ref[3] + self.w_des[-1] * t_horizon,
+                 base_ref[3] + self.w_des[-1] * t_horizon,
                 )
         # Set the base ref inbetween
-        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.5
+        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.6
         base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
         # Base vertical vel
         base_ref_e[8] = 0.
