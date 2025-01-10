@@ -51,6 +51,7 @@ if __name__ == "__main__":
         joint_ref = robot_desc.q0,
         sim_dt=SIM_DT,
         print_info=False,
+        record_traj=True,
         )
     
     v_des = [0.5, 0.0, 0.0]

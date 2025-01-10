@@ -555,6 +555,10 @@ class LocomotionMPC(PinController):
                             'q', 'v', 'a', 
                             'f', 'dt', 'tau'.
         """
+        if not self.record_traj:
+            print("Data is not recorded. Use record_traj=True.")
+            return None
+
         # Check if the plan name is valid
         var_name += "_full"
         if not hasattr(self, var_name):
