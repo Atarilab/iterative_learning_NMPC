@@ -199,7 +199,6 @@ class LocomotionMPC(PinController):
         base_ref_e[:2] = self.base_ref_vel_tracking[:2] + v_des_glob[:2] * t_horizon
         # Clip base ref in direction of the motion
         # (don't go too far if the robot is too slow)
-        # TODO Fix when using contact restriction (clipping wrong)
         base_ref_e[:2] = np.clip(base_ref_e[:2],
                 -base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
                  base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
@@ -207,12 +206,12 @@ class LocomotionMPC(PinController):
         
         base_ref_e[3] = self.base_ref_vel_tracking[3] + self.w_des[-1] * t_horizon
         base_ref_e[3] = np.clip(base_ref_e[3],
-                -base_ref[3] + self.w_des[-1] * t_horizon,
-                 base_ref[3] + self.w_des[-1] * t_horizon,
+                -base_ref[3] + self.w_des[-1] * t_horizon * 2.,
+                 base_ref[3] + self.w_des[-1] * t_horizon * 2.,
                 )
         # Set the base ref inbetween
         base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.6
-        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
+        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.25
         # Base vertical vel
         base_ref_e[8] = 0.
         # Base pitch roll
