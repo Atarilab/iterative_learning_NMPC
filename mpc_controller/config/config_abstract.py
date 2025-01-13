@@ -53,9 +53,6 @@ class MPCOptConfig():
     warm_start_nlp : bool
     # Warm start solver IP inner loop
     warm_start_qp : bool
-    # Interpolation mode (linear, quadratic, cubic)
-    # (check https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.interp1d.html)
-    interpolation_mode : str
     # HPIPM mode
     hpipm_mode : str
     # Recompile solver

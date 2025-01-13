@@ -54,7 +54,7 @@ if __name__ == "__main__":
         record_traj=True,
         )
     
-    v_des = [0.5, 0.0, 0.0]
+    v_des = [1.5, 0.0, 0.0]
     mpc.set_command(v_des, 0.0)
     
     vis_feet_pos = ReferenceVisualCallback(mpc)

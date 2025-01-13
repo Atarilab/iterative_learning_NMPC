@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 from matplotlib import pyplot as plt
 import numpy as np
 from bisect import bisect_left, bisect_right
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, CubicHermiteSpline
 from concurrent.futures import ThreadPoolExecutor, Future
 import pinocchio as pin
 import traceback
@@ -299,7 +299,7 @@ class LocomotionMPC(PinController):
             time_traj,
             traj,
             axis=0,
-            kind = kind if kind else self.solver.config_opt.interpolation_mode,
+            kind = kind,
             fill_value="extrapolate",
             bounds_error=False,
             assume_sorted=True,
@@ -324,10 +324,6 @@ class LocomotionMPC(PinController):
         Linear interpolation for states.
         """
         # Interpolate plan at sim_dt intervals
-        state_full = np.concatenate((
-            q_sol,
-            v_sol,
-        ), axis=-1)
         input_full = np.concatenate((
             a_sol,
             f_sol.reshape(-1, 12),
@@ -336,13 +332,8 @@ class LocomotionMPC(PinController):
         time_traj = np.cumsum(dt_sol)
         time_traj = np.concatenate(([0.], time_traj))
 
-        state_full_interp = self.interpolate_trajectory(state_full, time_traj)
+        q_plan, v_plan = self.interpolate_trajectory_with_derivatives(time_traj, q_sol, v_sol, a_sol)
         input_full_interp = self.interpolate_trajectory(input_full, time_traj[:-1], kind='zero')
-        q_plan, v_plan = np.split(
-            state_full_interp,
-            [q_sol.shape[-1]],
-                axis=-1
-        )
         a_plan, f_plan = np.split(
             input_full_interp,
             [a_sol.shape[-1]],
@@ -352,6 +343,33 @@ class LocomotionMPC(PinController):
 
         return q_plan, v_plan, a_plan, f_plan, time_traj
             
+    def interpolate_trajectory_with_derivatives(
+        self,
+        time_traj: np.ndarray,
+        positions: np.ndarray,
+        velocities: np.ndarray,
+        accelerations: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Interpolate trajectory using polynomial interpolation with derivative constraints.
+
+        Args:
+            time_traj (np.ndarray): Time at each trajectory element. Shape: (N,).
+            positions (np.ndarray): Position trajectory. Shape: (N, d).
+            velocities (np.ndarray): Velocity trajectory. Shape: (N, d).
+
+        Returns:
+            np.ndarray: Interpolated trajectory at 1/sim_dt frequency. Shape: (T, d).
+        """
+        t_interpolated = np.arange(0., time_traj[-1], self.sim_dt)
+        poly_pos = CubicHermiteSpline(time_traj, positions, velocities)
+        interpolated_pos = poly_pos(t_interpolated)
+        accelerations = np.concatenate((np.zeros((1, accelerations.shape[-1])), accelerations))
+        poly_vel = CubicHermiteSpline(time_traj, velocities, accelerations)
+        interpolated_vel = poly_vel(t_interpolated)
+
+        return interpolated_pos, interpolated_vel
+
     def open_loop(self,
                  trajectory_time : float,
                  ) -> Tuple[np.ndarray, np.ndarray]:
