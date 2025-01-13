@@ -211,8 +211,9 @@ class RaiberContactPlanner(ContactPlanner):
         self.cache_cnt = cache_cnt
 
         self.offset_hip_b = offset_hip_b
-        self.offset_hip_b[:, 0] += np.array([x_offset, x_offset, -x_offset, -x_offset])
-        self.offset_hip_b[:, 1] += np.array([y_offset, -y_offset, y_offset, -y_offset])
+        if self.n_foot == 4:
+            self.offset_hip_b[:, 0] += np.array([x_offset, x_offset, -x_offset, -x_offset])
+            self.offset_hip_b[:, 1] += np.array([y_offset, -y_offset, y_offset, -y_offset])
 
         self.default_cnt_w = np.zeros(3)
         self.height_offset = height_offset

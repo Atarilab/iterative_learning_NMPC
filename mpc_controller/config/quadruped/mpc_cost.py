@@ -9,6 +9,7 @@ from ..config_abstract import MPCCostConfig
 HIP_SHOULDER_ELBOW_SCALE = [15., 5., 1.]
 # PENALIZE JOINT MOTION
 W_JOINT = 1.
+N_FEET = 4
 
 @dataclass
 class Go2CyclicCost(MPCCostConfig):
@@ -37,22 +38,22 @@ class Go2CyclicCost(MPCCostConfig):
     ])
 
     # Joint running cost to nominal position and vel (hip, shoulder, elbow)
-    W_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4 + [0.1] * 12, W_JOINT)
+    W_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * N_FEET + [0.1] * len(HIP_SHOULDER_ELBOW_SCALE) * N_FEET, W_JOINT)
 
     # Joint terminal cost to nominal position and vel (hip, shoulder, elbow)
-    W_e_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4 + [0] * 3 * 4, W_JOINT)
+    W_e_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * N_FEET + [0] * len(HIP_SHOULDER_ELBOW_SCALE) * N_FEET, W_JOINT)
 
     # Acceleration cost weights for joints (hip, shoulder, elbow)
-    W_acc: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * 4, 5.0e-3)
+    W_acc: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * N_FEET, 5.0e-3)
 
     # swing cost weightsc
-    W_swing: np.ndarray = __init_np([1e6] * 4)
+    W_swing: np.ndarray = __init_np([1e6] * N_FEET)
 
     # force regularization weights for each foot
-    W_cnt_f_reg: np.ndarray = __init_np([[1e0, 1e0, 5e-1]] * 4)
+    W_cnt_f_reg: np.ndarray = __init_np([[1e0, 1e0, 5e-1]] * N_FEET)
 
     # Feet position constraint stability
-    W_foot_pos_constr_stab: np.ndarray = __init_np([5e1] * 4)
+    W_foot_pos_constr_stab: np.ndarray = __init_np([5e1] * N_FEET)
 
     # Foot displacement penalization
     W_foot_displacement: np.ndarray = __init_np([1e3])

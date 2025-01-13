@@ -65,6 +65,7 @@ class LocomotionMPC(PinController):
         self.solver.dyn.update_pin(q0, v0)
         self.base_ref_vel_tracking = np.zeros(6)
 
+        self.n_foot = len(feet_frame_names)
         offset_hip_b = self.solver.dyn.get_feet_position_w()
         offset_hip_b[:, -1] = 0.
         self.contact_planner = RaiberContactPlanner(
@@ -325,7 +326,7 @@ class LocomotionMPC(PinController):
         # Interpolate plan at sim_dt intervals
         input_full = np.concatenate((
             a_sol,
-            f_sol.reshape(-1, 12),
+            f_sol.reshape(-1, self.n_foot * 3),
         ), axis=-1)
 
         time_traj = np.cumsum(dt_sol)
@@ -338,7 +339,7 @@ class LocomotionMPC(PinController):
             [a_sol.shape[-1]],
                 axis=-1
         )
-        f_plan = f_plan.reshape(-1, 4, 3)
+        f_plan = f_plan.reshape(-1, self.n_foot, 3)
 
         return q_plan, v_plan, a_plan, f_plan, time_traj
             
