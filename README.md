@@ -101,3 +101,23 @@ To implement the MPC on a new robot, follow these steps:
 4. **Simulation Initialization**: Update the main script to load the new robot model and initialize the `LocomotionMPC` with the new configurations.
 
 Use `print_info` argument of the MPC for debugging purposes.
+
+
+## TODO
+
+### Solver
+- [ ] euler to tengent space orientation representation
+- [ ] other contact model (e.g. humanoid feet)
+- [ ] linearize cone constraint, see if performance improved
+  
+### Code optimzation
+- [x] use acados `set_flat` to init the solver
+- [ ] eventually C++ implementation
+
+### MPC
+- [ ] keyboard velocity control
+- [ ] gait switching
+- [ ] tune better `horizon`, `n_nodes`, and `qp_iter` in `MPCConfigOpt`. Seems that 1s horizon is too much.
+- [ ] try with dt time optimization with `enable_time_opt = True` (this needs to be fixed)
+- [ ] add new robots
+  
