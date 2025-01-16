@@ -239,7 +239,7 @@ class LocomotionMPC(PinController):
     @time_fn("optimize")
     def optimize(self,
                  q_mj : np.ndarray,
-                 v_mj : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 v_mj : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         return optimized trajectories.
         """
