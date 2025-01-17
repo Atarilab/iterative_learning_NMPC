@@ -384,22 +384,21 @@ class LocomotionMPC(PinController):
         return interpolated_pos, interpolated_vel
 
     def open_loop(self,
-                 trajectory_time : float,
-                 ) -> Tuple[np.ndarray, np.ndarray]:
+                  q_mj : np.ndarray,
+                  v_mj : np.ndarray,
+                  trajectory_time : float) -> Tuple[np.ndarray]:
         """
         Computes trajectory in a MPC fashion starting at q0
 
         Args:
             q0 (np.ndarray): Initial state
+            v0 (np.ndarray): Initial velocities
             trajectory_time (float): Total trajectory time
 
         Returns:
             np.ndarray: _description_
         """
-        q0, v0 = self.mj_robot.get_state()
-        q_full_traj = [q0]
-        self.q_plan = [q0]
-        self.v_plan = [v0]
+        q_full_traj = []
         sim_time = 0.
         time_traj = []
 
@@ -416,15 +415,8 @@ class LocomotionMPC(PinController):
                 
                 # Find the corresponding optimization node
                 self.current_opt_node += bisect_right(time_traj, sim_time - self.sim_dt)
-                print("Replan", "node:", self.current_opt_node, "time:", round(sim_time, 3))
-                q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
-                # linear velocity to global frame as in mujoco
-                R = pin.Quaternion(q0[3:7]).toRotationMatrix()
-                v[:3] = R @ v[:3]
 
-                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
-                q_sol[0] = q
-                v_sol[0] = v
+                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q_mj, v_mj)
 
                 (
                 self.q_plan,
@@ -439,11 +431,13 @@ class LocomotionMPC(PinController):
                 self.delay = 0
             
             # Simulation step
-            q_full_traj.append(self.q_plan[self.plan_step])
+            q_mj, v_mj = self.solver.dyn.convert_to_mujoco(self.q_plan[self.plan_step], self.v_plan[self.plan_step])
+            q_full_traj.append(q_mj)
             self._step()
             sim_time = sim_time + self.sim_dt
 
-        return q_full_traj
+        q_full_traj_arr = np.array(q_full_traj)
+        return q_full_traj_arr
     
     def set_convergence_on_first_iter(self):
         if self.sim_step == 0:
@@ -634,3 +628,6 @@ class LocomotionMPC(PinController):
         print()
         print_timings(self.timings)
         print_timings(self.solver.timings)
+
+    def __del__(self):
+        if self.velocity_goal: self.velocity_goal._stop_update_thread()
