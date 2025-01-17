@@ -14,7 +14,7 @@ class ReferenceVisualCallback(VisualCallback):
         self.mpc = mpc_controller
         self.radius = 0.01
 
-    def _add_visuals(self, mj_data):
+    def add_visuals(self, mj_data):
         # Contact locations
         for i, foot_cnt in enumerate(self.mpc.solver.dyn.feet):
             cnt_pos = self.mpc.solver.params[foot_cnt.plane_point.name]
@@ -104,6 +104,7 @@ if __name__ == "__main__":
 
     sim = Simulator(mj_model, sim_dt=SIM_DT, viewer_dt=1/50)
     sim.run(
+        viewer=False,
         sim_time=SIM_TIME,
         controller=mpc,
         visual_callback=vis_feet_pos,
