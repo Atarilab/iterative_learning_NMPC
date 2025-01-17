@@ -11,6 +11,7 @@ import pinocchio as pin
 import traceback
 
 from mj_pin.utils import PinController
+from .utils.interactive import SetVelocityGoal
 from .utils.contact_planner import RaiberContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.profiling import time_fn, print_timings
@@ -28,6 +29,7 @@ class LocomotionMPC(PinController):
                  robot_name : str,
                  gait_name: str = "trot",
                  joint_ref : np.ndarray = None,
+                 interactive_goal : bool = False,
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
                  record_traj : bool = False,
@@ -125,6 +127,8 @@ class LocomotionMPC(PinController):
         self.optimize_future: Future = None                # Store the future result of optimize
         self.plan_submitted = False                        # Flag to indicate if a new plan is ready
 
+        self.velocity_goal = SetVelocityGoal() if interactive_goal else None
+
     def _replan(self) -> bool:
         """
         Returns true if replanning step.
@@ -158,7 +162,7 @@ class LocomotionMPC(PinController):
         self.v_des = v_des
         self.w_des[2] = w_yaw
 
-    def increment_base_ref_position(self, ):
+    def increment_base_ref_position(self):
         R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
         v_des_glob = np.round(R_WB @ self.v_des, 1)
         self.base_ref_vel_tracking[:2] += v_des_glob[:2] * self.sim_dt
@@ -185,7 +189,7 @@ class LocomotionMPC(PinController):
         # w_yaw in global frame
         R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
         v_des_glob = np.round(R_WB @ self.v_des, 1)
-        v_direction = v_des_glob / np.linalg.norm(v_des_glob)
+
         base_ref[6:9] = v_des_glob
         base_ref[-3:] = self.w_des[::-1]
 
@@ -197,22 +201,29 @@ class LocomotionMPC(PinController):
         R_yaw = pin.rpy.rpyToMatrix(self.w_des * t_horizon)
         base_ref_e[6:9] = R_yaw @ base_ref[6:9]
 
-        base_ref_e[:2] = self.base_ref_vel_tracking[:2] + v_des_glob[:2] * t_horizon
+        if self.velocity_goal:
+            pos_ref = np.round(q_mj[:3], 2)
+            yaw_ref = yaw
+        else:
+            pos_ref = self.base_ref_vel_tracking[:3]
+            yaw_ref = self.base_ref_vel_tracking[3]
+
+        base_ref_e[:2] = pos_ref[:2] + v_des_glob[:2] * t_horizon
         # Clip base ref in direction of the motion
         # (don't go too far if the robot is too slow)
         base_ref_e[:2] = np.clip(base_ref_e[:2],
-                -base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
-                 base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                -pos_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                 pos_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
                 )
         
-        base_ref_e[3] = self.base_ref_vel_tracking[3] + self.w_des[-1] * t_horizon
+        base_ref_e[3] = yaw_ref + self.w_des[-1] * t_horizon
         base_ref_e[3] = np.clip(base_ref_e[3],
-                -base_ref[3] + self.w_des[-1] * t_horizon * 2.,
-                 base_ref[3] + self.w_des[-1] * t_horizon * 2.,
+                -yaw_ref + self.w_des[-1] * t_horizon * 2.,
+                 yaw_ref + self.w_des[-1] * t_horizon * 2.,
                 )
         # Set the base ref inbetween
         base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.6
-        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.25
+        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
         # Base vertical vel
         base_ref_e[8] = 0.
         # Base pitch roll
@@ -247,7 +258,9 @@ class LocomotionMPC(PinController):
         q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
         self.solver.dyn.update_pin(q, v)
 
-        # Base reference
+        # Update goal
+        if self.velocity_goal:
+            self.v_des, self.w_des[2] = self.velocity_goal.get_velocity()
         base_ref, base_ref_e = self.compute_base_ref(q_mj)
 
         # Contact parameters

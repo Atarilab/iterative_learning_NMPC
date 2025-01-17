@@ -77,11 +77,12 @@ class StateDataRecorder(DataRecorder):
         self.data["ctrl"].append(mj_data.ctrl)
 
 if __name__ == "__main__":
-    SIM_TIME = 5
+    SIM_TIME = 15
     SIM_DT = 1.0e-3
     ROBOT_NAME = "go2"
     RECORD_DIR = "./data/"
-    V_DES = [1.5, 0.0, 0.0]
+    INTERACTIVE = False
+    V_DES = [1., 0.0, 0.0]
 
     # MPC Controller
     mj_model, _, robot_desc = load_mj_pin(ROBOT_NAME, from_mjcf=False)
@@ -92,11 +93,13 @@ if __name__ == "__main__":
         feet_frame_names = feet_frame_names,
         robot_name=ROBOT_NAME,
         joint_ref = robot_desc.q0,
+        interactive_goal=INTERACTIVE,
         sim_dt=SIM_DT,
         print_info=False,
         record_traj=True,
         )
-    mpc.set_command(V_DES, 0.0)
+    if not INTERACTIVE:
+        mpc.set_command(V_DES, 0.0)
 
     # Simulator with visual callback and state data recorder
     vis_feet_pos = ReferenceVisualCallback(mpc)
@@ -104,7 +107,7 @@ if __name__ == "__main__":
 
     sim = Simulator(mj_model, sim_dt=SIM_DT, viewer_dt=1/50)
     sim.run(
-        viewer=False,
+        viewer=True,
         sim_time=SIM_TIME,
         controller=mpc,
         visual_callback=vis_feet_pos,
