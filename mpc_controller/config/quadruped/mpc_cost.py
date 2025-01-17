@@ -25,7 +25,7 @@ class Go2CyclicCost(MPCCostConfig):
     W_base: np.ndarray = __init_np([
         1e3, 1e3, 5e4,      # Base position weights
         1e4, 5e4, 5e4,      # Base orientation (ypr) weights
-        1e4, 1e4, 5e3,      # Base linear velocity weights
+        5e4, 5e4, 5e3,      # Base linear velocity weights
         1e3, 5e3, 5e3,      # Base angular velocity weights
     ])
 
@@ -33,8 +33,8 @@ class Go2CyclicCost(MPCCostConfig):
     W_e_base: np.ndarray = __init_np([
         1e5, 1e5, 1e5,     # Base position weights
         1e4, 1e4, 1e4,     # Base orientation (ypr) weights
-        0e0, 0e0, 1e3,     # Base linear velocity weights
-        0e0, 0e0, 0e0      # Base angular velocity weights
+        1e3, 1e3, 1e3,     # Base linear velocity weights
+        1e3, 1e3, 1e3      # Base angular velocity weights
     ])
 
     # Joint running cost to nominal position and vel (hip, shoulder, elbow)
