@@ -211,22 +211,23 @@ class LocomotionMPC(PinController):
         # Clip base ref in direction of the motion
         # (don't go too far if the robot is too slow)
         base_ref_e[:2] = np.clip(base_ref_e[:2],
-                -pos_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
-                 pos_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                -base_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                 base_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
                 )
         
         base_ref_e[3] = yaw_ref + self.w_des[-1] * t_horizon
         base_ref_e[3] = np.clip(base_ref_e[3],
-                -yaw_ref + self.w_des[-1] * t_horizon * 2.,
-                 yaw_ref + self.w_des[-1] * t_horizon * 2.,
+                -yaw_ref + self.w_des[-1] * t_horizon * 1.5,
+                 yaw_ref + self.w_des[-1] * t_horizon * 1.5,
                 )
         # Set the base ref inbetween
-        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.6
+        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.75
         base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
         # Base vertical vel
         base_ref_e[8] = 0.
         # Base pitch roll
         base_ref_e[4:6] = 0.
+        base_ref[4:6] = 0.
         # Base pitch roll vel
         base_ref_e[-2:] = 0.
 
@@ -376,7 +377,8 @@ class LocomotionMPC(PinController):
         t_interpolated = np.arange(0., time_traj[-1], self.sim_dt)
         poly_pos = CubicHermiteSpline(time_traj, positions, velocities)
         interpolated_pos = poly_pos(t_interpolated)
-        accelerations = np.concatenate((np.zeros((1, accelerations.shape[-1])), accelerations))
+        a0 = (velocities[1] - velocities[0]).reshape(1, -1) / self.dt_nodes
+        accelerations = np.concatenate((a0, accelerations))
         poly_vel = CubicHermiteSpline(time_traj, velocities, accelerations)
         interpolated_vel = poly_vel(t_interpolated)
 

@@ -131,7 +131,7 @@ def run_mpc(args):
         interactive_goal=INTERACTIVE,
         sim_dt=SIM_DT,
         print_info=False,
-        solve_async=USE_VIEWER,
+        solve_async=True,
         )
     if not INTERACTIVE:
         mpc.set_command(V_DES, 0.0)
@@ -149,6 +149,7 @@ def run_mpc(args):
         data_recorder=data_recorder,)
     
     mpc.print_timings()
+    mpc.plot_traj("q")
     mpc.plot_traj("f")
     mpc.plot_traj("tau")
     mpc.show_plots()
