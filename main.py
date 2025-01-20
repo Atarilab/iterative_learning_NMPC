@@ -117,6 +117,7 @@ def run_mpc(args):
     RECORD_DIR = args.record_dir
     V_DES = args.v_des
     INTERACTIVE = args.interactive
+    USE_VIEWER = True
 
     # MPC Controller
     mj_model, _, robot_desc = load_mj_pin(ROBOT_NAME, from_mjcf=False)
@@ -130,7 +131,7 @@ def run_mpc(args):
         interactive_goal=INTERACTIVE,
         sim_dt=SIM_DT,
         print_info=False,
-        record_traj=True,
+        solve_async=USE_VIEWER,
         )
     if not INTERACTIVE:
         mpc.set_command(V_DES, 0.0)
@@ -141,6 +142,7 @@ def run_mpc(args):
 
     sim = Simulator(mj_model, sim_dt=SIM_DT, viewer_dt=1/50)
     sim.run(
+        viewer=USE_VIEWER,
         sim_time=SIM_TIME,
         controller=mpc,
         visual_callback=vis_feet_pos,
@@ -169,7 +171,6 @@ def run_open_loop(args):
         interactive_goal=False,
         sim_dt=SIM_DT,
         print_info=False,
-        record_traj=True,
         )
     mpc.set_command(V_DES, 0.0)
 

@@ -32,8 +32,8 @@ class LocomotionMPC(PinController):
                  interactive_goal : bool = False,
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
-                 record_traj : bool = False,
                  compute_timings : bool = True,
+                 solve_async : bool = True,
                  ) -> None:
 
         self.gait_name = gait_name
@@ -92,7 +92,7 @@ class LocomotionMPC(PinController):
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
-        self.use_delay : bool = self.config_opt.use_delay
+        self.solve_async : bool = solve_async
         self.delay : int = 0
         self.last : int = 0
 
@@ -108,7 +108,6 @@ class LocomotionMPC(PinController):
         self.time_traj : np.ndarray = np.array([])
 
         # For plots
-        self.record_traj = record_traj or print_info
         self.q_full = []
         self.v_full = []
         self.a_full = []
@@ -136,7 +135,7 @@ class LocomotionMPC(PinController):
         """
         replan = self.sim_step % self.replanning_steps == 0
 
-        if self.use_delay:
+        if self.solve_async:
             replan = replan and (self.optimize_future is None or self.optimize_future.done())
 
         return replan
@@ -408,7 +407,7 @@ class LocomotionMPC(PinController):
             if self._replan():
 
                 # Record trajectory
-                if self.record_traj and self.sim_step > 0:
+                if self.sim_step > 0:
                     self._record_plan()
 
                 self.set_convergence_on_first_iter()
@@ -458,11 +457,11 @@ class LocomotionMPC(PinController):
 
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
-            # Compute replanning time
-            self.start_time = time.time()
 
             # Find the optimization node of the last plan corresponding to the current simulation time
             sim_time = round(mj_data.time, 4)
+            # Compute replanning time
+            self.start_time = sim_time
             self.current_opt_node += bisect_left(self.time_traj, sim_time)
             
             # Set solver parameters on first iteration
@@ -482,28 +481,26 @@ class LocomotionMPC(PinController):
                 print()
 
             # Wait for the solver if no delay
-            while not self.use_delay and not self.optimize_future.done():
-                time.sleep(1.0e-3)
+            while not self.solve_async and not self.optimize_future.done():
+                time.sleep(5.0e-4)
 
         # Check if the future is done and if the new plan is ready to be used
         if (self.plan_submitted and self.optimize_future.done() or
             self.sim_step == 0):
-            sim_time = round(mj_data.time, 4)
-
             try:
                 # Retrieve new plan from future
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
 
                 # Record trajectory
-                if self.record_traj and self.sim_step > 0:
+                if self.sim_step > 0:
                     self._record_plan()
 
                 # Interpolate plan at sim_dt interval
                 self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
                 # Apply delay
-                if (self.use_delay and self.sim_step != 0):
-                    replanning_time = time.time() - self.start_time
+                if (self.solve_async and self.sim_step != 0):
+                    replanning_time = mj_data.time - self.start_time
                     self.delay = round(replanning_time / self.sim_dt)
                 else:
                     self.delay = 0
@@ -535,8 +532,7 @@ class LocomotionMPC(PinController):
         torque_map = self.create_torque_map(torques_pd)
 
         # Record trajectories
-        if self.record_traj:
-            self.tau_full.append(torques_pd)
+        self.tau_full.append(torques_pd)
         
         self._step()
 
@@ -580,10 +576,6 @@ class LocomotionMPC(PinController):
                             'q', 'v', 'a', 
                             'f', 'dt', 'tau'.
         """
-        if not self.record_traj:
-            print("Data is not recorded. Use record_traj=True.")
-            return None
-
         # Check if the plan name is valid
         var_name += "_full"
         if not hasattr(self, var_name):

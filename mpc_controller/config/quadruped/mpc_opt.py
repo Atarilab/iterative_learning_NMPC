@@ -13,7 +13,6 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     replanning_freq : int = 20
     Kp : float = 35
     Kd : float = 3
-    use_delay : bool = True
     # Solver config
     max_iter : int = 1
     max_qp_iter: int = 6
