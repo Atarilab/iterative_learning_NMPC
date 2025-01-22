@@ -116,8 +116,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
             # Foot displacement penalization
             if self.config_opt.cnt_patch_restriction:
-                self.data["W"][foot_cnt.pos_cost.name] = self.config_cost.W_foot_displacement
-                self.data["W_e"][foot_cnt.pos_cost.name] = self.config_cost.W_foot_displacement
+                self.data["W"][foot_cnt.pos_cost.name][:2] = self.config_cost.W_foot_displacement[0]
+                self.data["W_e"][foot_cnt.pos_cost.name][:2] = self.config_cost.W_foot_displacement[0]
 
         # Apply these costs to the solver
         self.set_cost_weight_constant(self.data["W"])
