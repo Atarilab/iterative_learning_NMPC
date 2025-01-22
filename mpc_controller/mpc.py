@@ -387,9 +387,9 @@ class LocomotionMPC(PinController):
     def open_loop(self,
                   q_mj : np.ndarray,
                   v_mj : np.ndarray,
-                  trajectory_time : float) -> Tuple[np.ndarray]:
+                  trajectory_time : float) -> np.ndarray:
         """
-        Computes trajectory in a MPC fashion starting at q0
+        Runs open loop MPC with initial state (q_mj, v_mj).
 
         Args:
             q0 (np.ndarray): Initial state
@@ -397,7 +397,7 @@ class LocomotionMPC(PinController):
             trajectory_time (float): Total trajectory time
 
         Returns:
-            np.ndarray: _description_
+            np.ndarray: Interpolated state trajectory at sim_dt intervals.
         """
         q_full_traj = []
         sim_time = 0.
@@ -438,6 +438,7 @@ class LocomotionMPC(PinController):
             sim_time = sim_time + self.sim_dt
 
         q_full_traj_arr = np.array(q_full_traj)
+
         return q_full_traj_arr
     
     def set_convergence_on_first_iter(self):
