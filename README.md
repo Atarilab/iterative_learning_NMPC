@@ -119,5 +119,5 @@ Use `print_info` argument of the MPC for debugging purposes.
 - [ ] gait switching
 - [ ] tune better `horizon`, `n_nodes`, and `qp_iter` in `MPCConfigOpt`. Seems that 1s horizon is too much.
 - [ ] try with dt time optimization with `enable_time_opt = True` (this needs to be fixed)
-- [ ] add new robots
-  
+- [ ] add a plot comparing planed state and robot state.
+- [ ] add new robots 
