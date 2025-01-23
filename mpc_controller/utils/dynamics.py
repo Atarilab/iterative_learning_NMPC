@@ -5,7 +5,7 @@ from contact_tamp.traj_opt_acados.models.floating_base_dynamics import FloatingB
 from contact_tamp.traj_opt_acados.models.point_contact import PointContact
 from contact_tamp.traj_opt_acados.utils.model_utils import toSymModel, loadModelImpl
 from contact_tamp.traj_opt_acados.interface.acados_helper import ProblemFormulation, cs
-from .transform import local_angular_to_euler_derivative
+from .transform import local_angular_to_euler_derivative, euler_derivative_to_local_angular
 
 class QuadrupedDynamics(FloatingBaseDynamics):
 
@@ -69,6 +69,34 @@ class QuadrupedDynamics(FloatingBaseDynamics):
         v[3:6] = local_angular_to_euler_derivative(q[3:6], v[3:6])
 
         return q, v
+    
+    @staticmethod
+    def convert_to_mujoco(q : np.ndarray, v : np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        # Convert state from MuJoCo to Pinocchio model format
+        q_mj = np.zeros(len(q) + 1)
+        R_WB = pin.rpy.rpyToMatrix(q[3:6][::-1])
+        quat = pin.Quaternion(R_WB)
+        q_mj[:3] = q[:3]
+        q_mj[4:7] = quat.coeffs()[:-1]
+        q_mj[3] = quat.coeffs()[-1]
+        q_mj[7:] = q[6:]
+        # Convert velocties from MuJoCo to Pinocchio model format
+
+        R_WB = pin.Quaternion(
+                w=q_mj[3],
+                x=q_mj[4],
+                y=q_mj[5],
+                z=q_mj[6]).toRotationMatrix()
+        q[3:6] = pin.rpy.matrixToRpy(R_WB)[::-1]
+        q[6:] = q_mj[7:]
+        # Convert velocties from MuJoCo to Pinocchio model format
+        # MuJoCo is v global and w local
+        v_mj = v.copy()
+        # w local to euler derivatives (z y x)
+        # https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf
+        v_mj[3:6] = euler_derivative_to_local_angular(q[3:6], v[3:6])
+
+        return q_mj, v_mj
     
     def get_feet_position_w(self):
         feet_pos = np.array([

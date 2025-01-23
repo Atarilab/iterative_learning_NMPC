@@ -11,6 +11,7 @@ import pinocchio as pin
 import traceback
 
 from mj_pin.utils import PinController
+from .utils.interactive import SetVelocityGoal
 from .utils.contact_planner import RaiberContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.profiling import time_fn, print_timings
@@ -28,10 +29,11 @@ class LocomotionMPC(PinController):
                  robot_name : str,
                  gait_name: str = "trot",
                  joint_ref : np.ndarray = None,
+                 interactive_goal : bool = False,
                  sim_dt : float = 1.0e-3,
                  print_info : bool = True,
-                 record_traj : bool = False,
                  compute_timings : bool = True,
+                 solve_async : bool = True,
                  ) -> None:
 
         self.gait_name = gait_name
@@ -47,7 +49,7 @@ class LocomotionMPC(PinController):
             print_info,
             compute_timings)
 
-        super().__init__(self.solver.dyn.pin_model)
+        super().__init__(pin_model=self.solver.dyn.pin_model)
 
         # Set joint reference
         nu = self.solver.dyn.pin_model.nv - 6
@@ -90,7 +92,7 @@ class LocomotionMPC(PinController):
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
-        self.use_delay : bool = self.config_opt.use_delay
+        self.solve_async : bool = solve_async
         self.delay : int = 0
         self.last : int = 0
 
@@ -106,7 +108,6 @@ class LocomotionMPC(PinController):
         self.time_traj : np.ndarray = np.array([])
 
         # For plots
-        self.record_traj = record_traj or print_info
         self.q_full = []
         self.v_full = []
         self.a_full = []
@@ -125,6 +126,8 @@ class LocomotionMPC(PinController):
         self.optimize_future: Future = None                # Store the future result of optimize
         self.plan_submitted = False                        # Flag to indicate if a new plan is ready
 
+        self.velocity_goal = SetVelocityGoal() if interactive_goal else None
+
     def _replan(self) -> bool:
         """
         Returns true if replanning step.
@@ -132,7 +135,7 @@ class LocomotionMPC(PinController):
         """
         replan = self.sim_step % self.replanning_steps == 0
 
-        if self.use_delay:
+        if self.solve_async:
             replan = replan and (self.optimize_future is None or self.optimize_future.done())
 
         return replan
@@ -158,7 +161,7 @@ class LocomotionMPC(PinController):
         self.v_des = v_des
         self.w_des[2] = w_yaw
 
-    def increment_base_ref_position(self, ):
+    def increment_base_ref_position(self):
         R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
         v_des_glob = np.round(R_WB @ self.v_des, 1)
         self.base_ref_vel_tracking[:2] += v_des_glob[:2] * self.sim_dt
@@ -185,7 +188,7 @@ class LocomotionMPC(PinController):
         # w_yaw in global frame
         R_WB = pin.rpy.rpyToMatrix(self.base_ref_vel_tracking[3:6][::-1])
         v_des_glob = np.round(R_WB @ self.v_des, 1)
-        v_direction = v_des_glob / np.linalg.norm(v_des_glob)
+
         base_ref[6:9] = v_des_glob
         base_ref[-3:] = self.w_des[::-1]
 
@@ -197,26 +200,34 @@ class LocomotionMPC(PinController):
         R_yaw = pin.rpy.rpyToMatrix(self.w_des * t_horizon)
         base_ref_e[6:9] = R_yaw @ base_ref[6:9]
 
-        base_ref_e[:2] = self.base_ref_vel_tracking[:2] + v_des_glob[:2] * t_horizon
+        if self.velocity_goal:
+            pos_ref = np.round(q_mj[:3], 2)
+            yaw_ref = yaw
+        else:
+            pos_ref = self.base_ref_vel_tracking[:3]
+            yaw_ref = self.base_ref_vel_tracking[3]
+
+        base_ref_e[:2] = pos_ref[:2] + v_des_glob[:2] * t_horizon
         # Clip base ref in direction of the motion
         # (don't go too far if the robot is too slow)
         base_ref_e[:2] = np.clip(base_ref_e[:2],
-                -base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
-                 base_ref[:2] * v_direction[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                -base_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
+                 base_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
                 )
         
-        base_ref_e[3] = self.base_ref_vel_tracking[3] + self.w_des[-1] * t_horizon
+        base_ref_e[3] = yaw_ref + self.w_des[-1] * t_horizon
         base_ref_e[3] = np.clip(base_ref_e[3],
-                -base_ref[3] + self.w_des[-1] * t_horizon * 2.,
-                 base_ref[3] + self.w_des[-1] * t_horizon * 2.,
+                -yaw_ref + self.w_des[-1] * t_horizon * 1.5,
+                 yaw_ref + self.w_des[-1] * t_horizon * 1.5,
                 )
         # Set the base ref inbetween
-        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.6
-        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.25
+        base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.75
+        base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
         # Base vertical vel
         base_ref_e[8] = 0.
         # Base pitch roll
         base_ref_e[4:6] = 0.
+        base_ref[4:6] = 0.
         # Base pitch roll vel
         base_ref_e[-2:] = 0.
 
@@ -239,7 +250,7 @@ class LocomotionMPC(PinController):
     @time_fn("optimize")
     def optimize(self,
                  q_mj : np.ndarray,
-                 v_mj : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 v_mj : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         return optimized trajectories.
         """
@@ -247,7 +258,9 @@ class LocomotionMPC(PinController):
         q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
         self.solver.dyn.update_pin(q, v)
 
-        # Base reference
+        # Update goal
+        if self.velocity_goal:
+            self.v_des, self.w_des[2] = self.velocity_goal.get_velocity()
         base_ref, base_ref_e = self.compute_base_ref(q_mj)
 
         # Contact parameters
@@ -364,29 +377,29 @@ class LocomotionMPC(PinController):
         t_interpolated = np.arange(0., time_traj[-1], self.sim_dt)
         poly_pos = CubicHermiteSpline(time_traj, positions, velocities)
         interpolated_pos = poly_pos(t_interpolated)
-        accelerations = np.concatenate((np.zeros((1, accelerations.shape[-1])), accelerations))
+        a0 = (velocities[1] - velocities[0]).reshape(1, -1) / self.dt_nodes
+        accelerations = np.concatenate((a0, accelerations))
         poly_vel = CubicHermiteSpline(time_traj, velocities, accelerations)
         interpolated_vel = poly_vel(t_interpolated)
 
         return interpolated_pos, interpolated_vel
 
     def open_loop(self,
-                 trajectory_time : float,
-                 ) -> Tuple[np.ndarray, np.ndarray]:
+                  q_mj : np.ndarray,
+                  v_mj : np.ndarray,
+                  trajectory_time : float) -> Tuple[np.ndarray]:
         """
         Computes trajectory in a MPC fashion starting at q0
 
         Args:
             q0 (np.ndarray): Initial state
+            v0 (np.ndarray): Initial velocities
             trajectory_time (float): Total trajectory time
 
         Returns:
             np.ndarray: _description_
         """
-        q0, v0 = self.mj_robot.get_state()
-        q_full_traj = [q0]
-        self.q_plan = [q0]
-        self.v_plan = [v0]
+        q_full_traj = []
         sim_time = 0.
         time_traj = []
 
@@ -396,22 +409,15 @@ class LocomotionMPC(PinController):
             if self._replan():
 
                 # Record trajectory
-                if self.record_traj and self.sim_step > 0:
+                if self.sim_step > 0:
                     self._record_plan()
 
                 self.set_convergence_on_first_iter()
                 
                 # Find the corresponding optimization node
                 self.current_opt_node += bisect_right(time_traj, sim_time - self.sim_dt)
-                print("Replan", "node:", self.current_opt_node, "time:", round(sim_time, 3))
-                q, v = self.q_plan[self.plan_step], self.v_plan[self.plan_step]
-                # linear velocity to global frame as in mujoco
-                R = pin.Quaternion(q0[3:7]).toRotationMatrix()
-                v[:3] = R @ v[:3]
 
-                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q.copy(), v.copy())
-                q_sol[0] = q
-                v_sol[0] = v
+                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q_mj, v_mj)
 
                 (
                 self.q_plan,
@@ -426,11 +432,13 @@ class LocomotionMPC(PinController):
                 self.delay = 0
             
             # Simulation step
-            q_full_traj.append(self.q_plan[self.plan_step])
+            q_mj, v_mj = self.solver.dyn.convert_to_mujoco(self.q_plan[self.plan_step], self.v_plan[self.plan_step])
+            q_full_traj.append(q_mj)
             self._step()
             sim_time = sim_time + self.sim_dt
 
-        return q_full_traj
+        q_full_traj_arr = np.array(q_full_traj)
+        return q_full_traj_arr
     
     def set_convergence_on_first_iter(self):
         if self.sim_step == 0:
@@ -451,11 +459,11 @@ class LocomotionMPC(PinController):
 
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
-            # Compute replanning time
-            self.start_time = time.time()
 
             # Find the optimization node of the last plan corresponding to the current simulation time
             sim_time = round(mj_data.time, 4)
+            # Compute replanning time
+            self.start_time = sim_time
             self.current_opt_node += bisect_left(self.time_traj, sim_time)
             
             # Set solver parameters on first iteration
@@ -475,28 +483,26 @@ class LocomotionMPC(PinController):
                 print()
 
             # Wait for the solver if no delay
-            while not self.use_delay and not self.optimize_future.done():
-                time.sleep(1.0e-3)
+            while not self.solve_async and not self.optimize_future.done():
+                time.sleep(5.0e-4)
 
         # Check if the future is done and if the new plan is ready to be used
         if (self.plan_submitted and self.optimize_future.done() or
             self.sim_step == 0):
-            sim_time = round(mj_data.time, 4)
-
             try:
                 # Retrieve new plan from future
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
 
                 # Record trajectory
-                if self.record_traj and self.sim_step > 0:
+                if self.sim_step > 0:
                     self._record_plan()
 
                 # Interpolate plan at sim_dt interval
                 self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
                 # Apply delay
-                if (self.use_delay and self.sim_step != 0):
-                    replanning_time = time.time() - self.start_time
+                if (self.solve_async and self.sim_step != 0):
+                    replanning_time = mj_data.time - self.start_time
                     self.delay = round(replanning_time / self.sim_dt)
                 else:
                     self.delay = 0
@@ -528,8 +534,7 @@ class LocomotionMPC(PinController):
         torque_map = self.create_torque_map(torques_pd)
 
         # Record trajectories
-        if self.record_traj:
-            self.tau_full.append(torques_pd)
+        self.tau_full.append(torques_pd)
         
         self._step()
 
@@ -573,10 +578,6 @@ class LocomotionMPC(PinController):
                             'q', 'v', 'a', 
                             'f', 'dt', 'tau'.
         """
-        if not self.record_traj:
-            print("Data is not recorded. Use record_traj=True.")
-            return None
-
         # Check if the plan name is valid
         var_name += "_full"
         if not hasattr(self, var_name):
@@ -621,3 +622,6 @@ class LocomotionMPC(PinController):
         print()
         print_timings(self.timings)
         print_timings(self.solver.timings)
+
+    def __del__(self):
+        if self.velocity_goal: self.velocity_goal._stop_update_thread()

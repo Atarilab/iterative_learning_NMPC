@@ -24,21 +24,21 @@ class Go2CyclicCost(MPCCostConfig):
     # Updated base running cost weights
     W_base: np.ndarray = __init_np([
         1e3, 1e3, 5e4,      # Base position weights
-        1e4, 5e4, 5e4,      # Base orientation (ypr) weights
-        1e4, 1e4, 5e3,      # Base linear velocity weights
-        1e3, 5e3, 5e3,      # Base angular velocity weights
+        1e5, 1e5, 1e5,      # Base orientation (ypr) weights
+        1e5, 1e5, 5e3,      # Base linear velocity weights
+        1e4, 1e3, 1e3,      # Base angular velocity weights
     ])
 
     # Updated base terminal cost weights
     W_e_base: np.ndarray = __init_np([
         1e5, 1e5, 1e5,     # Base position weights
         1e4, 1e4, 1e4,     # Base orientation (ypr) weights
-        0e0, 0e0, 1e3,     # Base linear velocity weights
-        0e0, 0e0, 0e0      # Base angular velocity weights
+        1e3, 1e3, 1e3,     # Base linear velocity weights
+        1e3, 1e3, 1e3      # Base angular velocity weights
     ])
 
     # Joint running cost to nominal position and vel (hip, shoulder, elbow)
-    W_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * N_FEET + [0.1] * len(HIP_SHOULDER_ELBOW_SCALE) * N_FEET, W_JOINT)
+    W_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * N_FEET + [0.5] * len(HIP_SHOULDER_ELBOW_SCALE) * N_FEET, W_JOINT)
 
     # Joint terminal cost to nominal position and vel (hip, shoulder, elbow)
     W_e_joint: np.ndarray = __init_np(HIP_SHOULDER_ELBOW_SCALE * N_FEET + [0] * len(HIP_SHOULDER_ELBOW_SCALE) * N_FEET, W_JOINT)
@@ -50,7 +50,7 @@ class Go2CyclicCost(MPCCostConfig):
     W_swing: np.ndarray = __init_np([1e6] * N_FEET)
 
     # force regularization weights for each foot
-    W_cnt_f_reg: np.ndarray = __init_np([[1e0, 1e0, 5e-1]] * N_FEET)
+    W_cnt_f_reg: np.ndarray = __init_np([[0.75, 0.75, 5e-1]] * N_FEET)
 
     # Feet position constraint stability
     W_foot_pos_constr_stab: np.ndarray = __init_np([5e1] * N_FEET)

@@ -1,12 +1,16 @@
 import os
+import argparse
 from typing import List
 import pinocchio as pin
 import numpy as np
 from mj_pin.abstract import VisualCallback, DataRecorder # type: ignore
 from mj_pin.simulator import Simulator # type: ignore
-from mj_pin.utils import load_mj_pin   # type: ignore
+from mj_pin.utils import get_robot_description   # type: ignore
 
 from mpc_controller.mpc import LocomotionMPC
+
+SIM_DT = 1.0e-3
+VIEWER_DT = 1/30.
 
 class ReferenceVisualCallback(VisualCallback):
     def __init__(self, mpc_controller, update_step = 1):
@@ -14,18 +18,17 @@ class ReferenceVisualCallback(VisualCallback):
         self.mpc = mpc_controller
         self.radius = 0.01
 
-    def _add_visuals(self, mj_data):
+    def add_visuals(self, mj_data):
         # Contact locations
         for i, foot_cnt in enumerate(self.mpc.solver.dyn.feet):
             cnt_pos = self.mpc.solver.params[foot_cnt.plane_point.name]
             cnt_pos_unique = np.unique(cnt_pos, axis=1).T
             for pos in cnt_pos_unique:
                 if np.sum(pos) == 0.: continue
-                self.add_sphere(pos, self.radius, self.colors_id[i])
+                self.add_sphere(pos, self.radius, self.colors.id(i))
 
         # Base reference
-        BLACK = VisualCallback.BLACK
-        BLACK[-1] = 0.5
+        BLACK = self.colors.name("black")
         base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
         R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
         self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
@@ -76,40 +79,111 @@ class StateDataRecorder(DataRecorder):
         self.data["v"].append(mj_data.qvel)
         self.data["ctrl"].append(mj_data.ctrl)
 
-if __name__ == "__main__":
-    SIM_TIME = 5
-    SIM_DT = 1.0e-3
-    ROBOT_NAME = "go2"
-    RECORD_DIR = "./data/"
-    V_DES = [0.5, 0.0, 0.0]
-
+def run_traj_opt(args):
     # MPC Controller
-    mj_model, _, robot_desc = load_mj_pin(ROBOT_NAME, from_mjcf=False)
-    feet_frame_names = [f + "_foot" for f in robot_desc.eeff_frame_name]
+    robot_desc = get_robot_description(args.robot_name)
+    feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 
     mpc = LocomotionMPC(
         path_urdf=robot_desc.urdf_path,
         feet_frame_names = feet_frame_names,
-        robot_name=ROBOT_NAME,
+        robot_name=args.robot_name,
         joint_ref = robot_desc.q0,
         sim_dt=SIM_DT,
-        print_info=False,
-        record_traj=True,
+        print_info=True,
         )
-    mpc.set_command(V_DES, 0.0)
+    mpc.set_command(args.v_des, 0.0)
+    mpc.set_convergence_on_first_iter()
+
+    q = robot_desc.q0
+    v = np.zeros(mpc.pin_model.nv)
+    q_plan, v_plan, _, _, dt_plan = mpc.optimize(q, v)
+    
+    q_plan_mj = np.array([mpc.solver.dyn.convert_to_mujoco(q_plan[i], v_plan[i])[0] for i in range(len(q_plan))])
+    time_traj = np.concatenate(([0], np.cumsum(dt_plan)))
+
+    sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
+    sim.vs.set_high_quality()
+    sim.visualize_trajectory(q_plan_mj, time_traj, record_video=args.record_video)
+
+def run_mpc(args):
+    # MPC Controller
+    robot_desc = get_robot_description(args.robot_name)
+    feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
+
+    mpc = LocomotionMPC(
+        path_urdf=robot_desc.urdf_path,
+        feet_frame_names = feet_frame_names,
+        robot_name=args.robot_name,
+        joint_ref = robot_desc.q0,
+        interactive_goal=args.interactive,
+        sim_dt=SIM_DT,
+        print_info=False,
+        solve_async=True,
+        )
+    if not args.interactive:
+        mpc.set_command(args.v_des, 0.0)
 
     # Simulator with visual callback and state data recorder
     vis_feet_pos = ReferenceVisualCallback(mpc)
-    data_recorder = StateDataRecorder(RECORD_DIR)
+    data_recorder = StateDataRecorder(args.record_dir) if args.save_data else None
 
-    sim = Simulator(mj_model, sim_dt=SIM_DT)
+    sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
+    sim.vs.track_obj = "base"
     sim.run(
-        sim_time=SIM_TIME,
+        sim_time=args.sim_time,
         controller=mpc,
         visual_callback=vis_feet_pos,
-        data_recorder=data_recorder,)
+        data_recorder=data_recorder
+        )
     
     mpc.print_timings()
+    mpc.plot_traj("q")
     mpc.plot_traj("f")
     mpc.plot_traj("tau")
     mpc.show_plots()
+
+def run_open_loop(args):
+    # MPC Controller
+    robot_desc = get_robot_description(args.robot_name)
+    feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
+
+    mpc = LocomotionMPC(
+        path_urdf=robot_desc.urdf_path,
+        feet_frame_names = feet_frame_names,
+        robot_name=args.robot_name,
+        joint_ref = robot_desc.q0,
+        interactive_goal=False,
+        sim_dt=SIM_DT,
+        print_info=False,
+        )
+    mpc.set_command(args.v_des, 0.0)
+
+    q = robot_desc.q0
+    v = np.zeros(mpc.pin_model.nv)
+    q_traj = mpc.open_loop(q, v, args.sim_time)
+   
+    mpc.print_timings()
+
+    sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT)
+    sim.vs.set_high_quality()
+    sim.visualize_trajectory(q_traj, record_video=args.record_video)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run MPC simulations.")
+    parser.add_argument('--mode', type=str, default="close_loop", choices=['traj_opt', 'open_loop', 'close_loop'], help='Mode to run the simulation.')
+    parser.add_argument('--sim_time', type=float, default=5, help='Simulation time.')
+    parser.add_argument('--robot_name', type=str, default='go2', help='Name of the robot.')
+    parser.add_argument('--record_dir', type=str, default='./data/', help='Directory to save recorded data.')
+    parser.add_argument('--v_des', type=float, nargs=3, default=[0.5, 0.0, 0.0], help='Desired velocity.')
+    parser.add_argument('--save_data', action='store_true', help='Flag to save data.')
+    parser.add_argument('--interactive', action='store_true', help='Use keyboard to set the velocity goal (zqsd).')
+    parser.add_argument('--record_video', action='store_true', help='Record a video of the viewer.')
+    args = parser.parse_args()
+
+    if args.mode == 'traj_opt':
+        run_traj_opt(args)
+    elif args.mode == 'open_loop':
+        run_open_loop(args)
+    elif args.mode == 'close_loop':
+        run_mpc(args)
