@@ -75,8 +75,12 @@ RUN /home/$USERNAME/miniconda/bin/conda init bash
 
 # Create and activate the Conda environment
 COPY ./environment.yml .
+
+# Add conda-forge channel
+RUN /home/$USERNAME/miniconda/bin/conda config --add channels conda-forge
+RUN /home/$USERNAME/miniconda/bin/conda install conda-build
 RUN bash -c "source /home/$USERNAME/miniconda/etc/profile.d/conda.sh && \
-    conda env create -n atari_mpc -f environment.yml python=3.10"
+    conda env create -n atari_mpc -f environment.yml python=3.12"
 RUN rm environment.yml
 
 # Ensure the environment is always activated
@@ -93,18 +97,14 @@ RUN git clone https://github.com/acados/acados.git && \
     cmake -DACADOS_WITH_QPOASES=ON .. && \
     make install -j$(nproc) && \
     bash -c "source /home/$USERNAME/miniconda/etc/profile.d/conda.sh && conda activate atari_mpc && \
-    pip install -e ../interfaces/acados_template"
+    conda develop ../interfaces/acados_template"
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/$USERNAME/acados/lib"
 ENV ACADOS_SOURCE_DIR="/home/$USERNAME/acados"
 
 # Clone and install mj_pin_utils
 RUN git clone https://github.com/Atarilab/mj_pin_utils.git && \
     bash -c "source /home/$USERNAME/miniconda/etc/profile.d/conda.sh && conda activate atari_mpc && \
-    pip install -e ./mj_pin_utils"
-
-# Install pinocchio via Conda
-RUN bash -c "source /home/$USERNAME/miniconda/etc/profile.d/conda.sh && conda activate atari_mpc && \
-    conda install -y pinocchio -c conda-forge"
+    conda develop ./mj_pin_utils"
 
 # Set the final working directory
 WORKDIR /home/$USERNAME/workspace/
