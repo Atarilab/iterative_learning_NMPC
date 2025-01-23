@@ -4,6 +4,8 @@ Atarilab NMPC
 ## Project Description
 ATARI_NMPC is a Nonlinear Model Predictive Control (NMPC) framework designed for quadruped robots. It leverages the Acados solver for efficient optimization and Pinocchio for robot dynamics. The framework is modular, allowing easy adaptation to different quadruped robots by configuring URDF paths, gait parameters, and control settings.
 
+This is a new fork from Victor's infrastructural repo ATARI-NMPC, aiming to test our iterative supervised learning algorithm based on Xun Pua's code.
+
 ## Project Dependencies
 - Conda environment is provided in `environment.yml`
     ```bash

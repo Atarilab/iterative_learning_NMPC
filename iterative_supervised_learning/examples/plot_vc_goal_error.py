@@ -1,0 +1,1 @@
+## NOTE: This script is for plotting the velocity conditioned goal reaching error. 
