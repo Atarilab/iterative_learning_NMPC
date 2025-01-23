@@ -116,8 +116,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
             # Foot displacement penalization
             if self.config_opt.cnt_patch_restriction:
-                self.data["W"][foot_cnt.pos_cost.name] = self.config_cost.W_foot_displacement
-                self.data["W_e"][foot_cnt.pos_cost.name] = self.config_cost.W_foot_displacement
+                self.data["W"][foot_cnt.pos_cost.name][:2] = self.config_cost.W_foot_displacement[0]
+                self.data["W_e"][foot_cnt.pos_cost.name][:2] = self.config_cost.W_foot_displacement[0]
 
         # Apply these costs to the solver
         self.set_cost_weight_constant(self.data["W"])
@@ -174,7 +174,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
         self.set_initial_state(self.data["x"])
 
-    def setup_initial_feet_pos(self):
+    def setup_initial_feet_pos(self, i_node : int = 0):
         """
         Set up the initial position of the feet based on the current
         contact mode and robot configuration.
@@ -182,6 +182,8 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         feet_pos = self.dyn.get_feet_position_w()
 
         for (foot_cnt, pos) in zip(self.dyn.feet, feet_pos):
+            if i_node == 0:
+                self.params[foot_cnt.active.name][0, 0] = 1
             is_cnt = self.params[foot_cnt.active.name][0, 0]
 
             # If contact, setup initial contact location and normal
@@ -360,7 +362,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             assert not(cnt_locations is None), "Contact plan not provided"
             self.setup_contact_loc(cnt_locations)
 
-        self.setup_initial_feet_pos()
+        self.setup_initial_feet_pos(i_node)
 
         # Warm start solver
         if (i_node > 0 and

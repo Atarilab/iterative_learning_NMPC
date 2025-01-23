@@ -11,9 +11,8 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     n_nodes : int = 50
     opt_dt_scale : Tuple[float, float] = (0.5, 1.75)
     replanning_freq : int = 20
-    Kp : float = 35
-    Kd : float = 3
-    use_delay : bool = True
+    Kp : float = 40
+    Kd : float = 5
     # Solver config
     max_iter : int = 1
     max_qp_iter: int = 6
