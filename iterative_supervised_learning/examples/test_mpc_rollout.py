@@ -3,52 +3,100 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 
-
-from typing import List
-import pinocchio as pin
+import argparse
+from typing import Tuple, List
+import os
 import numpy as np
-from mj_pin.abstract import VisualCallback, DataRecorder # type: ignore
-from mj_pin.simulator import Simulator # type: ignore
-from mj_pin.utils import load_mj_pin   # type: ignore
-
-from mpc_controller.mpc import LocomotionMPC
-
+from datetime import datetime
 from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
 
-def test_rollout_mpc(sim_time = 5,  # Simulation time in seconds
-    sim_dt = 1.0e-3,  # Simulation time step
-    robot_name = "go2",  # Robot name
-    record_dir = "./data/",  # Directory to save recorded data
-    v_des = [0.5, 0.0, 0.0]  # Desired velocity command
-    ):
+def run_mpc_simulation(mode: str = "close_loop",
+                       sim_time: float = 5,
+                       robot_name: str = "go2",
+                       record_dir: str = "./data/",
+                       v_des: List[float] = [0.5, 0.0, 0.0],
+                       save_data: bool = True,
+                       interactive: bool = False,
+                       record_video: bool = False,
+                       visualize: bool = False) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
     """
-    Test the RolloutMPC functionality and return recorded data.
+    Function to run MPC simulation with specified parameters.
+
+    Args:
+        mode (str): Mode of simulation ('traj_opt', 'open_loop', 'close_loop').
+        sim_time (float): Total simulation time.
+        robot_name (str): Name of the robot.
+        record_dir (str): Directory to save recorded data.
+        v_des (List[float]): Desired velocity (x, y, yaw).
+        save_data (bool): Whether to save recorded data.
+        interactive (bool): Use interactive mode for setting velocity goals.
+        record_video (bool): Record a video of the simulation.
+        visualize (bool): Enable or disable visualization.
+
+    Returns:
+        Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
+            - Path to the recorded data directory.
+            - Time array of the simulation.
+            - Recorded positions (q).
+            - Recorded velocities (v).
+            - Recorded control inputs (ctrl).
     """
-    # sim_time = 5  # Simulation time in seconds
-    # sim_dt = 1.0e-3  # Simulation time step
-    # robot_name = "go2"  # Robot name
-    # record_dir = "./data/"  # Directory to save recorded data
-    # v_des = [0.5, 0.0, 0.0]  # Desired velocity command
+    # Create argparse-like structure
+    class Args:
+        def __init__(self):
+            self.mode = mode
+            self.sim_time = sim_time
+            self.robot_name = robot_name
+            self.record_dir = record_dir
+            self.v_des = v_des
+            self.save_data = save_data
+            self.interactive = interactive
+            self.record_video = record_video
+            self.visualize = visualize
 
-    # Create and execute RolloutMPC
-    rollout_mpc = RolloutMPC(sim_time, sim_dt, robot_name, record_dir, v_des)
-    rollout_mpc.execute()
+    args = Args()
 
-    # Return recorded data as a dictionary
-    recorded_data = {
-        "time": rollout_mpc.recorded_time,
-        "q": rollout_mpc.recorded_q,
-        "v": rollout_mpc.recorded_v,
-        "ctrl": rollout_mpc.recorded_ctrl,
-    }
+    # Ensure the record directory exists
+    if save_data:
+        os.makedirs(record_dir, exist_ok=True)
 
-    return recorded_data
+    # Instantiate the RolloutMPC class
+    rollout_mpc = RolloutMPC(args)
 
+    # Run the appropriate simulation
+    if mode == 'traj_opt':
+        rollout_mpc.run_traj_opt()
+    elif mode == 'open_loop':
+        rollout_mpc.run_open_loop()
+    elif mode == 'close_loop':
+        rollout_mpc.run_mpc()
+    else:
+        raise ValueError("Invalid mode. Choose from 'traj_opt', 'open_loop', or 'close_loop'.")
+
+    # Collect and return recorded data
+    if save_data:
+        data_file = None
+        for file in os.listdir(record_dir):
+            if file.startswith("simulation_data_") and file.endswith(".npz"):
+                data_file = os.path.join(record_dir, file)
+                break
+
+        if data_file:
+            data = np.load(data_file)
+            return record_dir, data["time"].tolist(), data["q"].tolist(), data["v"].tolist(), data["ctrl"].tolist()
+
+    return record_dir, [], [], [], []
+
+# Example usage
 if __name__ == "__main__":
-    recorded_data = test_rollout_mpc()
+    record_dir, time, q, v, ctrl = run_mpc_simulation(mode="close_loop", sim_time=5, robot_name="go2",
+                                                      record_dir="./data/", v_des=[0.5, 0.0, 0.0],
+                                                      save_data=True, interactive=False, record_video=False, visualize=False)
+    print(f"Recorded data path: {record_dir}")
 
-    # Print recorded data for verification
-    # print("Recorded time:", recorded_data["time"])
-    # print("Recorded positions (q):", recorded_data["q"])
-    # print("Recorded velocities (v):", recorded_data["v"])
-    # print("Recorded controls (ctrl):", recorded_data["ctrl"])
+    if time or q or v or ctrl:
+        print("Recorded data:")
+        print(f"Time: {time}")
+        print(f"Q: {q}")
+        print(f"V: {v}")
+        print(f"Ctrl: {ctrl}")
