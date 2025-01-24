@@ -95,10 +95,9 @@ class RolloutMPC:
         ])
         time_traj = np.concatenate(([0], np.cumsum(dt_plan)))
 
-        if self.args.visualize:
-            sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
-            sim.vs.set_high_quality()
-            sim.visualize_trajectory(q_plan_mj, time_traj, record_video=self.args.record_video)
+        sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
+        sim.vs.set_high_quality()
+        sim.visualize_trajectory(q_plan_mj, time_traj, record_video=self.args.record_video)
 
     def run_mpc(self):
         robot_desc = get_robot_description(self.args.robot_name)
@@ -119,16 +118,17 @@ class RolloutMPC:
 
         vis_feet_pos = ReferenceVisualCallback(mpc)
         data_recorder = StateDataRecorder(self.args.record_dir) if self.args.save_data else None
-
+        sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
+        sim.vs.track_obj = "base"
+        sim.run(
+            sim_time=self.args.sim_time,
+            controller=mpc,
+            visual_callback=vis_feet_pos,
+            data_recorder=data_recorder,
+            use_viewer=self.args.visualize
+        )
+            
         if self.args.visualize:
-            sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
-            sim.vs.track_obj = "base"
-            sim.run(
-                sim_time=self.args.sim_time,
-                controller=mpc,
-                visual_callback=vis_feet_pos,
-                data_recorder=data_recorder
-            )
             mpc.print_timings()
             mpc.plot_traj("q")
             mpc.plot_traj("f")
@@ -155,11 +155,9 @@ class RolloutMPC:
         q_traj = mpc.open_loop(q, v, self.args.sim_time)
 
         mpc.print_timings()
-
-        if self.args.visualize:
-            sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT)
-            sim.vs.set_high_quality()
-            sim.visualize_trajectory(q_traj, record_video=self.args.record_video)
+        sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT)
+        sim.vs.set_high_quality()
+        sim.visualize_trajectory(q_traj, record_video=self.args.record_video)
 
     def run(self):
         if self.args.mode == 'traj_opt':

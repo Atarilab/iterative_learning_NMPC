@@ -10,7 +10,7 @@ import numpy as np
 from datetime import datetime
 from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
 
-def run_mpc_simulation(mode: str = "close_loop",
+def rollout_mpc(mode: str = "close_loop",
                        sim_time: float = 5,
                        robot_name: str = "go2",
                        record_dir: str = "./data/",
@@ -83,20 +83,21 @@ def run_mpc_simulation(mode: str = "close_loop",
 
         if data_file:
             data = np.load(data_file)
+            print("data loaded from", data_file)
             return record_dir, data["time"].tolist(), data["q"].tolist(), data["v"].tolist(), data["ctrl"].tolist()
 
     return record_dir, [], [], [], []
 
 # Example usage
 if __name__ == "__main__":
-    record_dir, time, q, v, ctrl = run_mpc_simulation(mode="close_loop", sim_time=5, robot_name="go2",
-                                                      record_dir="./data/", v_des=[0.5, 0.0, 0.0],
+    record_dir, time, q, v, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
+                                                      record_dir="./data/", v_des=[0.5, 0.1, 0.0],
                                                       save_data=True, interactive=False, record_video=False, visualize=False)
     print(f"Recorded data path: {record_dir}")
 
-    if time or q or v or ctrl:
-        print("Recorded data:")
-        print(f"Time: {time}")
-        print(f"Q: {q}")
-        print(f"V: {v}")
-        print(f"Ctrl: {ctrl}")
+    # if time or q or v or ctrl:
+    #     print("Recorded data:")
+    #     print(f"Time: {time}")
+    #     print(f"Q: {q}")
+    #     print(f"V: {v}")
+    #     print(f"Ctrl: {ctrl}")
