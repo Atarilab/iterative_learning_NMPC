@@ -195,32 +195,33 @@ class DataCollection():
     def run(self):
         for iteration in range(self.n_iteration):
             print(f"Starting iteration {iteration+1}/{self.n_iteration}")
-            for _ in range(self.num_pertubations_per_replanning):
-                # Randomly sample a velocity goal
-                vx = random.uniform(self.vx_des_min, self.vx_des_max)
-                vy = random.uniform(self.vy_des_min, self.vy_des_max)
-                w = random.uniform(self.w_des_min, self.w_des_max)
-                v_des = [vx, vy, w]
+                
+            # Randomly sample a velocity goal
+            vx = random.uniform(self.vx_des_min, self.vx_des_max)
+            vy = random.uniform(self.vy_des_min, self.vy_des_max)
+            w = random.uniform(self.w_des_min, self.w_des_max)
+            v_des = [vx, vy, w]
 
-                # Rollout with MPC
-                record_dir, time, q, v, ctrl = rollout_mpc(
-                    mode="close_loop",
-                    sim_time=self.episode_length,
-                    robot_name=self.cfg.robot_name,
-                    record_dir=self.data_save_path + f"/iteration_{iteration+1}/",
-                    v_des=v_des,
-                    save_data=True,
-                    interactive=False,
-                    record_video=False,
-                    visualize=False
-                )
+            # Rollout with MPC
+            record_dir, time, q, v, ctrl = rollout_mpc(
+                mode="close_loop",
+                sim_time=self.episode_length,
+                robot_name=self.cfg.robot_name,
+                record_dir=self.data_save_path + f"/iteration_{iteration+1}/",
+                v_des=v_des,
+                save_data=True,
+                interactive=False,
+                record_video=False,
+                visualize=False
+            )
 
-                # Add data to the database
-                for t, state, vel, ctrl_input in zip(time, q, v, ctrl):
-                    self.database.add(state=state, velocity=vel, action=ctrl_input, goal=v_des)
+            # Add data to the database
+            if len(q) != 0:
+                self.database.append(q,ctrl)
+                print("MPC data saved into database")
 
             # Save dataset at the end of each iteration
-            self.save_dataset(iteration+1)
+            self.save_dataset(iter=len(self.database))
             print(f"Completed iteration {iteration+1}/{self.n_iteration}")
 
 @hydra.main(config_path='cfgs', config_name='data_collection_config')

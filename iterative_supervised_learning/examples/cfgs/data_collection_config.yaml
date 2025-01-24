@@ -6,7 +6,7 @@ defaults:
 # ------- Desired Motion parameters -----------------------------------
 # specify the gait, bound or jump or trot or combined
 gaits: ["trot"]  # trot, jump, bound
-
+robot_name: "go2"
 # desired velocity
 vx_des_min: 0.0 # m_s
 vx_des_max: 0.5  # m/s
