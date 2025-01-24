@@ -9,6 +9,7 @@ import os
 import numpy as np
 from datetime import datetime
 from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
+import random
 
 def rollout_mpc(mode: str = "close_loop",
                        sim_time: float = 5,
@@ -74,6 +75,7 @@ def rollout_mpc(mode: str = "close_loop",
         raise ValueError("Invalid mode. Choose from 'traj_opt', 'open_loop', or 'close_loop'.")
 
     # Collect and return recorded data
+    # TODO: reading from file wrong, correct it
     if save_data:
         data_file = None
         for file in os.listdir(record_dir):
@@ -90,10 +92,10 @@ def rollout_mpc(mode: str = "close_loop",
 
 # Example usage
 if __name__ == "__main__":
-    record_dir, time, q, v, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
-                                                      record_dir="./data/", v_des=[0.5, 0.1, 0.0],
-                                                      save_data=True, interactive=False, record_video=False, visualize=False)
-    print(f"Recorded data path: {record_dir}")
+    # record_dir, time, q, v, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
+    #                                                   record_dir="./data/", v_des=[0.5, 0.1, 0.0],
+    #                                                   save_data=True, interactive=False, record_video=False, visualize=True)
+    # print(f"Recorded data path: {record_dir}")
 
     # if time or q or v or ctrl:
     #     print("Recorded data:")
@@ -101,3 +103,25 @@ if __name__ == "__main__":
     #     print(f"Q: {q}")
     #     print(f"V: {v}")
     #     print(f"Ctrl: {ctrl}")
+    vx_des_min,vx_des_max = 0.0,0.5
+    vy_des_min,vy_des_max = -0.1,0.1
+    w_des_min,w_des_max = 0.0,0.0
+    data_save_path = "./data"
+    for i in range(10):
+        vx = random.uniform(vx_des_min, vx_des_max)
+        vy = random.uniform(vy_des_min, vy_des_max)
+        w = random.uniform(w_des_min, w_des_max)
+        v_des = [vx, vy, w]
+    
+        # Rollout with MPC
+        record_dir, time, q, v, ctrl = rollout_mpc(
+            mode="close_loop",
+            sim_time=5,
+            robot_name="go2",
+            record_dir=data_save_path + f"/iteration_{i+1}/",
+            v_des=v_des,
+            save_data=True,
+            interactive=False,
+            record_video=False,
+            visualize=False
+        )
