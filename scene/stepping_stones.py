@@ -44,6 +44,7 @@ class SteppingStonesBase:
         self.J = self.grid_size[1]
         self.N = self.I * self.J
         self.id_to_remove = np.array([], dtype=np.int32)
+        self.id_kept = np.arange(self.N)
         self.init_stones()
         
     def init_stones(self) -> None:
@@ -114,6 +115,7 @@ class SteppingStonesBase:
             N_to_remove = self.N_to_remove
         
         self.id_to_remove = np.random.choice(self.N, N_to_remove, replace=False, p=probs)
+        self.id_kept = np.setdiff1d(np.arange(self.N), self.id_to_remove)
             
     def get_closest(self, positions_xyz: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -378,6 +380,8 @@ class MjSteppingStones(SteppingStonesBase):
                     euler,
                     rgba,
                 )
+                
+        return id_start, id_goal
 
         
 if __name__ == "__main__":
