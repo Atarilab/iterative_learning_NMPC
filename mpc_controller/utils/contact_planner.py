@@ -167,7 +167,6 @@ class ContactPlanner(GaitPlanner):
         ):
         super().__init__(feet_frame_names, dt_nodes, config_gait)
     
-    @abstractmethod
     def get_locations(self, i_node : int, n_nodes : int) -> np.ndarray:
         pass
 

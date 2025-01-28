@@ -12,7 +12,7 @@ import traceback
 
 from mj_pin.utils import PinController
 from .utils.interactive import SetVelocityGoal
-from .utils.contact_planner import RaiberContactPlanner, CustomContactPlanner
+from .utils.contact_planner import RaiberContactPlanner, CustomContactPlanner, ContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.profiling import time_fn, print_timings
 from .config.quadruped.utils import get_quadruped_config
@@ -33,7 +33,7 @@ class LocomotionMPC(PinController):
                  interactive_goal : bool = False,
                  sim_dt : float = 1.0e-3,
                  height_offset : float = 0.,
-                 contact_planner : str = "raibert",
+                 contact_planner : str = "",
                  print_info : bool = True,
                  compute_timings : bool = True,
                  solve_async : bool = True,
@@ -73,6 +73,7 @@ class LocomotionMPC(PinController):
 
         self.n_foot = len(feet_frame_names)
         self._contact_planner_str = contact_planner 
+
         if contact_planner.lower() == "raibert":
             offset_hip_b = self.solver.dyn.get_feet_position_w()
             offset_hip_b[:, -1] = 0.
@@ -86,16 +87,22 @@ class LocomotionMPC(PinController):
                 foot_size=0.0085,
                 cache_cnt=False
                 )
+            self.restrict_cnt = True
+            
         elif contact_planner.lower() == "custom":
             self.contact_planner = CustomContactPlanner(
                 feet_frame_names,
                 self.solver.dt_nodes,
                 self.config_gait,
                 )
+            self.restrict_cnt = True
+            
         else:
-            raise ValueError(f"Invalid contact planner {contact_planner}.\
-                             Should be one of: " + " / ".join(LocomotionMPC.CONTACT_PLANNERS))
-
+            self.contact_planner = ContactPlanner(feet_frame_names, self.solver.dt_nodes, self.config_gait)
+            self.restrict_cnt = False
+        
+        self.solver.set_contact_restriction(self.restrict_cnt)
+        
         # Set params
         self.Kp = self.solver.config_opt.Kp
         self.Kd = self.solver.config_opt.Kd
@@ -327,7 +334,7 @@ class LocomotionMPC(PinController):
         if self.config_opt.opt_peak:
             swing_peak = self.contact_planner.get_peaks(self.current_opt_node, self.config_opt.n_nodes+1)
         cnt_locations = None
-        if self.config_opt.cnt_patch_restriction:
+        if self.restrict_cnt:
             if self._contact_planner_str.lower() == "raibert":
                 com_xyz = pin.centerOfMass(self.solver.dyn.pin_model, self.solver.dyn.pin_data)
                 self.contact_planner.set_state(q[:3], v[:3], q[3:6][::-1], com_xyz, self.v_des, self.w_des[-1])

@@ -29,11 +29,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.config_cost = config_cost
         self.height_offset = height_offset
         self.print_info = print_info
+        self.restrict_cnt : bool = False
 
         self.dyn = QuadrupedDynamics(
             path_urdf,
             self.feet_frame_names,
-            self.config_opt.cnt_patch_restriction,
+            True,
             mu_contact=0.8
             )
 
@@ -84,6 +85,11 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Setup timings
         self.compute_timings = compute_timings
         self.timings = defaultdict(list)
+        
+    def set_contact_restriction(self, restrict : bool = True):
+        self.restrict_cnt = restrict
+        self.set_cost_weights()
+        self.update_cost_weights()
 
     def update_cost(self, config_cost : MPCCostConfig):
         """
@@ -117,9 +123,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.data["W"][foot_cnt.f_reg.name] = np.array(self.config_cost.W_cnt_f_reg[i])
 
             # Foot displacement penalization
-            if self.config_opt.cnt_patch_restriction:
+            if self.restrict_cnt:
                 self.data["W"][foot_cnt.pos_cost.name][:2] = self.config_cost.W_foot_displacement[0]
                 self.data["W_e"][foot_cnt.pos_cost.name][:2] = self.config_cost.W_foot_displacement[0]
+            else:
+                self.data["W"][foot_cnt.pos_cost.name][:] = 0.
+                self.data["W_e"][foot_cnt.pos_cost.name][:] = 0.
 
         # Apply these costs to the solver
         self.set_cost_weight_constant(self.data["W"])
@@ -202,10 +211,12 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.params[foot_cnt.plane_point.name][:] = np.zeros((3,1))
             self.params[foot_cnt.plane_point.name][-1, :] = self.height_offset
             self.params[foot_cnt.p_gain.name][:] = self.config_cost.W_foot_pos_constr_stab[i_foot]
-            if (self.config_opt.cnt_patch_restriction):
+            if self.restrict_cnt:
                 self.params[foot_cnt.restrict.name][:] = 0.
-                if (self.config_opt.cnt_patch_restriction):
-                    self.params[foot_cnt.range_radius.name][:] = self.config_cost.cnt_radius
+                self.params[foot_cnt.range_radius.name][:] = self.config_cost.cnt_radius
+            else:
+                self.params[foot_cnt.restrict.name][:] = 0.
+                self.params[foot_cnt.range_radius.name][:] = 1.0e10
 
     def setup_cnt_status(self,
                         cnt_sequence : np.ndarray,
@@ -229,7 +240,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 self.params[foot_cnt.peak.name][0, :] = peak_plan[i_foot]
 
             # Set restriction
-            if self.config_opt.cnt_patch_restriction:
+            if self.restrict_cnt:
                 restrict = np.diff(cnt_sequence[i_foot], prepend=cnt_sequence[i_foot, 0])
                 restrict[restrict == -1] = 0
                 self.params[foot_cnt.restrict.name][0, :] = restrict
@@ -266,7 +277,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             print(np.unique(self.params[foot_cnt.plane_point.name], axis=1).T)
             print(np.int8(self.params[foot_cnt.peak.name]))
 
-            if self.config_opt.cnt_patch_restriction:
+            if self.restrict_cnt:
                 print("Restriction")
                 print(np.int8(self.params[foot_cnt.restrict.name]))
 
@@ -361,7 +372,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.init_contacts_parameters()
         self.setup_cnt_status(cnt_sequence, swing_peak)
 
-        if self.config_opt.cnt_patch_restriction:
+        if self.restrict_cnt:
             assert not(cnt_locations is None), "Contact plan not provided"
             self.setup_contact_loc(cnt_locations)
 

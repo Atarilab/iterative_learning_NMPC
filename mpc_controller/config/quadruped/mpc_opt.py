@@ -20,8 +20,6 @@ class MPCQuadrupedCyclic(MPCOptConfig):
     ### Solver Config
     # Recompile solver
     recompile: bool = True
-    # Constrained eeff locations within a patch
-    cnt_patch_restriction : bool = False
     # Solver maximum SQP iterations
     max_iter : int = 1
     # Maximum qp iteration for one SQP step 

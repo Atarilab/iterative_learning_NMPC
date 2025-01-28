@@ -39,8 +39,6 @@ class MPCOptConfig():
     Kd : float
     # Recompile solver
     recompile: bool
-    # Constrained eeff locations within a patch
-    cnt_patch_restriction : bool
     # Solver maximum SQP iterations
     max_iter : int
     # Maximum qp iteration for one SQP step 
