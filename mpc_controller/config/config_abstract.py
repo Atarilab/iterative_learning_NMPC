@@ -92,6 +92,8 @@ class MPCOptConfig():
 @dataclass
 @typechecked
 class MPCCostConfig:
+    robot_name: str
+    gait_name: str
     # Weights for the terminal cost of base position, orientation, and velocity
     # [x, w, z, ox, oy, oz, vx, vy, vz, wx, wy, wz]
     W_e_base: np.ndarray
@@ -130,8 +132,6 @@ class MPCCostConfig:
         assert len(self.W_e_base) == 12, "W_e_base must be of shape 12"
         assert len(self.W_base) == 12, "W_base must be of shape 12"
         assert len(self.W_acc) == 12, "W_acc must be of shape 12"
-        assert len(self.W_joint) == 24, "W_joint must be of shape 24"
-        assert len(self.W_e_joint) == 24, "W_e_joint must be of shape 24"
         assert (len(self.W_swing) == len(self.W_cnt_f_reg) and
                 len(self.W_swing) == len(self.W_foot_pos_constr_stab)),\
                 "W_swing and W_foot should have the same length."
