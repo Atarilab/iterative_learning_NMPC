@@ -2,6 +2,7 @@ import numpy as np
 from typing import List, Tuple
 from dataclasses import dataclass, field
 from typeguard import typechecked
+from contact_tamp.traj_opt_acados.interface.acados_helper import HPIPM_MODE
 
 @dataclass
 @typechecked
@@ -30,45 +31,46 @@ class MPCOptConfig():
     time_horizon : float
     # Number of optimization nodes
     n_nodes : int
-    # Time bounds between two nodes (min_ratio, max_ratio)
-    # dt_min = min_ratio * dt_nom = min_ratio * (time_horizon / n_nodes)
-    opt_dt_scale : Tuple[float, float]
     # Replanning frequency
     replanning_freq : int
-    # Real time iterations
-    real_time_it : bool
-    # Enable dt nodes time optimization
-    enable_time_opt : bool
-    # Enable impact dynamics
-    enable_impact_dyn : bool
-    # Constrained eeff locations within a patch
-    cnt_patch_restriction : bool
-    # Use peak constrained
-    opt_peak : bool
-    # Solver maximum SQP iterations
-    max_iter : int
-    # Warm start states and inputs with last solution
-    warm_start_sol : bool
-    # Warm start solver IP outer loop
-    warm_start_nlp : bool
-    # Warm start solver IP inner loop
-    warm_start_qp : bool
-    # HPIPM mode
-    hpipm_mode : str
-    # Recompile solver
-    recompile: bool
-    # use_cython in the solver solver
-    use_cython: bool
-    # Maximum qp iteration for one SQP step 
-    max_qp_iter: int 
-    # Outer loop SQP tolerance
-    nlp_tol: float
-    # Inner loop interior point method tolerance
-    qp_tol: float
     # gain on joint position for torque PD
     Kp : float
     # gain on joint velocities for torque PD
     Kd : float
+    # Recompile solver
+    recompile: bool
+    # Constrained eeff locations within a patch
+    cnt_patch_restriction : bool
+    # Solver maximum SQP iterations
+    max_iter : int
+    # Maximum qp iteration for one SQP step 
+    max_qp_iter: int
+    # Real time iterations
+    real_time_it : bool = False
+    # Enable dt nodes time optimization
+    enable_time_opt : bool = False
+    # Time bounds between two nodes (min_ratio, max_ratio)
+    # dt_min = min_ratio * dt_nom = min_ratio * (time_horizon / n_nodes)
+    opt_dt_scale : Tuple[float, float] = (0.5, 1.75)
+    # Enable impact dynamics
+    enable_impact_dyn : bool = False
+    # Use peak constrained
+    opt_peak : bool = True
+    # Warm start states and inputs with last solution
+    warm_start_sol : bool = True
+    # Warm start solver IP outer loop
+    warm_start_nlp : bool = True
+    # Warm start solver IP inner loop
+    warm_start_qp : bool = True
+    # HPIPM mode
+    hpipm_mode : HPIPM_MODE = HPIPM_MODE.speed
+    # use_cython in the solver solver
+    use_cython: bool = False
+
+    # Outer loop SQP tolerance
+    nlp_tol: float = 1.e-1
+    # Inner loop interior point method tolerance
+    qp_tol: float = 1.e-2
 
     def __post_init__(self):
         assert len(self.opt_dt_scale) == 2, "opt_dt_scale must be of shape 2"
