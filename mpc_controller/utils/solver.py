@@ -20,12 +20,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                  feet_frame_names : List[str],
                  config_opt : MPCOptConfig,
                  config_cost : MPCCostConfig,
+                 height_offset : float = 0.,
                  print_info : bool = False,
                  compute_timings : bool = True,
                  ):
         self.feet_frame_names = feet_frame_names
         self.config_opt = config_opt
         self.config_cost = config_cost
+        self.height_offset = height_offset
         self.print_info = print_info
 
         self.dyn = QuadrupedDynamics(
@@ -198,6 +200,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.params[foot_cnt.active.name][:] = 1.
             self.params[foot_cnt.plane_normal.name][:] = self.default_normal[:, None]
             self.params[foot_cnt.plane_point.name][:] = np.zeros((3,1))
+            self.params[foot_cnt.plane_point.name][-1, :] = self.height_offset
             self.params[foot_cnt.p_gain.name][:] = self.config_cost.W_foot_pos_constr_stab[i_foot]
             if (self.config_opt.cnt_patch_restriction):
                 self.params[foot_cnt.restrict.name][:] = 0.

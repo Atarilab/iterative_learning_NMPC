@@ -102,10 +102,12 @@ class GaitPlanner(ABC):
             self.switch_cnt[foot_id, start_idx] = 1
             self.switch_cnt[foot_id, end_idx] = -1
 
-            peak = end_idx+(start_idx+end_idx)//2
-            o = abs(start_idx - end_idx) // 5
+            # Peak in the middle
+            peak = end_idx + (start_idx+end_idx) // 2
+            o = abs(start_idx - end_idx) // 4
             self.peak_swing[foot_id, end_idx+o:start_idx-o] = 1
-            self.peak_swing[foot_id, peak] = 0.75
+            if peak < len(self.peak_swing):
+                self.peak_swing[foot_id, peak] = 0.75
 
     def get_contacts(self, i_node : int, n_nodes) -> np.ndarray:
         """

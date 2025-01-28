@@ -32,6 +32,7 @@ class LocomotionMPC(PinController):
                  joint_ref : np.ndarray = None,
                  interactive_goal : bool = False,
                  sim_dt : float = 1.0e-3,
+                 height_offset : float = 0.,
                  contact_planner : str = "raibert",
                  print_info : bool = True,
                  compute_timings : bool = True,
@@ -40,7 +41,7 @@ class LocomotionMPC(PinController):
 
         self.gait_name = gait_name
         self.print_info = print_info
-        
+        self.height_offset = height_offset
         # Solver
         self.config_gait, self.config_opt, self.config_cost = get_quadruped_config(gait_name, robot_name)
         self.solver = QuadrupedAcadosSolver(
@@ -48,6 +49,7 @@ class LocomotionMPC(PinController):
             feet_frame_names,
             self.config_opt,
             self.config_cost,
+            height_offset,
             print_info,
             compute_timings)
 
@@ -190,7 +192,7 @@ class LocomotionMPC(PinController):
         base_ref = np.zeros(12)
         base_ref[:2] = np.round(q_mj[:2], 2)
         # Height to config
-        base_ref[2] = self.config_gait.nom_height
+        base_ref[2] = self.config_gait.nom_height + self.height_offset
         # Set yaw
         qw, qx, qy, qz = q_mj[3:7]
         yaw = math.atan2(2.0*(qy*qx + qw*qz), -1. + 2. * (qw*qw + qx*qx))
@@ -275,11 +277,12 @@ class LocomotionMPC(PinController):
         base_ref = np.zeros(12)
         base_ref_e = np.zeros(12)
         # Set position
-        base_ref[:2] = center_first_cnt[:2]
+        alpha = 0.35
+        base_ref[:2] = alpha * center_first_cnt[:2] + (1-alpha) * center_last_cnt[:2]
         base_ref_e[:2] = center_last_cnt[:2]
         # Height to config
-        base_ref[2] = self.config_gait.nom_height
-        base_ref_e[2] = self.config_gait.nom_height
+        base_ref[2] = self.config_gait.nom_height + self.height_offset
+        base_ref_e[2] = self.config_gait.nom_height + self.height_offset
 
         # Linear velocity
         N = contact_locations.shape[1]
@@ -342,7 +345,7 @@ class LocomotionMPC(PinController):
             base_ref,
             base_ref_e,
             self.joint_ref,
-            self.config_gait.step_height,
+            self.config_gait.step_height + self.height_offset,
             cnt_sequence,
             cnt_locations,
             swing_peak,
