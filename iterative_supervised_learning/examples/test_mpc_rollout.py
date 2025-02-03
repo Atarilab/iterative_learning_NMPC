@@ -85,9 +85,6 @@ def rollout_mpc(mode: str = "close_loop",
         if data_file:
             data = np.load(data_file)
             print("data loaded from", data_file)
-            # here time is the time stamp
-            # q is the [x,y,z] of the base point
-            # v is the [vx,vy.vz] of the base point
             time_array = data["time"].tolist()
             q_array = data["q"].tolist()
             v_array = data["v"].tolist()
@@ -99,6 +96,19 @@ def rollout_mpc(mode: str = "close_loop",
             
             return record_dir, time_array, q_first_three, v_first_three, ctrl_array
     return record_dir, [], [], [], []
+
+# TODO: return as a compact state and action:
+    """
+    state: 
+        1- v (robot velocity): 6 base velocities(3 linear, 3 angular) + 12 joint velocities(4 legs * 3 joints/leg) = 18
+        2- base_wrt_foot(q): relative x,y distances from the robot's base to each foot (4 feet * 2 values(x,y)) = 8
+        3- q[2:] :q is full configuration vector: base position(x,y,z), base orientation(quaternion: x,y,z,w), 12 joint angles, total 19
+            we exclude first 2 elements of q which is (x,y), and have (z,quaternion(4),12 joint angles) -> 17
+        
+        Finally: n_state = 18+8+17 = 43
+    
+    action: 4 legs * 3 joints/leg
+    """
 
 # Example usage
 if __name__ == "__main__":

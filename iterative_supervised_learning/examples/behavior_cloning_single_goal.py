@@ -1,1 +1,0 @@
-## NOTE: This script is for behavior cloning on one dataset (related to one goal)
