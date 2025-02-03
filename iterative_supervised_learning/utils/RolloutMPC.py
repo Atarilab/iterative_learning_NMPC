@@ -15,39 +15,48 @@ SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 
 class ReferenceVisualCallback(VisualCallback):
-    def __init__(self, mpc_controller, update_step=1):
+    def __init__(self, mpc_controller, update_step = 1):
         super().__init__(update_step)
         self.mpc = mpc_controller
         self.radius = 0.01
 
     def add_visuals(self, mj_data):
+        # Contact locations
         for i, foot_cnt in enumerate(self.mpc.solver.dyn.feet):
             cnt_pos = self.mpc.solver.params[foot_cnt.plane_point.name]
             cnt_pos_unique = np.unique(cnt_pos, axis=1).T
             for pos in cnt_pos_unique:
-                if np.sum(pos) == 0.:
-                    continue
+                if np.sum(pos) == 0.: continue
                 self.add_sphere(pos, self.radius, self.colors.id(i))
 
+        # Base reference
         BLACK = self.colors.name("black")
         base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
         R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
         self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
-
+        
+        # Base terminal reference
         base_ref = self.mpc.solver.cost_ref_terminal[self.mpc.solver.dyn.base_cost.name]
         R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
         self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
 
 class StateDataRecorder(DataRecorder):
-    def __init__(self, record_dir: str = "", record_step: int = 1):
+    def __init__(
+        self,
+        record_dir: str = "",
+        record_step: int = 1,
+    ) -> None:
+        """
+        A simple data recorder that saves simulation data to a .npz file.
+        """
         super().__init__(record_dir, record_step)
         self.data = {}
         self.reset()
 
-    def reset(self):
-        self.data = {"time": [], "q": [], "v": [], "ctrl": []}
+    def reset(self) -> None:
+        self.data = {"time": [], "q": [], "v": [], "ctrl": [],}
 
-    def save(self):
+    def save(self) -> None:
         if not self.record_dir:
             self.record_dir = os.getcwd()
         os.makedirs(self.record_dir, exist_ok=True)
@@ -56,16 +65,21 @@ class StateDataRecorder(DataRecorder):
         file_path = os.path.join(self.record_dir, f"simulation_data_{timestamp}.npz")
 
         try:
+            # Uncomment to save data
             np.savez(file_path, **self.data)
             print(f"Data successfully saved to {file_path}")
         except Exception as e:
             print(f"Error saving data: {e}")
 
-    def _record(self, mj_data):
-        self.data["time"].append(mj_data.time)
-        self.data["q"].append(mj_data.qpos)
-        self.data["v"].append(mj_data.qvel)
-        self.data["ctrl"].append(mj_data.ctrl)
+    def _record(self, mj_data) -> None:
+        """
+        Record simulation data at the current simulation step.
+        """
+        # Record time and state
+        self.data["time"].append(round(mj_data.time, 4))
+        self.data["q"].append(mj_data.qpos.copy())
+        self.data["v"].append(mj_data.qvel.copy())
+        self.data["ctrl"].append(mj_data.ctrl.copy())
 
 class RolloutMPC:
     def __init__(self, args):
