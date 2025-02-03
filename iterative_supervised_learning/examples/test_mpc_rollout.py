@@ -107,7 +107,7 @@ if __name__ == "__main__":
     vy_des_min,vy_des_max = -0.1,0.1
     w_des_min,w_des_max = 0.0,0.0
     data_save_path = "./data"
-    for i in range(10):
+    for i in range(5):
         vx = random.uniform(vx_des_min, vx_des_max)
         vy = random.uniform(vy_des_min, vy_des_max)
         w = random.uniform(w_des_min, w_des_max)
