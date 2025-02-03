@@ -75,27 +75,39 @@ def rollout_mpc(mode: str = "close_loop",
         raise ValueError("Invalid mode. Choose from 'traj_opt', 'open_loop', or 'close_loop'.")
 
     # Collect and return recorded data
-    # TODO: reading from file wrong, correct it
     if save_data:
         data_file = None
         for file in os.listdir(record_dir):
             if file.startswith("simulation_data_") and file.endswith(".npz"):
                 data_file = os.path.join(record_dir, file)
                 break
-
+        
         if data_file:
             data = np.load(data_file)
             print("data loaded from", data_file)
-            return record_dir, data["time"].tolist(), data["q"].tolist(), data["v"].tolist(), data["ctrl"].tolist()
-
+            # here time is the time stamp
+            # q is the [x,y,z] of the base point
+            # v is the [vx,vy.vz] of the base point
+            time_array = data["time"].tolist()
+            q_array = data["q"].tolist()
+            v_array = data["v"].tolist()
+            ctrl_array = data["ctrl"].tolist()
+            
+            # Extract only the first three entries
+            q_first_three = [entry[:3] for entry in q_array]
+            v_first_three = [entry[:3] for entry in v_array]
+            
+            return record_dir, time_array, q_first_three, v_first_three, ctrl_array
     return record_dir, [], [], [], []
 
 # Example usage
 if __name__ == "__main__":
-    # record_dir, time, q, v, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
-    #                                                   record_dir="./data/", v_des=[0.5, 0.1, 0.0],
-    #                                                   save_data=True, interactive=False, record_video=False, visualize=True)
-    # print(f"Recorded data path: {record_dir}")
+    record_dir, time, q, v, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
+                                                      record_dir="./data/", v_des=[0.5, 0.1, 0.0],
+                                                      save_data=True, interactive=False, record_video=False, visualize=True)
+    print(f"Recorded data path: {record_dir}")
+    print(q[:10])
+    print(v[:10])
 
     # if time or q or v or ctrl:
     #     print("Recorded data:")
@@ -103,25 +115,25 @@ if __name__ == "__main__":
     #     print(f"Q: {q}")
     #     print(f"V: {v}")
     #     print(f"Ctrl: {ctrl}")
-    vx_des_min,vx_des_max = 0.0,0.5
-    vy_des_min,vy_des_max = -0.1,0.1
-    w_des_min,w_des_max = 0.0,0.0
-    data_save_path = "./data"
-    for i in range(5):
-        vx = random.uniform(vx_des_min, vx_des_max)
-        vy = random.uniform(vy_des_min, vy_des_max)
-        w = random.uniform(w_des_min, w_des_max)
-        v_des = [vx, vy, w]
+    # vx_des_min,vx_des_max = 0.0,0.5
+    # vy_des_min,vy_des_max = -0.1,0.1
+    # w_des_min,w_des_max = 0.0,0.0
+    # data_save_path = "./data"
+    # for i in range(5):
+    #     vx = random.uniform(vx_des_min, vx_des_max)
+    #     vy = random.uniform(vy_des_min, vy_des_max)
+    #     w = random.uniform(w_des_min, w_des_max)
+    #     v_des = [vx, vy, w]
     
-        # Rollout with MPC
-        record_dir, time, q, v, ctrl = rollout_mpc(
-            mode="close_loop",
-            sim_time=5,
-            robot_name="go2",
-            record_dir=data_save_path + f"/iteration_{i+1}/",
-            v_des=v_des,
-            save_data=True,
-            interactive=False,
-            record_video=False,
-            visualize=False
-        )
+    #     # Rollout with MPC
+    #     record_dir, time, q, v, ctrl = rollout_mpc(
+    #         mode="close_loop",
+    #         sim_time=5,
+    #         robot_name="go2",
+    #         record_dir=data_save_path + f"/iteration_{i+1}/",
+    #         v_des=v_des,
+    #         save_data=True,
+    #         interactive=False,
+    #         record_video=False,
+    #         visualize=False
+    #     )
