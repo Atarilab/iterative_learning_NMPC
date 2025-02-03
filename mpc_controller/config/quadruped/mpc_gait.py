@@ -21,6 +21,15 @@ class QuadrupedTrot(QuadrupedGaitConfig):
     step_height: float = 0.05
 
 @dataclass
+class QuadrupedSlowTrot(QuadrupedGaitConfig):
+    gait_name: str = "slow_trot"
+    nominal_period: float = 1.
+    stance_ratio: np.ndarray = field(default_factory=lambda: np.array([0.65, 0.65, 0.65, 0.65]))
+    phase_offset: np.ndarray = field(default_factory=lambda: np.array([0.5, 0.0, 0.0, 0.5]))
+    nom_height: float = 0.32
+    step_height: float = 0.065
+
+@dataclass
 class QuadrupedJump(QuadrupedGaitConfig):
     gait_name: str = "jump"
     nominal_period : float = 50
@@ -58,11 +67,15 @@ class QuadrupedBound(QuadrupedGaitConfig):
 
 class GaitConfigFactory:
     AVAILABLE_GAITS = {
-        QuadrupedTrot.gait_name.lower(): QuadrupedTrot(),
-        QuadrupedJump.gait_name.lower(): QuadrupedJump(),
-        QuadrupedCrawl.gait_name.lower(): QuadrupedCrawl(),
-        QuadrupedPace.gait_name.lower(): QuadrupedPace(),
-        QuadrupedBound.gait_name.lower(): QuadrupedBound(),
+        cfg.gait_name.lower(): cfg()
+        for cfg in [
+            QuadrupedTrot,
+            QuadrupedSlowTrot,
+            QuadrupedJump,
+            QuadrupedCrawl,
+            QuadrupedPace,
+            QuadrupedBound,
+        ]
     }
 
     @staticmethod

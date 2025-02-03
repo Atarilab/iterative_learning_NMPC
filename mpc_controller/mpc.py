@@ -12,12 +12,13 @@ import traceback
 
 from mj_pin.utils import PinController
 from .utils.interactive import SetVelocityGoal
-from .utils.contact_planner import RaiberContactPlanner
+from .utils.contact_planner import RaiberContactPlanner, CustomContactPlanner, ContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
 from .utils.profiling import time_fn, print_timings
 from .config.quadruped.utils import get_quadruped_config
 
 class LocomotionMPC(PinController):
+    CONTACT_PLANNERS = ["raibert", "custom"]
     """
     Abstract base class for an MPC controller.
     This class defines the structure for an MPC controller
@@ -31,6 +32,8 @@ class LocomotionMPC(PinController):
                  joint_ref : np.ndarray = None,
                  interactive_goal : bool = False,
                  sim_dt : float = 1.0e-3,
+                 height_offset : float = 0.,
+                 contact_planner : str = "",
                  print_info : bool = True,
                  compute_timings : bool = True,
                  solve_async : bool = True,
@@ -38,7 +41,7 @@ class LocomotionMPC(PinController):
 
         self.gait_name = gait_name
         self.print_info = print_info
-        
+        self.height_offset = height_offset
         # Solver
         self.config_gait, self.config_opt, self.config_cost = get_quadruped_config(gait_name, robot_name)
         self.solver = QuadrupedAcadosSolver(
@@ -46,6 +49,7 @@ class LocomotionMPC(PinController):
             feet_frame_names,
             self.config_opt,
             self.config_cost,
+            height_offset,
             print_info,
             compute_timings)
 
@@ -68,18 +72,36 @@ class LocomotionMPC(PinController):
         self.base_ref_vel_tracking = np.zeros(6)
 
         self.n_foot = len(feet_frame_names)
-        offset_hip_b = self.solver.dyn.get_feet_position_w()
-        offset_hip_b[:, -1] = 0.
-        self.contact_planner = RaiberContactPlanner(
-            feet_frame_names,
-            self.solver.dt_nodes,
-            self.config_gait,
-            offset_hip_b,
-            y_offset=0.02,
-            x_offset=0.04,
-            foot_size=0.0085,
-            cache_cnt=False
-            )
+        self._contact_planner_str = contact_planner 
+
+        if contact_planner.lower() == "raibert":
+            offset_hip_b = self.solver.dyn.get_feet_position_w()
+            offset_hip_b[:, -1] = 0.
+            self.contact_planner = RaiberContactPlanner(
+                feet_frame_names,
+                self.solver.dt_nodes,
+                self.config_gait,
+                offset_hip_b,
+                y_offset=0.02,
+                x_offset=0.04,
+                foot_size=0.0085,
+                cache_cnt=False
+                )
+            self.restrict_cnt = True
+            
+        elif contact_planner.lower() == "custom":
+            self.contact_planner = CustomContactPlanner(
+                feet_frame_names,
+                self.solver.dt_nodes,
+                self.config_gait,
+                )
+            self.restrict_cnt = True
+            
+        else:
+            self.contact_planner = ContactPlanner(feet_frame_names, self.solver.dt_nodes, self.config_gait)
+            self.restrict_cnt = False
+        
+        self.solver.set_contact_restriction(self.restrict_cnt)
         
         # Set params
         self.Kp = self.solver.config_opt.Kp
@@ -167,7 +189,7 @@ class LocomotionMPC(PinController):
         self.base_ref_vel_tracking[:2] += v_des_glob[:2] * self.sim_dt
         self.base_ref_vel_tracking[3] += self.w_des[-1] * self.sim_dt
 
-    def compute_base_ref(self, q_mj : np.ndarray) -> np.ndarray:
+    def compute_base_ref_vel_tracking(self, q_mj : np.ndarray) -> np.ndarray:
         """
         Compute base reference for the solver.
         """
@@ -177,7 +199,7 @@ class LocomotionMPC(PinController):
         base_ref = np.zeros(12)
         base_ref[:2] = np.round(q_mj[:2], 2)
         # Height to config
-        base_ref[2] = self.config_gait.nom_height
+        base_ref[2] = self.config_gait.nom_height + self.height_offset
         # Set yaw
         qw, qx, qy, qz = q_mj[3:7]
         yaw = math.atan2(2.0*(qy*qx + qw*qz), -1. + 2. * (qw*qw + qx*qx))
@@ -232,6 +254,50 @@ class LocomotionMPC(PinController):
         base_ref_e[-2:] = 0.
 
         return base_ref, base_ref_e
+    
+    def compute_base_ref_cnt_restricted(self,
+                                        q_mj : np.ndarray,
+                                        contact_locations : np.ndarray) -> None:
+        """
+        Compute base reference and base terminal reference
+        for a given contact plan.
+        """
+        # Center of first and last set of contact locations
+        # That are non zero (default location to [0., 0., 0.])
+        cnt_loc = np.unique(contact_locations, axis=1)
+        id_non_zero = np.argwhere(
+            np.all(cnt_loc != np.zeros(3), axis=-1)
+        )
+        bin_count = np.bincount(id_non_zero[:, 1])
+        # If some set of locations are all zeros(3)
+        if len(bin_count) > 0:
+            id_first_all_non_zero = np.argmax(bin_count)
+            id_last_all_non_zero = len(bin_count) - np.argmax(bin_count[::-1]) - 1
+            center_first_cnt = np.mean(cnt_loc[:, id_first_all_non_zero, :], axis=0)
+            center_last_cnt = np.mean(cnt_loc[:, id_last_all_non_zero, :], axis=0)
+        # All non zero
+        else:
+            center_first_cnt = np.mean(contact_locations[:, 0, :], axis=0)
+            center_last_cnt = np.mean(contact_locations[:, -1, :], axis=0)
+            
+        # Base references
+        base_ref = np.zeros(12)
+        base_ref_e = np.zeros(12)
+        # Set position
+        alpha = 0.35
+        base_ref[:2] = alpha * center_first_cnt[:2] + (1-alpha) * center_last_cnt[:2]
+        base_ref_e[:2] = center_last_cnt[:2]
+        # Height to config
+        base_ref[2] = self.config_gait.nom_height + self.height_offset
+        base_ref_e[2] = self.config_gait.nom_height + self.height_offset
+
+        # Linear velocity
+        N = contact_locations.shape[1]
+        t_plan = self.dt_nodes * N
+        v_ref = (center_last_cnt - center_first_cnt) / t_plan
+        base_ref[6:8] = v_ref[:2]
+
+        return base_ref, base_ref_e
 
     def reset(self) -> None:
         """
@@ -261,7 +327,6 @@ class LocomotionMPC(PinController):
         # Update goal
         if self.velocity_goal:
             self.v_des, self.w_des[2] = self.velocity_goal.get_velocity()
-        base_ref, base_ref_e = self.compute_base_ref(q_mj)
 
         # Contact parameters
         cnt_sequence = self.contact_planner.get_contacts(self.current_opt_node, self.config_opt.n_nodes+1)
@@ -269,10 +334,16 @@ class LocomotionMPC(PinController):
         if self.config_opt.opt_peak:
             swing_peak = self.contact_planner.get_peaks(self.current_opt_node, self.config_opt.n_nodes+1)
         cnt_locations = None
-        if self.config_opt.cnt_patch_restriction:
-            com_xyz = pin.centerOfMass(self.solver.dyn.pin_model, self.solver.dyn.pin_data)
-            self.contact_planner.set_state(q[:3], v[:3], q[3:6][::-1], com_xyz, self.v_des, self.w_des[-1])
+        if self.restrict_cnt:
+            if self._contact_planner_str.lower() == "raibert":
+                com_xyz = pin.centerOfMass(self.solver.dyn.pin_model, self.solver.dyn.pin_data)
+                self.contact_planner.set_state(q[:3], v[:3], q[3:6][::-1], com_xyz, self.v_des, self.w_des[-1])
             cnt_locations = self.contact_planner.get_locations(self.current_opt_node, self.config_opt.n_nodes+1)
+        
+        # Base reference
+            base_ref, base_ref_e = self.compute_base_ref_cnt_restricted(q_mj, cnt_locations)
+        else:
+            base_ref, base_ref_e = self.compute_base_ref_vel_tracking(q_mj)
 
         self.solver.init(
             self.current_opt_node,
@@ -281,7 +352,7 @@ class LocomotionMPC(PinController):
             base_ref,
             base_ref_e,
             self.joint_ref,
-            self.config_gait.step_height,
+            self.config_gait.step_height + self.height_offset,
             cnt_sequence,
             cnt_locations,
             swing_peak,

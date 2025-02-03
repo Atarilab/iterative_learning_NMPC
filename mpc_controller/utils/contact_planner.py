@@ -102,10 +102,12 @@ class GaitPlanner(ABC):
             self.switch_cnt[foot_id, start_idx] = 1
             self.switch_cnt[foot_id, end_idx] = -1
 
-            peak = end_idx+(start_idx+end_idx)//2
-            o = abs(start_idx - end_idx) // 5
+            # Peak in the middle
+            peak = end_idx + (start_idx+end_idx) // 2
+            o = abs(start_idx - end_idx) // 4
             self.peak_swing[foot_id, end_idx+o:start_idx-o] = 1
-            self.peak_swing[foot_id, peak] = 0.75
+            if peak < len(self.peak_swing):
+                self.peak_swing[foot_id, peak] = 0.75
 
     def get_contacts(self, i_node : int, n_nodes) -> np.ndarray:
         """
@@ -165,7 +167,6 @@ class ContactPlanner(GaitPlanner):
         ):
         super().__init__(feet_frame_names, dt_nodes, config_gait)
     
-    @abstractmethod
     def get_locations(self, i_node : int, n_nodes : int) -> np.ndarray:
         pass
 
@@ -291,7 +292,7 @@ class RaiberContactPlanner(ContactPlanner):
             cnt_pos_w = np.zeros(3)
             time_to_cnt = round(i_mk * self.dt_nodes, 3)
 
-            if time_to_cnt > 0:
+            if time_to_cnt >= 0:
                 t_stance = self.config_gait.nominal_period * self.config_gait.stance_ratio[i_foot]
                 # Compute the Raibert heuristic
                 hip_loc = com_xy + (R_horizontal @ self.offset_hip_b[i_foot])[0:2] + vtrack * time_to_cnt * (1 + self.config_gait.stance_ratio[i_foot])
@@ -310,3 +311,38 @@ class RaiberContactPlanner(ContactPlanner):
                 if self.cache_cnt:
                     self.planed_cnt[i_foot][abs_i_node] = cnt_pos_w
         return contact_locations
+    
+class CustomContactPlanner(ContactPlanner):
+    def __init__(self, feet_frame_names, dt_nodes, config_gait):
+        super().__init__(feet_frame_names, dt_nodes, config_gait)
+        self.contact_locations_full = None
+        self.n_full = 0
+        
+    def set_contact_locations(self, contact_locations : np.ndarray) -> None:
+        """
+        Set contact locations to reach at the end of each gait cycle.
+        
+        Args:
+            contact_locations (np.ndarray): shape [N, feet, 3]
+        """
+        if not (contact_locations.shape[-1] == 3 and
+                contact_locations.shape[-2] == self.n_foot and 
+                len(contact_locations.shape) == 3):
+            raise ValueError(f"contact_locations: incorrect shape ({print(contact_locations.shape)}).")
+
+        # Repeat last location
+        N_REPEAT = 3
+        last_locations = np.repeat(contact_locations[-1, None], N_REPEAT, axis=0)
+        contact_locations_extended = np.concatenate((contact_locations, last_locations), axis=0)
+        # Contact plan at dt interval
+        self.contact_locations_full = np.repeat(contact_locations_extended, self.nodes_per_cycle, axis=0).transpose(1, 0, 2)
+        self.n_full = self.contact_locations_full.shape[1]
+        
+    def get_locations(self, i_node, n_nodes):
+        last_node = i_node + n_nodes
+        # Output shape [n_feet, n_nodes, 3]
+        if last_node < self.n_full:
+            return self.contact_locations_full[:, i_node:last_node, :].copy()
+        # Take only the last contact locations
+        else:
+            return self.contact_locations_full[:, -n_nodes:, :].copy()

@@ -6,26 +6,21 @@ from contact_tamp.traj_opt_acados.interface.acados_helper import HPIPM_MODE
 
 @dataclass
 class MPCQuadrupedCyclic(MPCOptConfig):
-    # MPC Config
+    ### MPC Config
+    # Time horizon (s)
     time_horizon : float = 1.
+    # Number of optimization nodes
     n_nodes : int = 50
-    opt_dt_scale : Tuple[float, float] = (0.5, 1.75)
+    # Replanning frequency
     replanning_freq : int = 20
+    # gain on joint position for torque PD
     Kp : float = 40
+    # gain on joint velocities for torque PD
     Kd : float = 5
-    # Solver config
-    max_iter : int = 1
-    max_qp_iter: int = 6
-    nlp_tol: float = 1e-1
-    qp_tol: float = 1e-2
+    ### Solver Config
+    # Recompile solver
     recompile: bool = True
-    use_cython: bool = False
-    hpipm_mode: HPIPM_MODE = HPIPM_MODE.speed
-    enable_time_opt : bool = False
-    enable_impact_dyn : bool = False
-    real_time_it : bool = False
-    cnt_patch_restriction : bool = False
-    opt_peak : bool = True
-    warm_start_sol : bool = True
-    warm_start_nlp : bool = True
-    warm_start_qp : bool = True
+    # Solver maximum SQP iterations
+    max_iter : int = 1
+    # Maximum qp iteration for one SQP step 
+    max_qp_iter: int = 6
