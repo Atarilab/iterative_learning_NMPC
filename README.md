@@ -108,10 +108,10 @@ Use `print_info` argument of the MPC for debugging purposes.
 ## TODO
 
 ### Simulator
-[] write a simulator to get rid of StateDataRecorder
+- [ ] write a simulator to get rid of StateDataRecorder
 
 ### Big picture
-[] form a proper state and action variable and collect data with data_collection.py
-[] train a policy with behavior_cloning.py and replay it with trained goals
-[] replay the trained policy with untrained goals
+- [ ] form a proper state and action variable and collect data with data_collection.py
+- [ ] train a policy with behavior_cloning.py and replay it with trained goals
+- [ ] replay the trained policy with untrained goals
 
