@@ -74,10 +74,10 @@ class StateDataRecorder(DataRecorder):
         Record simulation data at the current simulation step.
         """
         # Record time and state
-        self.data["time"].append(mj_data.time)
-        self.data["q"].append(mj_data.qpos)
-        self.data["v"].append(mj_data.qvel)
-        self.data["ctrl"].append(mj_data.ctrl)
+        self.data["time"].append(round(mj_data.time, 4))
+        self.data["q"].append(mj_data.qpos.copy())
+        self.data["v"].append(mj_data.qvel.copy())
+        self.data["ctrl"].append(mj_data.ctrl.copy())
 
 def run_traj_opt(args):
     # MPC Controller

@@ -11,7 +11,7 @@ def get_quadruped_config(
         ) -> Tuple[GaitConfig, MPCOptConfig, MPCCostConfig]:
 
         gait_config = GaitConfigFactory.get(gait_name)
-        cost_config = CostConfigFactory.get(robot_name)
+        cost_config = CostConfigFactory.get(robot_name, gait_name)
         opt_config = MPCQuadrupedCyclic()
         
         return gait_config, opt_config, cost_config
