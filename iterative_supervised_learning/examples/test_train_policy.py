@@ -1,4 +1,7 @@
 # This script is for testing training a Neural Network.
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 
 import torch
 import torch.nn as nn
@@ -104,18 +107,19 @@ class BehavioralCloning:
         print(f"Network saved at {save_path}")
     
     def run(self):
-        self.vc_input_size = self.n_state + 5
-        self.cc_input_size = self.n_state + (self.goal_horizon * 3 * 4)
+        # self.vc_input_size = self.n_state + 5
+        # self.cc_input_size = self.n_state + (self.goal_horizon * 3 * 4)
         
+        self.input_size = self.n_state
         self.output_size = self.n_action
         
-        self.vc_network = self.initialize_network(
-            self.vc_input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
+        self.network = self.initialize_network(
+            self.input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
         )
         
-        self.cc_network = self.initialize_network(
-            self.cc_input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
-        )
+        # self.cc_network = self.initialize_network(
+        #     self.cc_input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
+        # )
         
         self.database = Database(limit=self.cfg.database_size, norm_input=self.normalize_policy_input)
         filename = self.cfg.database_path
@@ -124,14 +128,14 @@ class BehavioralCloning:
         self.network_savepath = os.path.join(os.path.dirname(filename), '../network')
         os.makedirs(self.network_savepath, exist_ok=True)
         
-        wandb.init(project='policy_training', config={'goal_type': 'cc'}, name='cc_training')
-        self.database.set_goal_type('cc')
-        self.cc_network = self.train_network(self.cc_network)
-        wandb.finish()
+        # wandb.init(project='policy_training', config={'goal_type': 'cc'}, name='cc_training')
+        # self.database.set_goal_type('cc')
+        # self.cc_network = self.train_network(self.cc_network)
+        # wandb.finish()
         
         wandb.init(project='policy_training', config={'goal_type': 'vc'}, name='vc_training')
         self.database.set_goal_type('vc')
-        self.vc_network = self.train_network(self.vc_network)
+        self.network = self.train_network(self.network)
         wandb.finish()
 
 

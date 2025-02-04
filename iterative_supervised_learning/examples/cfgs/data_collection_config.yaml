@@ -7,6 +7,7 @@ defaults:
 # specify the gait, bound or jump or trot or combined
 gaits: ["trot"]  # trot, jump, bound
 robot_name: "go2"
+goal_type: 'vc'
 # desired velocity
 vx_des_min: 0.0 # m_s
 vx_des_max: 0.5  # m/s
@@ -60,18 +61,19 @@ data_save_path: "./data" # folder to store database snapshots
 suffix: '' # suffix model name for saving
 
 #------------------ Simulation Rollout Parameters ----------------------------
-episode_length: 3000  # steps in rollout
+episode_length: 5000 # steps in rollout
+sim_time: 5
 sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
-n_state: 43
+n_state: 36
 n_action: 12
 goal_horizon: 1
 kp: 2.
 kd: .1
 
 #---------- Data Collection Variables --------------------------
-n_iteration: 20
+n_iteration: 16
 num_pertubations_per_replanning: 2
 
 #---------- Data buffer variables --------------------------
