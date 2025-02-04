@@ -12,14 +12,16 @@ from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
 import random
 
 def rollout_mpc(mode: str = "close_loop",
-                       sim_time: float = 5,
-                       robot_name: str = "go2",
-                       record_dir: str = "./data/",
-                       v_des: List[float] = [0.5, 0.0, 0.0],
-                       save_data: bool = True,
-                       interactive: bool = False,
-                       record_video: bool = False,
-                       visualize: bool = False) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
+                sim_time: float = 5,
+                sim_dt: float = 0.001,
+                start_time: float = 0.0,
+                robot_name: str = "go2",
+                record_dir: str = "./data/",
+                v_des: List[float] = [0.5, 0.0, 0.0],
+                save_data: bool = True,
+                interactive: bool = False,
+                record_video: bool = False,
+                visualize: bool = False) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
     """
     Function to run MPC simulation with specified parameters.
 
@@ -56,6 +58,36 @@ def rollout_mpc(mode: str = "close_loop",
             self.visualize = visualize
 
     args = Args()
+    
+    # NOTE: from Xun's code base-relative foot position is included in the state variable, but how to get
+    # the foot(end-effector) position?
+    def base_wrt_foot(q):
+        """Calculate relative x, y distance of robot base frame from end effector
+
+        Args:
+            q (_type_): current robot configuration
+
+        Returns:
+            out: [x, y] * number of end effectors
+        """    
+        # initilize output array    
+        out = np.zeros(2*len(f_arr))
+        
+        # loop for each end effector
+        for i in range(len(f_arr)):
+            # get translation of end effector from origin frame
+            # TODO: how to get the end-effector position
+            foot = self.pin_robot.data.oMf[self.pin_robot.model.getFrameId(self.f_arr[i])].translation
+            # get relative distance of robot base frame from end effector
+            out[2*i:2*(i+1)] = q[0:2] - foot[0:2]
+            
+        return out
+    
+    # define some global variables
+    n_state = 36
+    n_action = 12
+    nv = 18
+    f_arr = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
 
     # Ensure the record directory exists
     if save_data:
@@ -77,6 +109,27 @@ def rollout_mpc(mode: str = "close_loop",
     # Collect and return recorded data
     if save_data:
         data_file = None
+        
+        # TODO: return as a compact state and action:
+        """
+        state: 
+            1- v (robot velocity): 6 base velocities(3 linear, 3 angular) + 12 joint velocities(4 legs * 3 joints/leg) = 18
+            2- base_wrt_foot(q): relative x,y distances from the robot's base to each foot (4 feet * 2 values(x,y)) = 8  -- this thing is now not implemented
+            3- q[2:] :q is full configuration vector: base position(x,y,z), base orientation(quaternion: x,y,z,w), 12 joint angles, total 19
+                we exclude first 2 elements of q which is (x,y), and have (z,quaternion(4),12 joint angles) -> 17
+            
+            Finally: n_state = 18+8+17 = 43
+        
+        action: 4 legs * 3 joints/leg
+        base: q[0:3]
+        """
+        # define return variables
+        num_time_steps = int(sim_time / sim_dt) - int(start_time / sim_dt)
+        state_history = np.zeros((num_time_steps, n_state))
+        base_history = np.zeros((num_time_steps, 3))
+        vc_goal_history = np.zeros((num_time_steps, 5))
+        
+    
         for file in os.listdir(record_dir):
             if file.startswith("simulation_data_") and file.endswith(".npz"):
                 data_file = os.path.join(record_dir, file)
@@ -85,39 +138,44 @@ def rollout_mpc(mode: str = "close_loop",
         if data_file:
             data = np.load(data_file)
             print("data loaded from", data_file)
-            time_array = data["time"].tolist()
-            q_array = data["q"].tolist()
-            v_array = data["v"].tolist()
-            ctrl_array = data["ctrl"].tolist()
             
-            # Extract only the first three entries
-            q_first_three = [entry[:3] for entry in q_array]
-            v_first_three = [entry[:3] for entry in v_array]
+            time_array = np.array(data["time"])
+            q_array = np.array(data["q"])
+            v_array = np.array(data["v"])
+            ctrl_array = np.array(data["ctrl"])
             
-            return record_dir, time_array, q_first_three, v_first_three, ctrl_array
+            # Extract base position (x, y, z)
+            base_history = q_array[:, :3]
+            
+            # form state history
+            for i in range(num_time_steps):
+                current_time = time_array[i]  # Get current simulation time
+                q = q_array[i]
+                v = v_array[i]
+
+                # Store simulation time in first column
+                state_history[i, 0] = current_time
+
+                # Store velocity in state_history (starting from column 1)
+                state_history[i, 1:nv + 1] = v
+
+                # Store base-relative foot positions (shifted accordingly)
+                # state_history[i, nv + 1:nv + 1 + 2 * len(f_arr)] = base_wrt_foot(q)
+
+                # Store configuration (excluding first two elements)
+                state_history[i, nv + 1:] = q[2:]
+            
+            return record_dir, state_history, base_history, ctrl_array
     return record_dir, [], [], [], []
 
-# TODO: return as a compact state and action:
-    """
-    state: 
-        1- v (robot velocity): 6 base velocities(3 linear, 3 angular) + 12 joint velocities(4 legs * 3 joints/leg) = 18
-        2- base_wrt_foot(q): relative x,y distances from the robot's base to each foot (4 feet * 2 values(x,y)) = 8
-        3- q[2:] :q is full configuration vector: base position(x,y,z), base orientation(quaternion: x,y,z,w), 12 joint angles, total 19
-            we exclude first 2 elements of q which is (x,y), and have (z,quaternion(4),12 joint angles) -> 17
-        
-        Finally: n_state = 18+8+17 = 43
-    
-    action: 4 legs * 3 joints/leg
-    """
+
 
 # Example usage
 if __name__ == "__main__":
-    record_dir, time, q, v, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
+    record_dir, state_history, base_history, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
                                                       record_dir="./data/", v_des=[0.5, 0.1, 0.0],
                                                       save_data=True, interactive=False, record_video=False, visualize=True)
     print(f"Recorded data path: {record_dir}")
-    print(q[:10])
-    print(v[:10])
 
     # if time or q or v or ctrl:
     #     print("Recorded data:")
