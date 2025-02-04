@@ -107,19 +107,11 @@ Use `print_info` argument of the MPC for debugging purposes.
 
 ## TODO
 
-### Solver
-- [ ] euler to tengent space orientation representation
-- [ ] other contact model (e.g. humanoid feet)
-- [ ] linearize cone constraint, see if performance improved
-  
-### Code optimzation
-- [x] use acados `set_flat` to init the solver
-- [ ] eventually C++ implementation
+### Simulator
+- [ ] write a simulator to get rid of StateDataRecorder
 
-### MPC
-- [ ] keyboard velocity control
-- [ ] gait switching
-- [ ] tune better `horizon`, `n_nodes`, and `qp_iter` in `MPCConfigOpt`. Seems that 1s horizon is too much.
-- [ ] try with dt time optimization with `enable_time_opt = True` (this needs to be fixed)
-- [ ] add a plot comparing planed state and robot state.
-- [ ] add new robots 
+### Big picture
+- [ ] form a proper state and action variable and collect data with data_collection.py
+- [ ] train a policy with behavior_cloning.py and replay it with trained goals
+- [ ] replay the trained policy with untrained goals
+
