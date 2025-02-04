@@ -7,7 +7,7 @@ from tkinter.filedialog import askopenfilename
     
 
 class Database():
-    def __init__(self, limit:int, norm_input:bool=True, goal_type:str='cc'):
+    def __init__(self, limit:int, norm_input:bool=True, goal_type:str='vc'):
         
         assert goal_type in ['vc', 'cc'], 'Goal type can only be vc or cc'
         

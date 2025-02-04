@@ -11,6 +11,31 @@ from datetime import datetime
 from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
 import random
 
+# NOTE: from Xun's code base-relative foot position is included in the state variable, but how to get
+# the foot(end-effector) position?
+def base_wrt_foot(q):
+    """Calculate relative x, y distance of robot base frame from end effector
+
+    Args:
+        q (_type_): current robot configuration
+
+    Returns:
+        out: [x, y] * number of end effectors
+    """    
+    # initilize output array    
+    out = np.zeros(2*len(f_arr))
+    
+    # loop for each end effector
+    for i in range(len(f_arr)):
+        # get translation of end effector from origin frame
+        # TODO: how to get the end-effector position
+        foot = self.pin_robot.data.oMf[self.pin_robot.model.getFrameId(self.f_arr[i])].translation
+        # get relative distance of robot base frame from end effector
+        out[2*i:2*(i+1)] = q[0:2] - foot[0:2]
+        
+    return out
+
+
 def rollout_mpc(mode: str = "close_loop",
                 sim_time: float = 5,
                 sim_dt: float = 0.001,
@@ -58,30 +83,19 @@ def rollout_mpc(mode: str = "close_loop",
             self.visualize = visualize
 
     args = Args()
-    
-    # NOTE: from Xun's code base-relative foot position is included in the state variable, but how to get
-    # the foot(end-effector) position?
-    def base_wrt_foot(q):
-        """Calculate relative x, y distance of robot base frame from end effector
+
+    # NOTE: Why is phase percentage a part of vc_goals?
+    def phase_percentage(t:int):
+        """get current gait phase percentage based on gait period
 
         Args:
-            q (_type_): current robot configuration
+            t (int): current sim step (NOT sim time!)
 
         Returns:
-            out: [x, y] * number of end effectors
-        """    
-        # initilize output array    
-        out = np.zeros(2*len(f_arr))
-        
-        # loop for each end effector
-        for i in range(len(f_arr)):
-            # get translation of end effector from origin frame
-            # TODO: how to get the end-effector position
-            foot = self.pin_robot.data.oMf[self.pin_robot.model.getFrameId(self.f_arr[i])].translation
-            # get relative distance of robot base frame from end effector
-            out[2*i:2*(i+1)] = q[0:2] - foot[0:2]
-            
-        return out
+            phi: current gait phase. between 0 - 1
+        """        
+        phi = ((t*sim_dt) % self.gait_params.gait_period)/self.gait_params.gait_period
+        return phi
     
     # define some global variables
     n_state = 36
@@ -127,7 +141,9 @@ def rollout_mpc(mode: str = "close_loop",
         num_time_steps = int(sim_time / sim_dt) - int(start_time / sim_dt)
         state_history = np.zeros((num_time_steps, n_state))
         base_history = np.zeros((num_time_steps, 3))
-        vc_goal_history = np.zeros((num_time_steps, 5))
+        vc_goal_history = np.zeros((num_time_steps, 3))
+        cc_goal_history = np.zeros((num_time_steps, 3))  # Assuming it should be 3D
+
         
     
         for file in os.listdir(record_dir):
@@ -164,15 +180,22 @@ def rollout_mpc(mode: str = "close_loop",
 
                 # Store configuration (excluding first two elements)
                 state_history[i, nv + 1:] = q[2:]
-            
-            return record_dir, state_history, base_history, ctrl_array
-    return record_dir, [], [], [], []
+                
+                # Store vc_goal_history
+                vc_goal_history[i,:] = v_des
+                
+                # Store cc_goal history
+                cc_goal_history = np.zeros((num_time_steps, 1))  # Prevent empty entries
+
+                
+            return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, ctrl_array
+    return record_dir, [], [], [], [], [], []
 
 
 
 # Example usage
 if __name__ == "__main__":
-    record_dir, state_history, base_history, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
+    record_dir, state_history, base_history,vc_goal_history,cc_goal_history, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
                                                       record_dir="./data/", v_des=[0.5, 0.1, 0.0],
                                                       save_data=True, interactive=False, record_video=False, visualize=True)
     print(f"Recorded data path: {record_dir}")
