@@ -68,7 +68,7 @@ episode_length: 5000  # steps in rollout
 sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
-n_state: 36
+n_state: 39
 n_action: 12
 goal_horizon: 1
 kp: 2.

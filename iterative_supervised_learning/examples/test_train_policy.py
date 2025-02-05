@@ -114,9 +114,17 @@ class BehavioralCloning:
         self.output_size = self.n_action
         
         self.network = self.initialize_network(
-            self.input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
+            input_size=self.input_size, 
+            output_size=self.output_size, 
+            num_hidden_layer=self.cfg.num_hidden_layer,
+            hidden_dim=self.cfg.hidden_dim
         )
-        
+       
+        # Print model architecture
+        print("\n=== Initialized Network Structure ===")
+        print(self.network)
+        #==================================================================================
+        input()
         # self.cc_network = self.initialize_network(
         #     self.cc_input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
         # )
