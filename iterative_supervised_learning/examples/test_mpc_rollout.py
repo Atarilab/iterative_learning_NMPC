@@ -102,6 +102,8 @@ def rollout_mpc(mode: str = "close_loop",
     n_action = 12
     nv = 18
     f_arr = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
+    kp = 2.0
+    kd = 0.1
 
     # Ensure the record directory exists
     if save_data:
@@ -143,7 +145,7 @@ def rollout_mpc(mode: str = "close_loop",
         base_history = np.zeros((num_time_steps, 3))
         vc_goal_history = np.zeros((num_time_steps, 3))
         cc_goal_history = np.zeros((num_time_steps, 3))  # Assuming it should be 3D
-
+        action_history = np.zeros((num_time_steps, n_action)) # define action space
         
     
         for file in os.listdir(record_dir):
@@ -186,16 +188,19 @@ def rollout_mpc(mode: str = "close_loop",
                 
                 # Store cc_goal history
                 cc_goal_history = np.zeros((num_time_steps, 1))  # Prevent empty entries
-
                 
-            return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, ctrl_array
+                # construct action history
+                tau = ctrl_array[i,:]
+                action_history[i,:] = (tau + kd * v[6:])/kp + q[7:]
+                
+            return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, action_history
     return record_dir, [], [], [], [], [], []
 
 
 
 # Example usage
 if __name__ == "__main__":
-    record_dir, state_history, base_history,vc_goal_history,cc_goal_history, ctrl = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
+    record_dir, state_history, base_history,vc_goal_history,cc_goal_history, action_history = rollout_mpc(mode="close_loop", sim_time=5, robot_name="go2",
                                                       record_dir="./data/", v_des=[0.5, 0.1, 0.0],
                                                       save_data=True, interactive=False, record_video=False, visualize=True)
     print(f"Recorded data path: {record_dir}")
