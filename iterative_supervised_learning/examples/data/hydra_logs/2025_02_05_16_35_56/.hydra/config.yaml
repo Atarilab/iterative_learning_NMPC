@@ -1,0 +1,64 @@
+gaits:
+- trot
+vx_des_min: 0.0
+vx_des_max: 0.5
+vy_des_min: -0.1
+vy_des_max: 0.1
+w_des_min: 0.0
+w_des_max: 0.0
+num_rollouts_eval: 10
+num_pertubations_per_replanning_eval: 1
+mu_base_pos:
+  trot: 0.0
+  jump: 0.0
+  bound: 0.0
+sigma_base_pos:
+  trot: 0.1
+  jump: 0.0
+  bound: 0.05
+mu_joint_pos:
+  trot: 0.0
+  jump: 0.0
+  bound: 0.0
+sigma_joint_pos:
+  trot: 0.2
+  jump: 0.1
+  bound: 0.1
+mu_base_ori:
+  trot: 0.0
+  jump: 0.0
+  bound: 0.0
+sigma_base_ori:
+  trot: 0.7
+  jump: 0.2
+  bound: 0.2
+mu_vel:
+  trot: 0.0
+  jump: 0.0
+  bound: 0.0
+sigma_vel:
+  trot: 0.2
+  jump: 0.2
+  bound: 0.2
+action_type: pd_target
+normalize_policy_input: true
+save_data: true
+data_save_path: ./data
+suffix: ''
+episode_length: 5000
+sim_dt: 0.001
+n_state: 39
+n_action: 12
+goal_horizon: 1
+kp: 2.0
+kd: 0.1
+database_size: 10000000
+database_path: /home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_05_2025_16_29_39/dataset/database_14.hdf5
+num_hidden_layer: 2
+hidden_dim: 256
+batch_norm: true
+goal_type: vc
+batch_size: 256
+learning_rate: 0.002
+n_epoch: 150
+n_train_frac: 0.9

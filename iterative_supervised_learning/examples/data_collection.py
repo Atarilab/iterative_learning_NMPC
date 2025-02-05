@@ -82,6 +82,8 @@ def rollout_mpc(mode: str = "close_loop",
     n_action = 12
     nv = 18
     f_arr = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
+    kp = 2.0
+    kd = 0.1
 
     # Ensure the record directory exists
     if save_data:
@@ -123,7 +125,7 @@ def rollout_mpc(mode: str = "close_loop",
         base_history = np.zeros((num_time_steps, 3))
         vc_goal_history = np.zeros((num_time_steps, 3))
         cc_goal_history = np.zeros((num_time_steps, 3))  # Assuming it should be 3D
-
+        action_history = np.zeros((num_time_steps, n_action)) # define action space
         
     
         for file in os.listdir(record_dir):
@@ -143,7 +145,7 @@ def rollout_mpc(mode: str = "close_loop",
             # Extract base position (x, y, z)
             base_history = q_array[:, :3]
             
-            # form state history
+            # form state and action history
             for i in range(num_time_steps):
                 current_time = time_array[i]  # Get current simulation time
                 q = q_array[i]
@@ -166,10 +168,14 @@ def rollout_mpc(mode: str = "close_loop",
                 
                 # Store cc_goal history
                 cc_goal_history = np.zeros((num_time_steps, 1))  # Prevent empty entries
-
                 
-            return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, ctrl_array
+                # construct action history
+                tau = ctrl_array[i,:]
+                action_history[i,:] = (tau + kd * v[6:])/kp + q[7:]
+                
+            return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, action_history
     return record_dir, [], [], [], [], [], []
+
 
 class DataCollection:
     def __init__(self, cfg):
@@ -212,9 +218,23 @@ class DataCollection:
     def run(self):
         for i in range(self.n_iteration):
             gait = random.choice(self.gaits)
-            # TODO: grid sample velocity goal
-            v_des = [random.uniform(*self.vx_range), random.uniform(*self.vy_range), random.uniform(*self.w_range)]
             
+            # v_des = [random.uniform(*self.vx_range), random.uniform(*self.vy_range), random.uniform(*self.w_range)]
+            
+            # TODO: grid sample velocity goal
+            
+            # TODO: sample disturbed goals around default goals
+            # Default goal velocity
+            v_des_default = np.array([0.5, 0.1, 0])
+
+            # Define disturbance level
+            noise_std = 0.02  # Adjust this value for more/less disturbance
+
+            # Sample disturbed goals
+            v_des= v_des_default + np.random.normal(0, noise_std, size=3)
+            print("sampled goal is", v_des)
+            # input()
+
             record_dir = f"{self.data_save_path}/iteration_{i}/"
             os.makedirs(record_dir, exist_ok=True)
             

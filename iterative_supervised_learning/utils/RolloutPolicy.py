@@ -274,7 +274,7 @@ def rollout_policy_multithread(policy_path: str, sim_time=5.0, v_des=[0.5, 0, 0]
         tau = kp * (q_des - q[7:]) - kd * v[6:]
         print("action = ", action)
         print("tau = ",tau)
-        input()
+        # input()
         # Apply action
         sim.mj_data.ctrl[:] = tau
 
@@ -313,7 +313,8 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_04_2025_15_05_24/network/policy_final.pth'
+    # policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_05_2025_16_20_08/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_05_2025_16_29_39/network/policy_120.pth'
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)
     rollout_policy_multithread(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)
     # rollout_policy(policy_path=args.policy, sim_time=args.time, gait=args.gait, record_video=args.record_video)
