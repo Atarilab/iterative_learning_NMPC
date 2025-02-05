@@ -163,7 +163,7 @@ def rollout_mpc(mode: str = "close_loop",
             # Extract base position (x, y, z)
             base_history = q_array[:, :3]
             
-            # form state history
+            # form state and action history
             for i in range(num_time_steps):
                 current_time = time_array[i]  # Get current simulation time
                 q = q_array[i]
