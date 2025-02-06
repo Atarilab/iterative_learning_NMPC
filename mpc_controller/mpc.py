@@ -114,6 +114,7 @@ class LocomotionMPC(PinController):
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
+        self.node_since_last_opt : int = 0
         self.solve_async : bool = solve_async
         self.delay : int = 0
         self.last : int = 0
@@ -303,11 +304,18 @@ class LocomotionMPC(PinController):
         """
         Reset the controller state and reinitialize parameters.
         """
-        self.node_dt : float = 0.
-        self.replanning_steps : int = 0
-        self.sim_step : int = 0
-        self.current_opt_node : int = 0
+        self.solver.reset()
+        self.executor = ThreadPoolExecutor(max_workers=1)  # One thread for asynchronous optimization
+        self.optimize_future: Future = None                # Store the future result of optimize
+        self.plan_submitted = False                        # Flag to indicate if a new plan is ready
 
+        self.sim_step : int = 0
+        self.plan_step : int = 0
+        self.current_opt_node : int = 0
+        self.node_since_last_opt : int = 0
+        self.delay : int = 0
+        self.last : int = 0
+        
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : float = np.zeros(3)
 
@@ -527,16 +535,19 @@ class LocomotionMPC(PinController):
         """
         # Get state in pinocchio format
         q_mj, v_mj = mj_data.qpos, mj_data.qvel
+        
+        # Increment the optimization node every dt_nodes
+        # TODO: This may be changed in case of dt time optimization
+        # One may update the opt node according to the last dt results
+        sim_time = round(mj_data.time, 4)
+        if sim_time >= (self.current_opt_node+1) * self.dt_nodes:
+            self.current_opt_node += 1
 
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
 
-            # Find the optimization node of the last plan corresponding to the current simulation time
-            sim_time = round(mj_data.time, 4)
             # Compute replanning time
             self.start_time = sim_time
-            self.current_opt_node += bisect_left(self.time_traj, sim_time)
-            
             # Set solver parameters on first iteration
             self.set_convergence_on_first_iter()
 
@@ -573,22 +584,25 @@ class LocomotionMPC(PinController):
 
                 # Apply delay
                 if (self.solve_async and self.sim_step != 0):
-                    replanning_time = mj_data.time - self.start_time
-                    self.delay = round(replanning_time / self.sim_dt)
+                    replanning_time = sim_time - self.start_time
+                    self.delay = math.ceil(replanning_time / self.sim_dt)
                 else:
                     self.delay = 0
 
                 self.plan_step = self.delay
-                self.time_traj += self.time_start_plan
                 self.plan_submitted = False
-
+                
                 # Plot current state vs optimization plan
                 # self.plot_current_vs_plan(q_mj, v_mj)
 
             except Exception as e:
                 print("Optimization error:\n")
                 print(traceback.format_exc())
+                self.optimize_future: Future = None
+                self.diverged = True
                 self.plan_submitted = False
+                self.executor.shutdown(wait=False, cancel_futures=True)
+                time.sleep(0.1)
         
         q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
         torques = self.solver.dyn.id_torques(
