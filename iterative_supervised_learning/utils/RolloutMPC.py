@@ -134,21 +134,26 @@ class RolloutMPC:
         sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
         sim.vs.track_obj = "base"
         #===============================================
-        # q = np.copy(robot_desc.q0)  # Default initial position
-        # v = np.zeros(mpc.pin_model.nv)  # Default initial velocity
-        # q[0:3] = [0.0, 0.0, 0.5]  # Example: Initial x, y, and z position
-        # v[:] = 0.0
-        # print("q",q)
-        # print("v",v)
-        # mpc.q_full = q
-        # mpc.v_full = v
+        # q_mj = robot_desc.q0  # Default initial position
+        # v_mj = np.zeros(mpc.pin_model.nv)  # Default initial velocity
+        # q,v = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+        # q[0:3] = [0.5, 0.2, 0.1]  # Example: Initial x, y, and z position
+        # q_mj += np.random.uniform(low=-0.1, high=0.1, size=q_mj.shape)
+        # print("q",q_mj)
+        # print("v",v_mj)
+        # input()
+        # mpc.solver.setup_initial_state(q,v)
+        # sim.mj_data.qpos = q_mj
+        # sim.mj_data.qvel = v_mj
+        # sim._set_state(q_mj,v_mj)
         #==================================================
         sim.run(
             sim_time=self.args.sim_time,
             controller=mpc,
             visual_callback=vis_feet_pos,
             data_recorder=data_recorder,
-            use_viewer=self.args.visualize
+            use_viewer=self.args.visualize,
+            rand_initial_value= True
         )
             
         if self.args.visualize:
