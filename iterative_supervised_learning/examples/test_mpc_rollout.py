@@ -47,28 +47,7 @@ def rollout_mpc(mode: str = "close_loop",
                 interactive: bool = False,
                 record_video: bool = False,
                 visualize: bool = False) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
-    """
-    Function to run MPC simulation with specified parameters.
 
-    Args:
-        mode (str): Mode of simulation ('traj_opt', 'open_loop', 'close_loop').
-        sim_time (float): Total simulation time.
-        robot_name (str): Name of the robot.
-        record_dir (str): Directory to save recorded data.
-        v_des (List[float]): Desired velocity (x, y, yaw).
-        save_data (bool): Whether to save recorded data.
-        interactive (bool): Use interactive mode for setting velocity goals.
-        record_video (bool): Record a video of the simulation.
-        visualize (bool): Enable or disable visualization.
-
-    Returns:
-        Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
-            - Path to the recorded data directory.
-            - Time array of the simulation.
-            - Recorded positions (q).
-            - Recorded velocities (v).
-            - Recorded control inputs (ctrl).
-    """
     # Create argparse-like structure
     class Args:
         def __init__(self):
