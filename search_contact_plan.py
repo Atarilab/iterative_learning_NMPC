@@ -7,7 +7,7 @@ from mj_pin.abstract import VisualCallback, DataRecorder
 
 from search.data_utils import SteppingStonesDataRecorder_Visual
 from mpc_controller.mpc import LocomotionMPC
-from scene.stepping_stones import MjSteppingStones
+from search.scene.stepping_stones import MjSteppingStones
 from search.utils.a_star import a_star_search, reconstruct_path
 from search.graph_stepping_stones import SteppingStonesGraph
 from main import ReferenceVisualCallback
