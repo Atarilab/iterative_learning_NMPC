@@ -315,7 +315,10 @@ class RaiberContactPlanner(ContactPlanner):
 class CustomContactPlanner(ContactPlanner):
     def __init__(self, feet_frame_names, dt_nodes, config_gait):
         super().__init__(feet_frame_names, dt_nodes, config_gait)
+        self._contact_locations = None
         self.contact_locations_full = None
+        self._contact_sequence = None
+        self.contact_sequence_full = None
         self.n_full = 0
         
     def set_contact_locations(self, contact_locations : np.ndarray) -> None:
@@ -330,6 +333,9 @@ class CustomContactPlanner(ContactPlanner):
                 len(contact_locations.shape) == 3):
             raise ValueError(f"contact_locations: incorrect shape ({print(contact_locations.shape)}).")
 
+        # Save original contact plan
+        self._contact_locations = contact_locations
+        
         # Repeat last location
         N_REPEAT = 3
         last_locations = np.repeat(contact_locations[-1, None], N_REPEAT, axis=0)
@@ -337,7 +343,7 @@ class CustomContactPlanner(ContactPlanner):
         # Contact plan at dt interval
         self.contact_locations_full = np.repeat(contact_locations_extended, self.nodes_per_cycle, axis=0).transpose(1, 0, 2)
         self.n_full = self.contact_locations_full.shape[1]
-        
+
     def get_locations(self, i_node, n_nodes):
         last_node = i_node + n_nodes
         # Output shape [n_feet, n_nodes, 3]
@@ -346,3 +352,22 @@ class CustomContactPlanner(ContactPlanner):
         # Take only the last contact locations
         else:
             return self.contact_locations_full[:, -n_nodes:, :].copy()
+        
+    def set_periodic_sequence(self, cnt_sequence : np.ndarray) -> None:
+        """
+        Set contact sequence for the next optimization problem.
+        
+        Args:
+            cnt_sequence (np.ndarray): shape [feet, N]
+        """
+        if cnt_sequence.shape != self.gait_sequence.shape:
+            raise ValueError(f"Invalid cnt_sequence shape, should be of shape {self.gait_sequence.shape}.")
+        
+        self.gait_sequence = cnt_sequence.copy()
+        self.contact_sequence_full = None
+    
+    def get_contacts(self, i_node, n_nodes) -> np.ndarray:
+        if self.contact_sequence_full is not None and n_nodes + i_node <= len(self.contact_locations_full):
+            return self.contact_sequence_full[:, i_node:i_node+n_nodes]
+        else:
+            return super().get_contacts(i_node, n_nodes)

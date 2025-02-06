@@ -55,11 +55,23 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             )
     
         # Solver params
+        self.reset()
+
+        self.default_normal = np.array([0., 0., 1.])
+
+        # Setup timings
+        self.compute_timings = compute_timings
+        self.timings = defaultdict(list)
+        
+    def reset(self):
+        self.last_node = 0
         self.setup(self.config_opt.recompile,
                    self.config_opt.use_cython,
                    self.config_opt.real_time_it,
                    self.config_opt.max_qp_iter,
                    self.config_opt.hpipm_mode)
+        self.timings = defaultdict(list)
+        
         self.set_max_iter(self.config_opt.max_iter)
         self.set_warm_start_inner_qp(self.config_opt.warm_start_qp)
         self.set_warm_start_nlp(self.config_opt.warm_start_nlp)
@@ -78,13 +90,6 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         self.a_sol = np.zeros_like(self.inputs[self.dyn.a.name])
         self.f_sol = np.zeros((self.config_opt.n_nodes, 4, 3))
         self.dt_node_sol = np.zeros((self.config_opt.n_nodes))
-
-        self.default_normal = np.array([0., 0., 1.])
-        self.last_node = 0
-
-        # Setup timings
-        self.compute_timings = compute_timings
-        self.timings = defaultdict(list)
         
     def set_contact_restriction(self, restrict : bool = True):
         self.restrict_cnt = restrict
