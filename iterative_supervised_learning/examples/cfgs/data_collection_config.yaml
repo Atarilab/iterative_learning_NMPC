@@ -73,7 +73,7 @@ kp: 2.
 kd: .1
 
 #---------- Data Collection Variables --------------------------
-n_iteration: 16
+n_iteration: 20
 num_pertubations_per_replanning: 2
 
 #---------- Data buffer variables --------------------------

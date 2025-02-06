@@ -121,10 +121,10 @@ class BehavioralCloning:
         )
        
         # Print model architecture
-        # print("\n=== Initialized Network Structure ===")
-        # print(self.network)
+        print("\n=== Initialized Network Structure ===")
+        print(self.network)
         #==================================================================================
-        # input()
+        input()
         # self.cc_network = self.initialize_network(
         #     self.cc_input_size, self.output_size, self.cfg.num_hidden_layer, self.cfg.hidden_dim
         # )
