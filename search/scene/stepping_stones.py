@@ -14,7 +14,6 @@ class SteppingStonesBase:
                  size_ratio: Tuple[float, float] = (0.65, 0.65),
                  randomize_pos_ratio: float = 0.,
                  randomize_height_ratio: float = 0.,
-                 N_to_remove: int = 0,
                  shape : str = "cylinder",
                  height : float = 0.1,
                  **kwargs) -> None:
@@ -37,7 +36,6 @@ class SteppingStonesBase:
         self.spacing = list(spacing)
         self.size_ratio = list(size_ratio)
         self.randomize_height_ratio = randomize_height_ratio
-        self.N_to_remove = N_to_remove
         self.shape = shape
         self.height = height
 
@@ -46,6 +44,7 @@ class SteppingStonesBase:
         self.N = self.I * self.J
         self.id_to_remove = np.array([], dtype=np.int32)
         self.id_kept = np.arange(self.N)
+        self.positions = np.zeros((self.N, 3))
         self.init_stones()
         
     def init_stones(self) -> None:
@@ -56,6 +55,7 @@ class SteppingStonesBase:
         self._init_size()
         self._randomize_height()
         self._randomize_center_location()
+        self.positions_kept = self.positions
         
     def _init_center_location(self) -> None:
         """
@@ -99,7 +99,7 @@ class SteppingStonesBase:
         self.positions[:, 0] += dx
         self.positions[:, 1] += dy
         
-    def remove_random(self, N_to_remove: int = -1, keep: list[int] = []) -> None:
+    def remove_random(self, n_to_remove: int = -1, keep: list[int] = []) -> List[int]:
         """
         Randomly remove stepping stones.
         
@@ -111,12 +111,12 @@ class SteppingStonesBase:
         probs = np.ones((self.N,))
         probs[keep] = 0.
         probs /= np.sum(probs)
-        
-        if N_to_remove == -1:
-            N_to_remove = self.N_to_remove
-        
-        self.id_to_remove = np.random.choice(self.N, N_to_remove, replace=False, p=probs)
+
+        self.id_to_remove = np.random.choice(self.N, n_to_remove, replace=False, p=probs)
         self.id_kept = np.setdiff1d(np.arange(self.N), self.id_to_remove)
+        self.positions[self.id_to_remove] = np.nan
+        
+        return
             
     def get_closest(self, positions_xyz: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -296,7 +296,7 @@ class MjSteppingStones(SteppingStonesBase):
                         mj_model,
                         mj_data,
                         feet_frames : List[str],
-                        remove_random : int = 0,
+                        n_to_remove : int = 0,
                         randomize_state : bool = False,
                         random_goal : bool = True,
                         ) -> None:
@@ -347,9 +347,10 @@ class MjSteppingStones(SteppingStonesBase):
         id_start = self.set_start_position(feet_pos).tolist()
         
         # Remove random
-        if remove_random > 0:
+        if n_to_remove > 0:
+            print("remove random")
             id_keep = id_start + id_goal
-            self.remove_random(remove_random, id_keep)
+            self.remove_random(n_to_remove, id_keep)
             
         return id_start, id_goal, q0, v0
 

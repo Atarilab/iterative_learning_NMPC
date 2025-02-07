@@ -89,7 +89,7 @@ class SearchConfig(ConfigBase):
     size_ratio : tuple[float, float] = (0.45, 0.45),
     randomize_pos_ratio : float = 0.75,
     randomize_height_ratio : float = 0.1,
-    n_remove : int = 0,
+    n_remove : int = 50,
     height : float = 0.2,
     shape : str = "box",
     max_step_size : float = 0.31,
@@ -127,7 +127,7 @@ def search_contact_plan(search_config : SearchConfig) -> tuple[MjSteppingStones,
         # Construct graph
         n_feet = len(cfg.feet_frames_mj)
         graph = SteppingStonesGraph(
-            stones.positions[stones.id_kept],
+            stones.positions,
             n_feet=n_feet,
             max_step_size=cfg.max_step_size,
             max_foot_displacement=cfg.max_foot_displacement
