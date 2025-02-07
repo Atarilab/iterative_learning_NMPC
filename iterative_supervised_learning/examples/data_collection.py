@@ -57,14 +57,11 @@ class DataCollection:
         print(f"Dataset saved at iteration {iteration+1}")
     
     def run(self):
+        # very basic running script
         for i in range(self.n_iteration):
             gait = random.choice(self.gaits)
             
-            # v_des = [random.uniform(*self.vx_range), random.uniform(*self.vy_range), random.uniform(*self.w_range)]
-            
-            # TODO: grid sample velocity goal
-            
-            # TODO: sample disturbed goals around default goals
+            # Sample disturbed goals around default goals
             # Default goal velocity
             v_des_default = np.array([0.5, 0.1, 0])
 
@@ -99,6 +96,202 @@ class DataCollection:
                 print('mpc rollout failed')
             
             self.save_dataset(i)
+    
+    def run_rand_initial_condition(self):
+        for i in range(self.n_iteration):
+            gait = random.choice(self.gaits)
+            
+            # Sample disturbed goals around default goals
+            # Default goal velocity
+            # v_des_default = np.array([0.5, 0.1, 0])
+
+            # Define disturbance levels for each entry
+            # noise_std = np.array([0.02, 0.01, 0.0])  # No noise for the third entry
+
+            # Sample disturbed goals
+            # v_des = v_des_default + np.random.normal(0, noise_std, size=3)
+            
+            v_des = [0.5,0.1,0.0]
+            print("Sampled goal is:", v_des)
+
+            # TODO: set customized initial condition
+            
+
+            record_dir = f"{self.data_save_path}/iteration_{i}/"
+            os.makedirs(record_dir, exist_ok=True)
+            
+            _, state_history, base_history, vc_goal_history, cc_goal_history, ctrl = rollout_mpc(
+                mode="close_loop",
+                sim_time=self.episode_length * self.sim_dt,
+                robot_name=self.cfg.robot_name,
+                record_dir=record_dir,
+                v_des=v_des,
+                save_data=True,
+                visualize=False,
+                randomize_initial_state=True
+            )
+            print(f"Shape of states: {state_history.shape}, Type: {type(state_history)}")
+            if len(state_history) != 0:
+                self.database.append(states=state_history, vc_goals=vc_goal_history, cc_goals=cc_goal_history, actions=ctrl)
+                print("MPC data saved into database")
+                print('database size: ' + str(len(self.database)))  
+            else:
+                print('mpc rollout failed')
+            
+            self.save_dataset(i)
+    
+    def run_perturbed_mpc_when_replanning(self):
+        nv = 18
+        nq = 17
+        plan_freq = 1000 #replan every 1000 steps
+        n_state = 35
+        for i in range(self.n_iteration):
+            print(f"============ Iteration {i+1}  ==============")
+            v_des = [0.5,0.1,0.0]
+            print("Sampled goal is:", v_des)
+            
+            record_dir = f"{self.data_save_path}/iteration_{i}/"
+            os.makedirs(record_dir, exist_ok=True)
+            # rollout nominal trajectory
+            _, nominal_state_history, nominal_base_history, nominal_vc_goal_history, nominal_cc_goal_history, nominal_ctrl = rollout_mpc(
+                mode="close_loop",
+                sim_time=self.episode_length * self.sim_dt,
+                robot_name=self.cfg.robot_name,
+                record_dir=record_dir,
+                v_des=v_des,
+                save_data=True,
+                visualize=True,
+                randomize_initial_state=True,
+            )
+            # print("first line of nominal_base_history = ",nominal_base_history[0])
+            # print("shape of nominal_base_history = ",np.shape(nominal_base_history))
+            
+            nominal_pos = np.concatenate((nominal_base_history[:,:2], nominal_state_history[:, nv:]), axis=1)
+            nominal_vel = nominal_state_history[:, :nv]  # This line is fine
+
+            # print("shape of nominal_pos = ",np.shape(nominal_pos))
+            # print("shape of nominal_vel = ",np.shape(nominal_vel))
+            
+            # Calculate replanning points
+            replanning_points = np.arange(0, self.episode_length, plan_freq)
+            print("Replanning points:", replanning_points)
+            # input()
+
+            # Rollout MPC from each replanning point
+            for i_replanning in replanning_points:
+                print(f"Replanning at step {i_replanning}")
+
+                # Extract nominal state at replanning point
+                initial_q = nominal_pos[i_replanning]  # Position (full state q)
+                initial_v = nominal_vel[i_replanning]  # Velocity
+                # print(initial_q)
+                # print(np.shape(initial_q))
+                # print(initial_v)
+                # print(np.shape(initial_v))
+                # input()
+                
+                initial_state = np.concatenate((initial_q, initial_v), axis=0)
+
+                # Run MPC from this replanning state
+                __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, nominal_ctrl = rollout_mpc(
+                    mode="close_loop",
+                    sim_time=(self.episode_length - i_replanning) * self.sim_dt,  # Remaining time
+                    robot_name=self.cfg.robot_name,
+                    record_dir=record_dir + f"/replanning_{i_replanning}/",
+                    v_des=v_des,
+                    save_data=True,
+                    visualize=True,
+                    randomize_initial_state=True,
+                    set_initial_state=initial_state,  # Set initial state for MPC
+                )
+                
+
+    def run_perturbed_mpc_when_replanning_test(self):
+        nv = 18
+        nq = 17
+        plan_freq = 1000  # Replan every 1000 steps
+        n_state = 35
+
+        for i in range(self.n_iteration):
+            print(f"============ Iteration {i+1}  ==============")
+            v_des = np.array([0.5, 0.1, 0.0])  # Sampled goal
+            print("Sampled goal is:", v_des)
+
+            record_dir = f"{self.data_save_path}/iteration_{i}/"
+            os.makedirs(record_dir, exist_ok=True)
+
+            # Rollout nominal trajectory
+            _, nominal_state_history, nominal_base_history, nominal_vc_goal_history, nominal_cc_goal_history, nominal_ctrl = rollout_mpc(
+                mode="close_loop",
+                sim_time=self.episode_length * self.sim_dt,
+                robot_name=self.cfg.robot_name,
+                record_dir=record_dir,
+                v_des=v_des,
+                save_data=True,
+                visualize=False,
+                randomize_initial_state=False,
+            )
+
+            if len(nominal_state_history) == 0:
+                print(f"Nominal MPC rollout failed at iteration {i}")
+                continue  # Skip to next iteration if nominal rollout fails
+
+            # Compute nominal position (q) and velocity (v)
+            nominal_pos = np.concatenate((nominal_base_history[:, :2], nominal_state_history[:, nv:]), axis=1)
+            nominal_vel = nominal_state_history[:, :nv]
+
+            # Store nominal trajectory in database
+            self.database.append(
+                states=nominal_state_history,
+                vc_goals=nominal_vc_goal_history,
+                cc_goals=nominal_cc_goal_history,
+                actions=nominal_ctrl,
+            )
+            print("Nominal trajectory saved in database.")
+
+            # Calculate replanning points
+            replanning_points = np.arange(0, self.episode_length, plan_freq)
+            print("Replanning points:", replanning_points)
+
+            # Rollout MPC from each replanning point
+            for i_replanning in replanning_points:
+                print(f"Replanning at step {i_replanning}")
+
+                # Extract nominal state at replanning point
+                initial_q = nominal_pos[i_replanning]  # Position (full state q)
+                initial_v = nominal_vel[i_replanning]  # Velocity
+                initial_state = np.concatenate((initial_q, initial_v), axis=0)  # Full initial state
+
+                # Run MPC from this replanning state
+                __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
+                    mode="close_loop",
+                    sim_time=(self.episode_length - i_replanning) * self.sim_dt,  # Remaining time
+                    robot_name=self.cfg.robot_name,
+                    record_dir=record_dir + f"/replanning_{i_replanning}/",
+                    v_des=v_des,
+                    save_data=True,
+                    visualize=False,
+                    randomize_initial_state=True,  # Use predefined state
+                    set_initial_state=initial_state,
+                )
+
+                if len(replanned_state_history) == 0:
+                    print(f"Replanned MPC rollout failed at step {i_replanning}")
+                    continue  # Skip if the rollout failed
+
+                # Store replanned trajectory in database
+                self.database.append(
+                    states=replanned_state_history,
+                    vc_goals=replanned_vc_goal_history,
+                    cc_goals=replanned_cc_goal_history,
+                    actions=replanned_ctrl,
+                )
+                print(f"Replanned trajectory at step {i_replanning} saved in database.")
+
+            # Save dataset after each iteration
+            self.save_dataset(i)
+
+            
 
 # Example usage without database
 # if __name__ == "__main__":
@@ -161,7 +354,14 @@ class DataCollection:
 @hydra.main(config_path='cfgs', config_name='data_collection_config.yaml',version_base="1.1")
 def main(cfg):
     dc = DataCollection(cfg)
-    dc.run()
+    # default run is gather n_iteration nominal mpc trajectories
+    # dc.run()
+    
+    # since default run gather too much irrelevant data, I try to randomize initial state for different mpc rollouts
+    # dc.run_rand_initial_condition()
+    
+    # try rollout with replanning
+    dc.run_perturbed_mpc_when_replanning_test()
 
 if __name__ == '__main__':
     main()
