@@ -96,7 +96,7 @@ class SearchConfig(ConfigBase):
     max_foot_displacement : float = 0.265,
     
     def __post_init__(self):
-        self.file_name = "search_config.yaml",
+        self.file_name = "search_config.yaml"
 
 
 def search_contact_plan(search_config : SearchConfig) -> tuple[MjSteppingStones, list[tuple[int, ...]], np.ndarray, np.ndarray]:

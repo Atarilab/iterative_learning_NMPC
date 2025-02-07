@@ -5,12 +5,12 @@ from dataclasses import dataclass
 @dataclass
 class ConfigBase:
     def __post_init__(self):
-        self.file_name = "config.yaml",
+        self.file_name = "config.yaml"
     
-    @staticmethod
-    def _path_from_dir(file_dir: str) -> str:
+    def _path_from_dir(self, file_dir: str) -> str:
         os.makedirs(file_dir, exist_ok=True)
-        file_path = os.path.join(file_dir,file_path)
+        print(file_dir, self.file_name)
+        file_path = os.path.join(file_dir, self.file_name)
         return file_path
     
     def save(self, file_dir: str) -> None:
@@ -19,14 +19,17 @@ class ConfigBase:
         """
         file_path = self._path_from_dir(file_dir)
         with open(file_path, 'w') as f:
-            yaml.dump(self.__dict__, f)
+            yaml.safe_dump(self.__dict__, f)
 
-    @staticmethod
-    def load(file_dir: str) -> 'ConfigBase':
+    def load(self, file_dir: str) -> 'ConfigBase':
         """
         Load the experiment configuration from a file.
         """
-        file_path = ConfigBase._path_from_dir(file_dir)
+        file_path = self._path_from_dir(file_dir)
         with open(file_path, 'r') as f:
             data = yaml.safe_load(f)
-        return ConfigBase(**data)
+        
+        for k, v in data.items():
+            setattr(self, k, v)
+        
+        return self
