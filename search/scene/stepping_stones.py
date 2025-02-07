@@ -348,7 +348,6 @@ class MjSteppingStones(SteppingStonesBase):
         
         # Remove random
         if n_to_remove > 0:
-            print("remove random")
             id_keep = id_start + id_goal
             self.remove_random(n_to_remove, id_keep)
             
