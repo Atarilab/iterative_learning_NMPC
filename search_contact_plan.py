@@ -6,6 +6,8 @@ from data_collection.utils import search_contact_plan, run_contact_plan, SearchC
 Node = tuple[int, int, int, int]
 
 ROBOT_NAME = "go2"
+EXPERIMENT_DIR = "./data/test/"
+
 robot_description = get_robot_description(ROBOT_NAME)
 feet_frames_mj = ["FL", "FR", "RL", "RR"]
 feet_frames_pin = [foot + "_foot" for foot in feet_frames_mj]
@@ -34,7 +36,7 @@ run_cfg = RunConfig(
     collision=True
 )
 
-stones, path, q0, v0 = search_contact_plan(search_cfg)
+stones, path, q0, v0 = search_contact_plan(search_cfg, EXPERIMENT_DIR)
 
 # New MPC instance
 mpc = LocomotionMPC(
@@ -54,4 +56,4 @@ n_cycle_on_goal = 3
 sim_time = (len(path) + n_cycle_on_goal) * mpc.config_gait.nominal_period
 
 # Run sim
-success = run_contact_plan(mpc, sim_time, stones, path, q0, v0, run_cfg, use_viewer=True)
+success = run_contact_plan(mpc, sim_time, stones, path, q0, v0, run_cfg, use_viewer=True, record_dir=EXPERIMENT_DIR)

@@ -1,4 +1,5 @@
 import mujoco
+import os
 import numpy as np
 
 from .config import SearchConfig, RunConfig
@@ -62,6 +63,17 @@ def search_contact_plan(search_config : SearchConfig, record_dir : str = "") -> 
     if record_dir:
         search_config.save(record_dir)
         stones.save(record_dir)
+        # Save initial conditions
+        file_name = os.path.join(record_dir, "initial_state.npz")
+        np.savez(file_name,
+                 q0=q0,
+                 v0=v0,
+                 )
+        # Save path
+        file_name = os.path.join(record_dir, "path_found.npz")
+        np.savez(file_name,
+                 path=np.array(path, dtype=np.int32),
+                 )
         
     return stones, path, q0, v0
     
@@ -101,5 +113,11 @@ def run_contact_plan(
             allowed_collision=allowed_collision
             )
     
-    return not(sim.collided)
+    # Delete data recorded
+    if sim.collided:
+        file_name = os.path.join(record_dir, SteppingStonesDataRecorder_Visual.FILE_NAME)
+        if os.path.exists(file_name):
+            os.remove(file_name)
+        return False
     
+    return True

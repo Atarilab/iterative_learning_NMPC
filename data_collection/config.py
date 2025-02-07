@@ -9,7 +9,6 @@ class ConfigBase:
     
     def _path_from_dir(self, file_dir: str) -> str:
         os.makedirs(file_dir, exist_ok=True)
-        print(file_dir, self.file_name)
         file_path = os.path.join(file_dir, self.file_name)
         return file_path
     
