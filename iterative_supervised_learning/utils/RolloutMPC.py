@@ -71,7 +71,7 @@ class StateDataRecorder(DataRecorder):
         except Exception as e:
             print(f"Error saving data: {e}")
 
-    def _record(self, mj_data) -> None:
+    def record(self, mj_data) -> None:
         """
         Record simulation data at the current simulation step.
         """
@@ -153,7 +153,6 @@ class RolloutMPC:
             visual_callback=vis_feet_pos,
             data_recorder=data_recorder,
             use_viewer=self.args.visualize,
-            rand_initial_value= True
         )
             
         if self.args.visualize:
