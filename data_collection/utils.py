@@ -1,5 +1,5 @@
 import mujoco
-import os
+import os, shutil
 import numpy as np
 
 from .config import SearchConfig, RunConfig
@@ -103,6 +103,11 @@ def run_contact_plan(
     if record_dir or use_viewer:
         data_recorder = SteppingStonesDataRecorder_Visual(controller, record_dir)
     
+    # Save config and video
+    if record_dir:
+        run_config.save(record_dir)
+        sim.vs.video_dir = os.path.join(record_dir, "recording.mp4")
+        
     # Run sim
     sim.run(sim_time,
             use_viewer=use_viewer,
@@ -113,11 +118,9 @@ def run_contact_plan(
             allowed_collision=allowed_collision
             )
     
-    # Delete data recorded
+    # Delete record dir if failed
     if sim.collided:
-        file_name = os.path.join(record_dir, SteppingStonesDataRecorder_Visual.FILE_NAME)
-        if os.path.exists(file_name):
-            os.remove(file_name)
+        shutil.rmtree(record_dir)
         return False
     
     return True
