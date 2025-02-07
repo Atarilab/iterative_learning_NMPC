@@ -2,13 +2,14 @@ import mujoco
 import numpy as np
 
 from .config import SearchConfig, RunConfig
+from .data_recorder import SteppingStonesDataRecorder_Visual
 from mj_pin.simulator import Simulator
 from mj_pin.abstract import Controller
 from search.scene.stepping_stones import MjSteppingStones
 from search.graph_stepping_stones import SteppingStonesGraph
 from search.utils.a_star import a_star_search, reconstruct_path
 
-def search_contact_plan(search_config : SearchConfig) -> tuple[MjSteppingStones, list[tuple[int, ...]], np.ndarray, np.ndarray]:
+def search_contact_plan(search_config : SearchConfig, record_dir : str = "") -> tuple[MjSteppingStones, list[tuple[int, ...]], np.ndarray, np.ndarray]:
     
     cfg = search_config
     
@@ -58,6 +59,10 @@ def search_contact_plan(search_config : SearchConfig) -> tuple[MjSteppingStones,
         )
         path = reconstruct_path(came_from, start_node, goal_node)
         
+    if record_dir:
+        search_config.save(record_dir)
+        stones.save(record_dir)
+        
     return stones, path, q0, v0
     
 def run_contact_plan(
@@ -70,17 +75,24 @@ def run_contact_plan(
     run_config : RunConfig,
     use_viewer : bool = False,
     record_video : bool = False,
+    record_dir : str = "",
     ) -> bool:
     
     sim = Simulator(run_config.xml_path, run_config.sim_dt, verbose=False)
     start, goal = path[0], path[-1]
     stones.setup_sim(sim, q0, v0, start, goal)
     
+    data_recorder = None
+    if record_dir or use_viewer:
+        data_recorder = SteppingStonesDataRecorder_Visual(controller, record_dir)
+    
     # Run sim
     sim.run(sim_time,
             use_viewer=use_viewer,
             controller=controller,
             record_video=record_video,
+            data_recorder=data_recorder if record_dir else None,
+            visual_callback=data_recorder,
             )
     
     return not(sim.collided)
