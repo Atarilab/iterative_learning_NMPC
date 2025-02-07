@@ -114,6 +114,10 @@ class RolloutMPC:
         sim.visualize_trajectory(q_plan_mj, time_traj, record_video=self.args.record_video)
 
     def run_mpc(self):
+        # init
+        nq = 19
+        nv = 18
+        
         robot_desc = get_robot_description(self.args.robot_name)
         feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]        
         mpc = LocomotionMPC(
@@ -133,20 +137,28 @@ class RolloutMPC:
         data_recorder = StateDataRecorder(self.args.record_dir) if self.args.save_data else None
         sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
         sim.vs.track_obj = "base"
+        q_mj = robot_desc.q0  # Default initial position
+        v_mj = np.zeros(mpc.pin_model.nv)  # Default initial velocity
+        
         #===============================================
-        # q_mj = robot_desc.q0  # Default initial position
-        # v_mj = np.zeros(mpc.pin_model.nv)  # Default initial velocity
-        # q,v = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
-        # q[0:3] = [0.5, 0.2, 0.1]  # Example: Initial x, y, and z position
-        # q_mj += np.random.uniform(low=-0.1, high=0.1, size=q_mj.shape)
-        # print("q",q_mj)
-        # print("v",v_mj)
-        # input()
-        # mpc.solver.setup_initial_state(q,v)
-        # sim.mj_data.qpos = q_mj
-        # sim.mj_data.qvel = v_mj
-        # sim._set_state(q_mj,v_mj)
+        if self.args.customized_initial_state is not None:
+            customized_state = np.array(self.args.customized_initial_state)  # Convert list to NumPy array
+            # print(customized_state)
+            # print("shape of customized_state", customized_state)
+            # input()
+            q_mj = customized_state[:nq] 
+            v_mj = customized_state[nq:]
+
+        #===============================================      
+        if self.args.randomize_initial_state:
+            q_mj += np.random.uniform(low=-0.05, high=0.05, size=q_mj.shape)
+            # print("q",q_mj)
+            # print("v",v_mj)
+            # Set customized initial condition
+        
         #==================================================
+        sim.set_initial_state(q0=q_mj,v0=v_mj)
+        
         sim.run(
             sim_time=self.args.sim_time,
             controller=mpc,
@@ -204,7 +216,9 @@ def rollout_mpc(mode: str = "close_loop",
                 save_data: bool = True,
                 interactive: bool = False,
                 record_video: bool = False,
-                visualize: bool = False) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]]]:
+                visualize: bool = False,
+                randomize_initial_state: bool = False,
+                set_initial_state: List[float] = None) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]],]:
 
     # Create argparse-like structure
     class Args:
@@ -218,26 +232,17 @@ def rollout_mpc(mode: str = "close_loop",
             self.interactive = interactive
             self.record_video = record_video
             self.visualize = visualize
-
+            self.randomize_initial_state = randomize_initial_state
+            self.customized_initial_state = set_initial_state
     args = Args()
 
     # NOTE: Why is phase percentage a part of vc_goals?
-    def phase_percentage(t:int):
-        """get current gait phase percentage based on gait period
-
-        Args:
-            t (int): current sim step (NOT sim time!)
-
-        Returns:
-            phi: current gait phase. between 0 - 1
-        """        
-        phi = ((t*sim_dt) % self.gait_params.gait_period)/self.gait_params.gait_period
-        return phi
     
     # define some global variables
-    n_state = 36
+    n_state = 35
     n_action = 12
     nv = 18
+    nq = 17
     f_arr = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
     kp = 2.0
     kd = 0.1
@@ -299,26 +304,29 @@ def rollout_mpc(mode: str = "close_loop",
             v_array = np.array(data["v"])
             ctrl_array = np.array(data["ctrl"])
             
-            # Extract base position (x, y, z)
-            base_history = q_array[:, :3]
             
             # form state and action history
             for i in range(num_time_steps):
                 current_time = time_array[i]  # Get current simulation time
                 q = q_array[i]
                 v = v_array[i]
+                
+                # Extract base position (x, y, z)
+                base_history[i] = q[:3]
 
                 # Store simulation time in first column
-                state_history[i, 0] = current_time
+                # state_history[i, 0] = current_time
 
                 # Store velocity in state_history (starting from column 1)
-                state_history[i, 1:nv + 1] = v
+                state_history[i, :nv] = v
 
                 # Store base-relative foot positions (shifted accordingly)
                 # state_history[i, nv + 1:nv + 1 + 2 * len(f_arr)] = base_wrt_foot(q)
 
                 # Store configuration (excluding first two elements)
-                state_history[i, nv + 1:] = q[2:]
+                state_history[i, nv:] = q[2:]
+                # print("state is ", state_history[i])
+                # input()
                 
                 # Store vc_goal_history
                 vc_goal_history[i,:] = v_des
@@ -331,6 +339,10 @@ def rollout_mpc(mode: str = "close_loop",
                 tau = ctrl_array[i,:]
                 action_history[i,:] = (tau + kd * v[6:])/kp + q[7:]
                 
+                # print(state_history)
+                # input()
+                # print("shape of state_history = ",np.shape(state_history))
+                # input()
             return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, action_history
     return record_dir, [], [], [], [], [], []
 
@@ -345,6 +357,7 @@ if __name__ == "__main__":
     parser.add_argument('--interactive', action='store_true', help='Use keyboard to set the velocity goal (zqsd).')
     parser.add_argument('--record_video', action='store_true', help='Record a video of the viewer.')
     parser.add_argument('--visualize', default=True, help='Enable or disable simulation visualization.')
+    parser.add_argument('--randomize_initial_state', default=True, help='Enable or disable simulation visualization.')
     args = parser.parse_args()
 
     rollout_mpc = RolloutMPC(args)

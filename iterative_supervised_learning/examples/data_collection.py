@@ -265,7 +265,7 @@ class DataCollection:
                 # Run MPC from this replanning state
                 __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
                     mode="close_loop",
-                    sim_time=(self.episode_length - i_replanning) * self.sim_dt,  # Remaining time
+                    sim_time=self.episode_length,
                     robot_name=self.cfg.robot_name,
                     record_dir=record_dir + f"/replanning_{i_replanning}/",
                     v_des=v_des,
