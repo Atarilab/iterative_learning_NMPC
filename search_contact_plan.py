@@ -1,7 +1,7 @@
 from mj_pin.utils import get_robot_description
 
 from mpc_controller.mpc import LocomotionMPC
-from search.data_utils import search_contact_plan, run_contact_plan, SearchConfig, RunConfig
+from data_collection.utils import search_contact_plan, run_contact_plan, SearchConfig, RunConfig
 
 Node = tuple[int, int, int, int]
 
@@ -10,7 +10,7 @@ robot_description = get_robot_description(ROBOT_NAME)
 feet_frames_mj = ["FL", "FR", "RL", "RR"]
 feet_frames_pin = [foot + "_foot" for foot in feet_frames_mj]
 
-sarch_cfg = SearchConfig(
+search_cfg = SearchConfig(
     xml_path=robot_description.xml_scene_path,
     feet_frames_mj=feet_frames_mj,
     grid_size=(10, 10),
@@ -32,7 +32,7 @@ run_cfg = RunConfig(
     sim_dt=1.0e-3
 )
 
-stones, path, q0, v0 = search_contact_plan(sarch_cfg)
+stones, path, q0, v0 = search_contact_plan(search_cfg)
 
 # New MPC instance
 mpc = LocomotionMPC(
@@ -48,7 +48,8 @@ mpc = LocomotionMPC(
     print_info=False,
     )
 mpc.contact_planner.set_contact_locations(stones.positions[path].copy())
-sim_time = (len(path) + 3) * mpc.config_gait.nominal_period
+n_cycle_on_goal = 3
+sim_time = (len(path) + n_cycle_on_goal) * mpc.config_gait.nominal_period
 
 # Run sim
 success = run_contact_plan(mpc, sim_time, stones, path, q0, v0, run_cfg, use_viewer=True)
