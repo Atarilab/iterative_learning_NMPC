@@ -24,7 +24,8 @@ if __name__ == "__main__":
             save_data=True,
             interactive=False,
             record_video=False,
-            visualize=True
+            visualize=True,
+            randomize_initial_state=True
         )
 
         print(f"Recorded data path: {record_dir}")
