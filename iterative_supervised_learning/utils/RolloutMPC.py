@@ -324,7 +324,8 @@ def rollout_mpc(mode: str = "close_loop",
                 vc_goal_history[i,:] = v_des
                 
                 # Store cc_goal history
-                cc_goal_history = np.zeros((num_time_steps, 1))  # Prevent empty entries
+                # cc_goal_history = np.zeros((num_time_steps, 1))  # Prevent empty entries
+                cc_goal_history = np.full((num_time_steps, 1), 1e-6)  # Safe default
                 
                 # construct action history
                 tau = ctrl_array[i,:]
