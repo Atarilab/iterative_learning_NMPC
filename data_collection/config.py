@@ -58,6 +58,8 @@ class RunConfig(ConfigBase):
     n_run : int = 1,
     n_cores : int = 1,
     sim_dt : float = 1.0e-3,
+    collision : bool = True,
+    feet_frames_mj : list[str] = [],
     
     def __post_init__(self):
         self.file_name = "run_config.yaml"

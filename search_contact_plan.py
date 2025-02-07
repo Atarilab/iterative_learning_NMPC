@@ -29,7 +29,9 @@ run_cfg = RunConfig(
     xml_path=robot_description.xml_scene_path,
     n_cores=10,
     n_run=20,
-    sim_dt=1.0e-3
+    sim_dt=1.0e-3,
+    feet_frames_mj=feet_frames_mj,
+    collision=True
 )
 
 stones, path, q0, v0 = search_contact_plan(search_cfg)

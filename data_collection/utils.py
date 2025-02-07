@@ -82,6 +82,11 @@ def run_contact_plan(
     start, goal = path[0], path[-1]
     stones.setup_sim(sim, q0, v0, start, goal)
     
+    if run_config.collision:
+        allowed_collision = run_config.feet_frames_mj + sim.edit.name_allowed_collisions
+    else:
+        allowed_collision = []
+    
     data_recorder = None
     if record_dir or use_viewer:
         data_recorder = SteppingStonesDataRecorder_Visual(controller, record_dir)
@@ -93,6 +98,7 @@ def run_contact_plan(
             record_video=record_video,
             data_recorder=data_recorder if record_dir else None,
             visual_callback=data_recorder,
+            allowed_collision=allowed_collision
             )
     
     return not(sim.collided)
