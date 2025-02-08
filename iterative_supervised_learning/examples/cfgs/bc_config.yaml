@@ -76,10 +76,10 @@ kd: .1
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_07_2025_17_55_50/dataset/database_4.hdf5"
+database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_08_2025_00_10_19/dataset/database_0.hdf5"
 
 #---------- Network parameters-------------
-num_hidden_layer: 2
+num_hidden_layer: 3
 hidden_dim: 512
 batch_norm: True
 goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint

@@ -16,7 +16,26 @@ import random
 import hydra
 import h5py
 import pickle
+import scipy.spatial.transform as st
 
+def random_quaternion_perturbation(sigma):
+    """
+    Generate a small random quaternion perturbation.
+    The perturbation is sampled from a normal distribution with standard deviation sigma.
+    """
+    random_axis = np.random.normal(0, 1, 3)  # Random rotation axis
+    random_axis /= np.linalg.norm(random_axis)  # Normalize to unit vector
+    angle = np.random.normal(0, sigma)  # Small random rotation angle
+    perturb_quat = st.Rotation.from_rotvec(angle * random_axis).as_quat()  # Convert to quaternion
+    return perturb_quat
+
+def apply_quaternion_perturbation(nominal_quat, sigma_base_ori):
+    """
+    Apply a small random rotation perturbation to a given quaternion.
+    """
+    perturb_quat = random_quaternion_perturbation(sigma_base_ori)
+    perturbed_quat = st.Rotation.from_quat(nominal_quat) * st.Rotation.from_quat(perturb_quat)
+    return perturbed_quat.as_quat()  # Convert back to quaternion
 
 class DataCollection:
     def __init__(self, cfg):
@@ -24,13 +43,15 @@ class DataCollection:
         self.episode_length = cfg.episode_length
         self.sim_dt = cfg.sim_dt
         self.n_iteration = cfg.n_iteration
-        # self.num_perturbations = cfg.num_perturbations_per_replanning
+        self.num_pertubations_per_replanning = cfg.num_pertubations_per_replanning
+        
         self.gaits = cfg.gaits
         self.vx_range = (cfg.vx_des_min, cfg.vx_des_max)
         self.vy_range = (cfg.vy_des_min, cfg.vy_des_max)
         self.w_range = (cfg.w_des_min, cfg.w_des_max)
         self.database = Database(limit=cfg.database_size)
         self.data_save_path = self._prepare_save_path()
+        
     
     def _prepare_save_path(self):
         current_time = datetime.now().strftime("%b_%d_%Y_%H_%M_%S")
@@ -209,8 +230,18 @@ class DataCollection:
     def run_perturbed_mpc_when_replanning_test(self):
         nv = 18
         nq = 17
-        plan_freq = 1000  # Replan every 1000 steps
+        plan_freq = 250  # Replan every 1000 steps
         n_state = 35
+        
+        # pertubation variables
+        mu_base_pos = 0.0
+        sigma_base_pos = 0.1
+        mu_joint_pos = 0.0
+        sigma_joint_pos = 0.2
+        mu_base_ori = 0.0
+        sigma_base_ori = 0.1
+        mu_vel = 0.0
+        sigma_vel = 0.1
 
         for i in range(self.n_iteration):
             print(f"============ Iteration {i+1}  ==============")
@@ -229,7 +260,8 @@ class DataCollection:
                 v_des=v_des,
                 save_data=True,
                 visualize=False,
-                randomize_initial_state=False,
+                randomize_initial_state=True,
+                show_plot=False
             )
 
             if len(nominal_state_history) == 0:
@@ -250,42 +282,69 @@ class DataCollection:
             print("Nominal trajectory saved in database.")
 
             # Calculate replanning points
-            replanning_points = np.arange(0, self.episode_length, plan_freq)
+            replanning_points = np.arange(0, self.episode_length, plan_freq)[1:]
             print("Replanning points:", replanning_points)
 
             # Rollout MPC from each replanning point
             for i_replanning in replanning_points:
                 print(f"Replanning at step {i_replanning}")
 
-                # Extract nominal state at replanning point
-                initial_q = nominal_pos[i_replanning]  # Position (full state q)
-                initial_v = nominal_vel[i_replanning]  # Velocity
-                initial_state = np.concatenate((initial_q, initial_v), axis=0)  # Full initial state
+                for j in range(self.num_pertubations_per_replanning):
+                    print(f"executing the {j+1}th pertubation at replanning point {i_replanning}")
+                    # Extract nominal state at replanning point
+                    initial_q = nominal_pos[i_replanning]  # Position (full state q)
+                    initial_v = nominal_vel[i_replanning]  # Velocity
+                    
+                    # print("shape of initial_q is = ",np.shape(initial_q))
+                    # print("shape of initial_v is = ",np.shape(initial_v))
+                    # input()
+                    
+                    # NOTE: randomize quatenion is tricky
+                    nominal_quat = initial_q[3:7]
+                    perturbed_quat = apply_quaternion_perturbation(nominal_quat, sigma_base_ori)
+                    # print("nominal_quat = ",nominal_quat)
+                    # print("perturbed_quat = ", perturbed_quat)
+                    # input()
+                    
+                    # base orientation is in quatenion
+                    perturbation_q = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
+                                                    perturbed_quat ,\
+                                                    np.random.normal(mu_joint_pos,sigma_joint_pos,len(initial_q)-7)))
+                    perturbation_v = np.random.normal(mu_vel,sigma_vel,len(initial_v))
+                    
+                    # print("perturbation_q = ",perturbation_q)
+                    # print("perturbation_v = ",perturbation_v)
+                    # input()
+                    initial_state = np.concatenate((initial_q+perturbation_q, initial_v+perturbation_v), axis=0)  # Full initial state
+                    # print(initial_state)
+                    # print(np.shape(initial_state))
+                    # input()
+                    
+                    # Run MPC from this replanning state
+                    __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
+                        mode="close_loop",
+                        sim_time=self.episode_length * self.sim_dt,
+                        robot_name=self.cfg.robot_name,
+                        record_dir=record_dir + f"/replanning_{i_replanning}/",
+                        v_des=v_des,
+                        save_data=True,
+                        visualize=False,
+                        randomize_initial_state=False,  # Use predefined state
+                        set_initial_state=initial_state,
+                        show_plot=False
+                    )
 
-                # Run MPC from this replanning state
-                __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
-                    mode="close_loop",
-                    sim_time=self.episode_length,
-                    robot_name=self.cfg.robot_name,
-                    record_dir=record_dir + f"/replanning_{i_replanning}/",
-                    v_des=v_des,
-                    save_data=True,
-                    visualize=False,
-                    randomize_initial_state=True,  # Use predefined state
-                    set_initial_state=initial_state,
-                )
+                    if len(replanned_state_history) == 0:
+                        print(f"Replanned MPC rollout failed at step {i_replanning}")
+                        continue  # Skip if the rollout failed
 
-                if len(replanned_state_history) == 0:
-                    print(f"Replanned MPC rollout failed at step {i_replanning}")
-                    continue  # Skip if the rollout failed
-
-                # Store replanned trajectory in database
-                self.database.append(
-                    states=replanned_state_history,
-                    vc_goals=replanned_vc_goal_history,
-                    cc_goals=replanned_cc_goal_history,
-                    actions=replanned_ctrl,
-                )
+                    # Store replanned trajectory in database
+                    self.database.append(
+                        states=replanned_state_history,
+                        vc_goals=replanned_vc_goal_history,
+                        cc_goals=replanned_cc_goal_history,
+                        actions=replanned_ctrl,
+                    )
                 print(f"Replanned trajectory at step {i_replanning} saved in database.")
 
             # Save dataset after each iteration
