@@ -167,7 +167,7 @@ class RolloutMPC:
             use_viewer=self.args.visualize,
         )
             
-        if self.args.visualize:
+        if self.args.show_plot:
             mpc.print_timings()
             mpc.plot_traj("q")
             mpc.plot_traj("f")
@@ -218,7 +218,8 @@ def rollout_mpc(mode: str = "close_loop",
                 record_video: bool = False,
                 visualize: bool = False,
                 randomize_initial_state: bool = False,
-                set_initial_state: List[float] = None) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]],]:
+                set_initial_state: List[float] = None,
+                show_plot:bool= True) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]],]:
 
     # Create argparse-like structure
     class Args:
@@ -234,6 +235,7 @@ def rollout_mpc(mode: str = "close_loop",
             self.visualize = visualize
             self.randomize_initial_state = randomize_initial_state
             self.customized_initial_state = set_initial_state
+            self.show_plot = show_plot
     args = Args()
 
     # NOTE: Why is phase percentage a part of vc_goals?

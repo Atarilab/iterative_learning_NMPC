@@ -210,7 +210,7 @@ def rollout_policy_multithread(policy_path: str, sim_time=5.0, v_des=[0.5, 0.1, 
 
     # Load trained policy
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=2, hidden_dim=512, batch_norm=True)
+    policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=3, hidden_dim=512, batch_norm=True)
     policy_net.load_state_dict(torch.load(policy_path, map_location=device)['network'])
     policy_net.to(device)
     policy_net.eval()
@@ -314,7 +314,7 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_07_2025_17_55_50/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_08_2025_00_10_19/network/policy_final.pth'
     
     
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)
