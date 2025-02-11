@@ -39,10 +39,13 @@ class SteppingStonesDataRecorder_Visual(DataRecorder, VisualCallback):
                 self.data["contact_plan_w"].append(self.mpc.contact_planner._contact_locations)
             
             # Record state position
-            self.data["q"].append(mj_data.qpos.copy())
+            q, v = mj_data.qpos.copy(), mj_data.qvel.copy()
+            self.data["q"].append(q)
             # Record state velocity
-            self.data["v"].append(mj_data.qvel.copy())
+            self.data["v"].append(v)
             # Record feet position in world
+            q_pin, v_pin = self.mpc.solver.dyn.convert_from_mujoco(q, v)
+            self.mpc.solver.dyn.update_pin(q_pin, v_pin)
             feet_pos_w = self.mpc.solver.dyn.get_feet_position_w()
             self.data["feet_pos_w"].append(feet_pos_w)
             # Record all future cnt locations in the plan, keep the last one
