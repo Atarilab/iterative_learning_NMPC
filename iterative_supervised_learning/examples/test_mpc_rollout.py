@@ -17,18 +17,24 @@ if __name__ == "__main__":
 
         record_dir, state_history, base_history, vc_goal_history, cc_goal_history, action_history = rollout_mpc(
             mode="close_loop",
-            sim_time=5,
+            sim_time=3.0,
             robot_name="go2",
             record_dir=record_dir,
-            v_des=[0.5, 0.1, 0.0],
+            v_des=[0.3, 0.0, 0.0],
             save_data=True,
             interactive=False,
             record_video=False,
             visualize=True,
-            randomize_initial_state=True
+            randomize_initial_state=False,
+            show_plot=False
         )
 
         print(f"Recorded data path: {record_dir}")
 
     except Exception as e:
         print(f"Error in rollout_mpc: {e}")
+
+    # print(state_history[:500,0])
+    # print(state_history[500:1000,0])
+    print(state_history[0,:])
+    print("shape of state space = ", np.shape(state_history))

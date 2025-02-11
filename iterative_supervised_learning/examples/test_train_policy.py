@@ -123,6 +123,7 @@ class BehavioralCloning:
         # Print model architecture
         print("\n=== Initialized Network Structure ===")
         print(self.network)
+        print("num of weights = ", sum(p.numel() for p in self.network.parameters() if p.requires_grad))
         #==================================================================================
         input()
         # self.cc_network = self.initialize_network(

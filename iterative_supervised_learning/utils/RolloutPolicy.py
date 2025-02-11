@@ -21,7 +21,7 @@ import mujoco.viewer
 
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
-n_state = 38 # state:35 + vc_goal:3
+n_state = 39 # state:36 + vc_goal:3
 n_action = 12
 kp = 2.0
 kd = 0.1 
@@ -93,6 +93,21 @@ class StateDataRecorder(DataRecorder):
         self.data["v"].append(mj_data.qvel.copy())
         self.data["ctrl"].append(mj_data.ctrl.copy())
 
+def get_phase_percentage(t:int):
+    """get current gait phase percentage based on gait period
+
+    Args:
+        t (int): current sim step (NOT sim time!)
+
+    Returns:
+        phi: current gait phase. between 0 - 1
+    """ 
+       
+    # for trot
+    gait_period = 0.5
+    phi = (t % gait_period)/gait_period
+    return phi
+
 def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", record_video=True):
     """
     Rollout a trained policy on the Go2 robot in MuJoCo.
@@ -108,8 +123,8 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     policy_net = GoalConditionedPolicyNet(input_size=n_state, 
                                           output_size=n_action,
-                                          num_hidden_layer=2,
-                                          hidden_dim=256,
+                                          num_hidden_layer=3,
+                                          hidden_dim=512,
                                           batch_norm=True)
     policy_net.load_state_dict(torch.load(policy_path, map_location=device)['network'])
     policy_net.to(device)
@@ -159,6 +174,9 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
         vc_goal = v_des
         cc_goal = 0
         
+        phase_percentage = get_phase_percentage(t)
+        print(phase_percentage)
+        
         state = np.concatenate([[t],v,robot_state])[:n_state]
         state = np.concatenate([state,v_des])
         # print("state", state)
@@ -168,8 +186,8 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
         state_tensor = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         action_tensor = policy_net(state_tensor)
         action = action_tensor.cpu().detach().numpy().flatten()
-        # print("action",action)
-        # input()
+        print("action",action)
+        input()
 
         # Apply action (assuming torques)
         sim.mj_data.ctrl[:] = action
@@ -259,8 +277,11 @@ def rollout_policy_multithread(policy_path: str, sim_time=5.0, v_des=[0.5, 0.1, 
             print(f"❌ Simulation failed at step {t}: NaN/Inf detected! Stopping.")
             break
         
+        phase_percentage = get_phase_percentage(t)
+        print(phase_percentage)
+        
         # Construct state vector
-        state = np.concatenate([v, q[2:], v_des])[:n_state]
+        state = np.concatenate([[phase_percentage],v, q[2:], v_des])[:n_state]
         print("state = ",state)
         # input()
         
@@ -276,6 +297,7 @@ def rollout_policy_multithread(policy_path: str, sim_time=5.0, v_des=[0.5, 0.1, 
         print("action = ", action)
         print("tau = ",tau)
         # input()
+        
         # Apply action
         sim.mj_data.ctrl[:] = tau
 
@@ -314,7 +336,7 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_08_2025_00_10_19/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_11_2025_15_25_50/network/policy_final.pth'
     
     
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)

@@ -80,6 +80,8 @@ class StateDataRecorder(DataRecorder):
         self.data["q"].append(mj_data.qpos.copy())
         self.data["v"].append(mj_data.qvel.copy())
         self.data["ctrl"].append(mj_data.ctrl.copy())
+        # save data for phase percentage
+        # self.data["phase percentage"].append()
 
 class RolloutMPC:
     def __init__(self, args):
@@ -159,6 +161,15 @@ class RolloutMPC:
         #==================================================
         sim.set_initial_state(q0=q_mj,v0=v_mj)
         
+        # check for feet position
+        # this is the feet position in mpc solver
+        # feet_pos = mpc.solver.dyn.get_feet_position_w()
+        # print(feet_pos)
+        
+        # this is the contact position in mujoco simulation
+        # print(sim.mj_data.contact.pos)
+        # input()
+        
         sim.run(
             sim_time=self.args.sim_time,
             controller=mpc,
@@ -205,6 +216,23 @@ class RolloutMPC:
             self.run_open_loop()
         elif self.args.mode == 'close_loop':
             self.run_mpc()
+    
+    
+    
+def get_phase_percentage(t:int):
+    """get current gait phase percentage based on gait period
+
+    Args:
+        t (int): current sim step (NOT sim time!)
+
+    Returns:
+        phi: current gait phase. between 0 - 1
+    """ 
+       
+    # for trot
+    gait_period = 0.5
+    phi = (t % gait_period)/gait_period
+    return phi
 
 def rollout_mpc(mode: str = "close_loop",
                 sim_time: float = 5,
@@ -241,7 +269,7 @@ def rollout_mpc(mode: str = "close_loop",
     # NOTE: Why is phase percentage a part of vc_goals?
     
     # define some global variables
-    n_state = 35
+    n_state = 36
     n_action = 12
     nv = 18
     nq = 17
@@ -316,17 +344,17 @@ def rollout_mpc(mode: str = "close_loop",
                 # Extract base position (x, y, z)
                 base_history[i] = q[:3]
 
-                # Store simulation time in first column
-                # state_history[i, 0] = current_time
+                # Extract phase percentage
+                state_history[i, 0] = get_phase_percentage(current_time)
 
                 # Store velocity in state_history (starting from column 1)
-                state_history[i, :nv] = v
+                state_history[i, 1:nv+1] = v
 
                 # Store base-relative foot positions (shifted accordingly)
                 # state_history[i, nv + 1:nv + 1 + 2 * len(f_arr)] = base_wrt_foot(q)
 
                 # Store configuration (excluding first two elements)
-                state_history[i, nv:] = q[2:]
+                state_history[i, nv+1:] = q[2:]
                 # print("state is ", state_history[i])
                 # input()
                 
@@ -339,6 +367,7 @@ def rollout_mpc(mode: str = "close_loop",
                 
                 # construct action history
                 tau = ctrl_array[i,:]
+                # switch from torque to PD target
                 action_history[i,:] = (tau + kd * v[6:])/kp + q[7:]
                 
                 # print(state_history)
