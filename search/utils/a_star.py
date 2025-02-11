@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from typing import Any, Optional
+import time
 
 try:
     from .abstract import WeightedGraph, PriorityQueue, Node
@@ -12,7 +13,8 @@ def a_star_search(
     graph: WeightedGraph,
     start: Node,
     goal: Node,
-    heuristic: Callable[[Node, Node], float]
+    heuristic: Callable[[Node, Node], float],
+    max_time : float = 3.,
     ):
         
     frontier = PriorityQueue()
@@ -21,11 +23,15 @@ def a_star_search(
     cost_so_far: dict[Node, float] = {}
     came_from[start] = None
     cost_so_far[start] = 0
+    start = time.time()
+    
     while not frontier.empty():
+        if time.time() - start > max_time:
+            return {}, {}
+            
         current: Node = frontier.get()
         
         if current == goal:
-            print("Goal reached")
             break
         
         for next_hash in graph.neighbors(current):

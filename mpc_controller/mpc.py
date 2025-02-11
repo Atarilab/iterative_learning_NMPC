@@ -293,10 +293,9 @@ class LocomotionMPC(PinController):
         base_ref_e[2] = self.config_gait.nom_height + self.height_offset
 
         # Linear velocity
-        N = contact_locations.shape[1]
-        t_plan = self.dt_nodes * N
-        v_ref = (center_last_cnt - center_first_cnt) / t_plan
-        base_ref[6:8] = v_ref[:2]
+        # t_plan = self.config_gait.nominal_period
+        # v_ref = (center_last_cnt - center_first_cnt) / t_plan
+        # base_ref[6:8] = v_ref[:2]
 
         return base_ref, base_ref_e
 
@@ -360,7 +359,7 @@ class LocomotionMPC(PinController):
             base_ref,
             base_ref_e,
             self.joint_ref,
-            self.config_gait.step_height + self.height_offset,
+            self.config_gait.step_height,
             cnt_sequence,
             cnt_locations,
             swing_peak,

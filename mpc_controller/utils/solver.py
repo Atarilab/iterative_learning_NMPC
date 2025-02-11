@@ -164,16 +164,18 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Set the nominal time step
         if self.enable_time_opt:
             self.cost_ref["dt"][:] = self.dt_nodes
-
         self.cost_ref[self.dyn.base_cost.name][:] = base_ref[:, None]
-        self.cost_ref[self.dyn.swing_cost.name][:] = step_height
         self.cost_ref_terminal[self.dyn.base_cost.name] = base_ref_e
-        self.cost_ref_terminal[self.dyn.swing_cost.name][:] = step_height
 
         # Joint reference is nominal position with zero velocities
         joint_ref_vel = np.concatenate((joint_ref, np.zeros_like(joint_ref)))
         self.cost_ref[self.dyn.joint_cost.name] = joint_ref_vel[:, None]
         self.cost_ref_terminal[self.dyn.joint_cost.name] = joint_ref_vel.copy()
+        
+        if not self.restrict_cnt:
+            self.cost_ref[self.dyn.swing_cost.name][:] = self.height_offset + step_height
+            self.cost_ref_terminal[self.dyn.swing_cost.name][:] = self.height_offset + step_height
+
 
     def setup_initial_state(self,
                             q_euler : np.ndarray,
@@ -216,11 +218,10 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
             self.params[foot_cnt.plane_point.name][:] = np.zeros((3,1))
             self.params[foot_cnt.plane_point.name][-1, :] = self.height_offset
             self.params[foot_cnt.p_gain.name][:] = self.config_cost.W_foot_pos_constr_stab[i_foot]
+            self.params[foot_cnt.restrict.name][:] = 0.
             if self.restrict_cnt:
-                self.params[foot_cnt.restrict.name][:] = 0.
                 self.params[foot_cnt.range_radius.name][:] = self.config_cost.cnt_radius
             else:
-                self.params[foot_cnt.restrict.name][:] = 0.
                 self.params[foot_cnt.range_radius.name][:] = 1.0e10
 
     def setup_cnt_status(self,
@@ -251,7 +252,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                 self.params[foot_cnt.restrict.name][0, :] = restrict
 
     @time_fn("setup_contact_plan")
-    def setup_contact_loc(self, contact_loc_plan : np.ndarray):
+    def setup_contact_loc(self, contact_loc_plan : np.ndarray, step_height : float):
         """
         Set the contact locations 
 
@@ -270,8 +271,14 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         # Set reference for terminal contact
         for i_foot, foot_cnt in enumerate(self.dyn.feet):
             self.params[foot_cnt.plane_point.name] = contact_loc_plan[i_foot,].T
+            
+            # Reference cost distance to foothold
             self.cost_ref[foot_cnt.pos_cost.name] = contact_loc_plan[i_foot, 1:, :].T
             self.cost_ref_terminal[foot_cnt.pos_cost.name] = self.params[foot_cnt.plane_point.name][:, -1].T
+            
+            # Reference cost step height
+            self.cost_ref[self.dyn.swing_cost.name][i_foot, :] = contact_loc_plan[i_foot, 1:, -1] + step_height
+            self.cost_ref_terminal[self.dyn.swing_cost.name][i_foot, :] = contact_loc_plan[i_foot, -1, -1] + step_height
 
     def print_contact_constraints(self):
         print()
@@ -379,7 +386,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
 
         if self.restrict_cnt:
             assert not(cnt_locations is None), "Contact plan not provided"
-            self.setup_contact_loc(cnt_locations)
+            self.setup_contact_loc(cnt_locations, step_height)
 
         self.setup_initial_feet_pos(i_node)
 
