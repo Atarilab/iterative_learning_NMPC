@@ -153,6 +153,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
                         base_ref : np.ndarray,
                         base_ref_e : np.ndarray,
                         joint_ref : np.ndarray,
+                        step_height : float,
                         ):
         """
         Set up the reference trajectory (yref).
@@ -170,6 +171,11 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         joint_ref_vel = np.concatenate((joint_ref, np.zeros_like(joint_ref)))
         self.cost_ref[self.dyn.joint_cost.name] = joint_ref_vel[:, None]
         self.cost_ref_terminal[self.dyn.joint_cost.name] = joint_ref_vel.copy()
+        
+        if not self.restrict_cnt:
+            self.cost_ref[self.dyn.swing_cost.name][:] = self.height_offset + step_height
+            self.cost_ref_terminal[self.dyn.swing_cost.name][:] = self.height_offset + step_height
+
 
     def setup_initial_state(self,
                             q_euler : np.ndarray,
@@ -370,7 +376,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         current optimization node.
         """
         # Base reference position and velocities in world frame
-        self.setup_reference(base_ref, base_ref_e, joint_ref)
+        self.setup_reference(base_ref, base_ref_e, joint_ref, step_height)
 
         self.setup_initial_state(q, v)
 
