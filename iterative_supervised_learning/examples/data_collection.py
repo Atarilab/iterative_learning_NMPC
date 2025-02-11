@@ -17,6 +17,7 @@ import hydra
 import h5py
 import pickle
 import scipy.spatial.transform as st
+import pinocchio as pin
 
 def random_quaternion_perturbation(sigma):
     """
@@ -229,9 +230,9 @@ class DataCollection:
 
     def run_perturbed_mpc_when_replanning_test(self):
         nv = 18
-        nq = 17
-        plan_freq = 250  # Replan every 1000 steps
-        n_state = 35
+        nq = 17 # 19 - 2(two absolute horizontal coordinate of base point)
+        plan_freq = 1000  # Replan every 1000 steps
+        n_state = 36
         
         # pertubation variables
         mu_base_pos = 0.0
@@ -245,7 +246,7 @@ class DataCollection:
 
         for i in range(self.n_iteration):
             print(f"============ Iteration {i+1}  ==============")
-            v_des = np.array([0.5, 0.1, 0.0])  # Sampled goal
+            v_des = np.array([0.3, 0.0, 0.0])  # Sampled goal
             print("Sampled goal is:", v_des)
 
             record_dir = f"{self.data_save_path}/iteration_{i}/"
@@ -259,7 +260,7 @@ class DataCollection:
                 record_dir=record_dir,
                 v_des=v_des,
                 save_data=True,
-                visualize=False,
+                visualize=True,
                 randomize_initial_state=True,
                 show_plot=False
             )
@@ -269,8 +270,8 @@ class DataCollection:
                 continue  # Skip to next iteration if nominal rollout fails
 
             # Compute nominal position (q) and velocity (v)
-            nominal_pos = np.concatenate((nominal_base_history[:, :2], nominal_state_history[:, nv:]), axis=1)
-            nominal_vel = nominal_state_history[:, :nv]
+            nominal_pos = np.concatenate((nominal_base_history[:, :2], nominal_state_history[:, nv+1:]), axis=1)
+            nominal_vel = nominal_state_history[:, 1:nv+1]
 
             # Store nominal trajectory in database
             self.database.append(
@@ -282,7 +283,7 @@ class DataCollection:
             print("Nominal trajectory saved in database.")
 
             # Calculate replanning points
-            replanning_points = np.arange(0, self.episode_length, plan_freq)[1:]
+            replanning_points = np.arange(0, self.episode_length, plan_freq)
             print("Replanning points:", replanning_points)
 
             # Rollout MPC from each replanning point
@@ -301,6 +302,8 @@ class DataCollection:
                     
                     # NOTE: randomize quatenion is tricky
                     nominal_quat = initial_q[3:7]
+                    
+                    # TODO: perturb until all four feet are in 
                     perturbed_quat = apply_quaternion_perturbation(nominal_quat, sigma_base_ori)
                     # print("nominal_quat = ",nominal_quat)
                     # print("perturbed_quat = ", perturbed_quat)
@@ -320,10 +323,12 @@ class DataCollection:
                     # print(np.shape(initial_state))
                     # input()
                     
+                    
+                    
                     # Run MPC from this replanning state
                     __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
                         mode="close_loop",
-                        sim_time=self.episode_length * self.sim_dt,
+                        sim_time=3.0,
                         robot_name=self.cfg.robot_name,
                         record_dir=record_dir + f"/replanning_{i_replanning}/",
                         v_des=v_des,
@@ -333,7 +338,8 @@ class DataCollection:
                         set_initial_state=initial_state,
                         show_plot=False
                     )
-
+                    
+                    # NOTE: seems wrong
                     if len(replanned_state_history) == 0:
                         print(f"Replanned MPC rollout failed at step {i_replanning}")
                         continue  # Skip if the rollout failed

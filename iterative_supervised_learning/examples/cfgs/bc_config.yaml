@@ -68,7 +68,7 @@ episode_length: 5000  # steps in rollout
 sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
-n_state: 38 # input size 38 = n_state 35 + n_goals 3
+n_state: 39 # input size 38 = n_state 36 + n_goals 3
 n_action: 12
 goal_horizon: 1
 kp: 2.
@@ -76,7 +76,7 @@ kd: .1
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_08_2025_00_10_19/dataset/database_0.hdf5"
+database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_11_2025_15_25_50/dataset/database_4.hdf5"
 
 #---------- Network parameters-------------
 num_hidden_layer: 3
