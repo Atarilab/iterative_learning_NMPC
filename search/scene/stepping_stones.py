@@ -3,6 +3,7 @@ import os
 from typing import List, Tuple
 from mj_pin.simulator import Simulator
 from mj_pin.utils import mj_frame_pos
+import mujoco
 
 class SteppingStonesBase:
     DEFAULT_FILE_NAME = "stepping_stones.npz"
@@ -13,7 +14,6 @@ class SteppingStonesBase:
                  size_ratio: Tuple[float, float] = (0.65, 0.65),
                  randomize_pos_ratio: float = 0.,
                  randomize_height_ratio: float = 0.,
-                 N_to_remove: int = 0,
                  shape : str = "cylinder",
                  height : float = 0.1,
                  **kwargs) -> None:
@@ -36,7 +36,6 @@ class SteppingStonesBase:
         self.spacing = list(spacing)
         self.size_ratio = list(size_ratio)
         self.randomize_height_ratio = randomize_height_ratio
-        self.N_to_remove = N_to_remove
         self.shape = shape
         self.height = height
 
@@ -45,6 +44,7 @@ class SteppingStonesBase:
         self.N = self.I * self.J
         self.id_to_remove = np.array([], dtype=np.int32)
         self.id_kept = np.arange(self.N)
+        self.positions = np.zeros((self.N, 3))
         self.init_stones()
         
     def init_stones(self) -> None:
@@ -55,6 +55,7 @@ class SteppingStonesBase:
         self._init_size()
         self._randomize_height()
         self._randomize_center_location()
+        self.positions_kept = self.positions
         
     def _init_center_location(self) -> None:
         """
@@ -98,7 +99,7 @@ class SteppingStonesBase:
         self.positions[:, 0] += dx
         self.positions[:, 1] += dy
         
-    def remove_random(self, N_to_remove: int = -1, keep: list[int] = []) -> None:
+    def remove_random(self, n_to_remove: int = -1, keep: list[int] = []) -> List[int]:
         """
         Randomly remove stepping stones.
         
@@ -110,12 +111,12 @@ class SteppingStonesBase:
         probs = np.ones((self.N,))
         probs[keep] = 0.
         probs /= np.sum(probs)
-        
-        if N_to_remove == -1:
-            N_to_remove = self.N_to_remove
-        
-        self.id_to_remove = np.random.choice(self.N, N_to_remove, replace=False, p=probs)
+
+        self.id_to_remove = np.random.choice(self.N, n_to_remove, replace=False, p=probs)
         self.id_kept = np.setdiff1d(np.arange(self.N), self.id_to_remove)
+        self.positions[self.id_to_remove] = np.nan
+        
+        return
             
     def get_closest(self, positions_xyz: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -262,18 +263,13 @@ class MjSteppingStones(SteppingStonesBase):
     GREEN_RGBA = (15/255, 130/255, 35/255, 1.)
     HEIGHT_OFFSET = 0.015
     
-    def set_random_goal(self, sim : Simulator, feet_frames : List[str], d_min : float = 0.) -> np.ndarray:
+    def set_random_goal(self, q0 : np.ndarray, feet_pos_w : np.ndarray, d_min : float = 0.) -> np.ndarray:
         """
         Set a random goal for each of the feet at a minimum distance d_min.
         """
         # Set the stepping stones at the feet position
-        sim._init_model_data()
-        base_pos = sim.q0[:3]
-        feet_pos = np.array(
-            [mj_frame_pos(sim.mj_model, sim.mj_data, foot)
-             for foot
-             in feet_frames])
-        feet_spacing = feet_pos - base_pos
+        base_pos = q0[:3]
+        feet_spacing = feet_pos_w - base_pos
         feet_spacing[:, -1] = 0.
         
         # Set goal stepping stones so that the displacement
@@ -296,30 +292,38 @@ class MjSteppingStones(SteppingStonesBase):
         
         return id_goal
     
-    def setup(self,
-              sim : Simulator,
-              feet_frames : List[str],
-              remove_random : int = 0,
-              randomize_state : bool = False,
-              random_goal : bool = True,
-              ) -> None:
+    def setup_start_goal(self,
+                        mj_model,
+                        mj_data,
+                        feet_frames : List[str],
+                        n_to_remove : int = 0,
+                        randomize_state : bool = False,
+                        random_goal : bool = True,
+                        ) -> None:
         """
         Add stepping stones to a simulator.
         """
         # Initial state above the stepping stones
-        sim.set_initial_state()
-        q0 = sim.q0
-        v0 = sim.v0
+        q0 = mj_data.qpos.copy()
+        v0 = mj_data.qvel.copy()
         q0[2] += self.height + MjSteppingStones.HEIGHT_OFFSET
+        mj_data.qpos = q0
+        mujoco.mj_forward(mj_model, mj_data)
         
         # Set the goal indices
         id_goal = []
         if random_goal:
+            feet_pos = np.array(
+                [mj_frame_pos(mj_model, mj_data, foot)
+                for foot
+                in feet_frames])
+
             x_length = self.grid_size[0] * self.spacing[0]
             y_length = self.grid_size[1] * self.spacing[1]
             min_length = min(x_length, y_length)
             d_min = min_length / 3.
-            id_goal = self.set_random_goal(sim, feet_frames, d_min).tolist()
+
+            id_goal = self.set_random_goal(q0, feet_pos, d_min).tolist()
             
         # Randomize initial state
         if randomize_state:
@@ -332,21 +336,26 @@ class MjSteppingStones(SteppingStonesBase):
             q0[3:7] /= np.linalg.norm(q0[3:7])
             q0[7:] += np.random.randn(len(q0) - 7) * std_q
             v0 += np.random.randn(len(v0)) * std_v
-        sim.set_initial_state(q0, v0)
         
         # Set the stepping stones at the feet position
-        sim._init_model_data()
+        mj_data.qpos = q0
+        mujoco.mj_forward(mj_model, mj_data)
         feet_pos = np.array(
-            [mj_frame_pos(sim.mj_model, sim.mj_data, foot)
+            [mj_frame_pos(mj_model, mj_data, foot)
              for foot
              in feet_frames])
         id_start = self.set_start_position(feet_pos).tolist()
         
         # Remove random
-        if remove_random > 0:
+        if n_to_remove > 0:
             id_keep = id_start + id_goal
-            self.remove_random(remove_random, id_keep)
+            self.remove_random(n_to_remove, id_keep)
+            
+        return id_start, id_goal, q0, v0
 
+    def setup_sim(self, sim : Simulator, q0, v0, id_start, id_goal):
+        sim.set_initial_state(q0, v0)
+        
         # Add all stepping stones to the simulator
         euler = np.zeros(3)
         sim.edit.reset()
@@ -380,9 +389,6 @@ class MjSteppingStones(SteppingStonesBase):
                     euler,
                     rgba,
                 )
-                
-        return id_start, id_goal
-
         
 if __name__ == "__main__":
     from mj_pin.utils import get_robot_description
