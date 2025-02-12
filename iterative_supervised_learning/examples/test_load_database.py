@@ -6,10 +6,10 @@ import torch
 from iterative_supervised_learning.utils.database import Database  # Ensure this imports the correct Database class
 
 # Path to the saved database (Update this if needed)
-database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_04_2025_15_05_24/dataset/database_0.hdf5"
+database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_12_2025_22_46_48/dataset/database_0.hdf5"
 
 # Initialize Database with a suitable limit
-db = Database(limit=10000000)  # Ensure the limit is large enough to load the full dataset
+db = Database(limit=10000000,norm_input=False)  # Ensure the limit is large enough to load the full dataset
 
 # Load the saved database
 print(f"Loading database from: {database_path}")

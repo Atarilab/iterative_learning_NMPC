@@ -174,10 +174,10 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
         vc_goal = v_des
         cc_goal = 0
         
-        phase_percentage = get_phase_percentage(t)
+        phase_percentage = get_phase_percentage(t*SIM_DT)
         print(phase_percentage)
         
-        state = np.concatenate([[t],v,robot_state])[:n_state]
+        state = np.concatenate([[phase_percentage],v,robot_state])[:n_state]
         state = np.concatenate([state,v_des])
         # print("state", state)
         # input()
@@ -215,7 +215,7 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
 
     print("Rollout finished successfully.")
     
-def rollout_policy_multithread(policy_path: str, sim_time=5.0, v_des=[0.5, 0.1, 0], gait="trot", record_video=False):
+def rollout_policy_multithread(policy_path: str, sim_time=3.0, v_des=[0.3, 0.0, 0.0], gait="trot", record_video=False):
     """
     Rollout a trained policy on the Go2 robot in MuJoCo.
 
@@ -277,8 +277,9 @@ def rollout_policy_multithread(policy_path: str, sim_time=5.0, v_des=[0.5, 0.1, 
             print(f"❌ Simulation failed at step {t}: NaN/Inf detected! Stopping.")
             break
         
-        phase_percentage = get_phase_percentage(t)
-        print(phase_percentage)
+        print("current_time = ", t*SIM_DT)
+        phase_percentage = get_phase_percentage(t*SIM_DT)
+        print("phase_percentage = ", phase_percentage)
         
         # Construct state vector
         state = np.concatenate([[phase_percentage],v, q[2:], v_des])[:n_state]
@@ -336,7 +337,7 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_11_2025_15_25_50/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_12_2025_22_46_48/network/policy_final.pth'
     
     
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)

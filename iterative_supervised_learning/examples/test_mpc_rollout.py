@@ -36,5 +36,6 @@ if __name__ == "__main__":
 
     # print(state_history[:500,0])
     # print(state_history[500:1000,0])
-    print(state_history[0,:])
+    for i in range(5):
+        print(state_history[i,:])
     print("shape of state space = ", np.shape(state_history))

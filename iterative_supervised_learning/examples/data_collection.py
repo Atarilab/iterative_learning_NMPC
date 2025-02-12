@@ -51,7 +51,7 @@ class DataCollection:
         self.vx_range = (cfg.vx_des_min, cfg.vx_des_max)
         self.vy_range = (cfg.vy_des_min, cfg.vy_des_max)
         self.w_range = (cfg.w_des_min, cfg.w_des_max)
-        self.database = Database(limit=cfg.database_size)
+        self.database = Database(limit=cfg.database_size,norm_input=False)
         self.data_save_path = self._prepare_save_path()
         
     
@@ -232,7 +232,7 @@ class DataCollection:
     def run_perturbed_mpc_when_replanning_test(self):
         nv = 18
         nq = 17 # 19 - 2(two absolute horizontal coordinate of base point)
-        plan_freq = 100  # Replan every 1000 steps
+        plan_freq = 1000  # Replan every 1000 steps
         n_state = 36
         
         # pertubation variables
@@ -261,7 +261,7 @@ class DataCollection:
                 record_dir=record_dir,
                 v_des=v_des,
                 save_data=True,
-                visualize=True,
+                visualize=False,
                 randomize_initial_state=False,
                 show_plot=False
             )
@@ -284,7 +284,7 @@ class DataCollection:
             print("Nominal trajectory saved in database.")
 
             # Calculate replanning points
-            replanning_points = np.arange(0, self.episode_length, plan_freq)
+            replanning_points = np.arange(0, self.episode_length, plan_freq)[1:]
             print("Replanning points:", replanning_points)
 
             # Rollout MPC from each replanning point
@@ -296,9 +296,13 @@ class DataCollection:
                     # Extract nominal state at replanning point
                     initial_q = nominal_pos[i_replanning]  # Position (full state q)
                     initial_v = nominal_vel[i_replanning]  # Velocity
-                    nominal_state = np.concatenate((initial_q,initial_v))
+                    
+                    # very important: pass current time(i_replanning) to rollout_mpc in order to calculate current phase percentage
+                    nominal_state = np.concatenate((initial_q,initial_v,np.array([i_replanning])))
                     # print("shape of initial_q is = ",np.shape(initial_q))
                     # print("shape of initial_v is = ",np.shape(initial_v))
+                    
+                    # print(nominal_state)
                     # print("shape of nominal_state is  = ", np.shape(nominal_state))
                     # input()
                     
@@ -332,7 +336,7 @@ class DataCollection:
                             record_dir=record_dir + f"/replanning_{i_replanning}/",
                             v_des=v_des,
                             save_data=True,
-                            visualize=True,
+                            visualize=False,
                             randomize_initial_state=False,  # Use predefined state
                             randomize_on_given_state=nominal_state,
                             show_plot=False

@@ -186,7 +186,16 @@ class RolloutMPC:
             while True:
                 # keep randomizing if some feet is under the ground
                 q_mj = nominal_state[:nq] 
-                v_mj = nominal_state[nq:]
+                v_mj = nominal_state[nq:-1]
+                
+                # current_time = nominal_state[-1]
+                # phase_percentage = get_phase_percentage(current_time * SIM_DT)
+                # print("shape of q_mj when unpacking nominal state = ", np.shape(q_mj))
+                # print("shape of v_mj when unpacking nominal state = ", np.shape(v_mj))
+                # print(nominal_state)
+                # print("current time = ", current_time)
+                # print("phase_percentage = ", phase_percentage)
+                
                 nominal_quat = q_mj[3:7]
                 perturbed_quat = apply_quaternion_perturbation(nominal_quat, sigma_base_ori)
                 perturbation_q = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
@@ -345,7 +354,8 @@ def rollout_mpc(mode: str = "close_loop",
     f_arr = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
     kp = 2.0
     kd = 0.1
-
+    
+    
     # Ensure the record directory exists
     if save_data:
         os.makedirs(record_dir, exist_ok=True)
@@ -363,6 +373,13 @@ def rollout_mpc(mode: str = "close_loop",
     else:
         raise ValueError("Invalid mode. Choose from 'traj_opt', 'open_loop', or 'close_loop'.")
 
+    if args.randomize_on_given_state is not None:
+        current_timestep = args.randomize_on_given_state[-1]
+    else:
+        current_timestep = 0
+    print("current_timestep = ",current_timestep)
+    # input()
+    
     # Collect and return recorded data
     if save_data:
         files = None
@@ -416,19 +433,25 @@ def rollout_mpc(mode: str = "close_loop",
             print("length of time_array = ",len(time_array))
             print("num_time_steps = ", num_time_steps)
             # if simulation failed, return empty state history
+            
             if len(time_array)<num_time_steps:
                 return record_dir, [], [], [], [], []
             
             # form state and action history
             for i in range(num_time_steps):
-                current_time = time_array[i]  # Get current simulation time
+                current_time = time_array[i] + current_timestep * sim_dt # Get current simulation time
                 q = q_array[i]
                 v = v_array[i]
                 
                 # Extract base position (x, y, z)
                 base_history[i] = q[:3]
 
-                # Extract phase percentage
+                # # Extract phase percentage
+                # if args.randomize_on_given_state is not None:
+                #     print("current_time while replanning = ",current_time)
+                #     print("phase_percentage while replanning= ",get_phase_percentage(current_time))
+                #     input()
+                    
                 state_history[i, 0] = get_phase_percentage(current_time)
 
                 # Store velocity in state_history (starting from column 1)
