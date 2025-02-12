@@ -18,6 +18,7 @@ import h5py
 import pickle
 import scipy.spatial.transform as st
 import pinocchio as pin
+from mj_pin.utils import get_robot_description
 
 def random_quaternion_perturbation(sigma):
     """
@@ -261,7 +262,7 @@ class DataCollection:
                 v_des=v_des,
                 save_data=True,
                 visualize=True,
-                randomize_initial_state=True,
+                randomize_initial_state=False,
                 show_plot=False
             )
 
@@ -295,33 +296,33 @@ class DataCollection:
                     # Extract nominal state at replanning point
                     initial_q = nominal_pos[i_replanning]  # Position (full state q)
                     initial_v = nominal_vel[i_replanning]  # Velocity
-                    
+                    nominal_state = np.concatenate((initial_q,initial_v))
                     # print("shape of initial_q is = ",np.shape(initial_q))
                     # print("shape of initial_v is = ",np.shape(initial_v))
+                    # print("shape of nominal_state is  = ", np.shape(nominal_state))
                     # input()
                     
                     # NOTE: randomize quatenion is tricky
-                    nominal_quat = initial_q[3:7]
-                    
-                    # TODO: perturb until all four feet are in 
-                    perturbed_quat = apply_quaternion_perturbation(nominal_quat, sigma_base_ori)
+                    # nominal_quat = initial_q[3:7]
+                    # perturbed_quat = apply_quaternion_perturbation(nominal_quat, sigma_base_ori)
                     # print("nominal_quat = ",nominal_quat)
                     # print("perturbed_quat = ", perturbed_quat)
                     # input()
                     
                     # base orientation is in quatenion
-                    perturbation_q = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
-                                                    perturbed_quat ,\
-                                                    np.random.normal(mu_joint_pos,sigma_joint_pos,len(initial_q)-7)))
-                    perturbation_v = np.random.normal(mu_vel,sigma_vel,len(initial_v))
+                    # perturbation_q = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
+                    #                                 perturbed_quat ,\
+                    #                                 np.random.normal(mu_joint_pos,sigma_joint_pos,len(initial_q)-7)))
+                    # perturbation_v = np.random.normal(mu_vel,sigma_vel,len(initial_v))
                     
                     # print("perturbation_q = ",perturbation_q)
                     # print("perturbation_v = ",perturbation_v)
                     # input()
-                    initial_state = np.concatenate((initial_q+perturbation_q, initial_v+perturbation_v), axis=0)  # Full initial state
+                    # initial_state = np.concatenate((initial_q+perturbation_q, initial_v+perturbation_v), axis=0)  # Full initial state
                     # print(initial_state)
                     # print(np.shape(initial_state))
                     # input()
+                    
                     
                     
                     
@@ -333,9 +334,9 @@ class DataCollection:
                         record_dir=record_dir + f"/replanning_{i_replanning}/",
                         v_des=v_des,
                         save_data=True,
-                        visualize=False,
+                        visualize=True,
                         randomize_initial_state=False,  # Use predefined state
-                        set_initial_state=initial_state,
+                        randomize_on_given_state=nominal_state,
                         show_plot=False
                     )
                     
