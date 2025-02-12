@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 import pinocchio as pin
 import traceback
 
-from mj_pin.utils import PinController
+from mj_pin.abstract import PinController
 from .utils.interactive import SetVelocityGoal
 from .utils.contact_planner import RaiberContactPlanner, CustomContactPlanner, ContactPlanner
 from .utils.solver import QuadrupedAcadosSolver
@@ -611,14 +611,14 @@ class LocomotionMPC(PinController):
             self.f_plan[self.plan_step],
         )
 
-        torques_pd = (torques +
+        self.torques_dof[-self.nu:] = (torques +
                       self.Kp * (self.q_plan[self.plan_step, -self.nu:] - q_mj[-self.nu:]) +
                       self.Kd * (self.v_plan[self.plan_step, -self.nu:] - v_mj[-self.nu:]))
-
-        torque_map = self.create_torque_map(torques_pd)
+        
+        torque_map = self.get_torque_map()
 
         # Record trajectories
-        self.tau_full.append(torques_pd)
+        self.tau_full.append(self.torques_dof[-self.nu:].copy())
         
         self._step()
 
