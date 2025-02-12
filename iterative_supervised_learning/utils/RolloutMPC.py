@@ -204,8 +204,8 @@ class RolloutMPC:
                 # TODO:
                 # if feet_pos_w is under the ground, randomize again, until all the feet are above the ground
                 if np.all(feet_pos_w[:,-1]>=0):
-                    print("feet_pos_w = ", feet_pos_w)
-                    print("shape of feet_pos_w is = ", np.shape(feet_pos_w))
+                    # print("feet_pos_w = ", feet_pos_w)
+                    # print("shape of feet_pos_w is = ", np.shape(feet_pos_w))
                     break
                 
             
@@ -237,14 +237,14 @@ class RolloutMPC:
 
     # monitor_thread = threading.Thread(target=monitor_mpc, daemon=True)
     # monitor_thread.start()
-        
+       
         sim.run(
             sim_time=self.args.sim_time,
             controller=mpc,
             visual_callback=vis_feet_pos,
             data_recorder=data_recorder,
             use_viewer=self.args.visualize,
-            allowed_collision=["FL_foot", "FR_foot", "RL_foot", "RR_foot","Floor"]
+            allowed_collision=["FL", "FR", "RL", "RR","floor"]
         )
             
         if self.args.show_plot:
@@ -365,7 +365,7 @@ def rollout_mpc(mode: str = "close_loop",
 
     # Collect and return recorded data
     if save_data:
-        data_file = None
+        files = None
         
         # TODO: return as a compact state and action:
         """
@@ -381,7 +381,7 @@ def rollout_mpc(mode: str = "close_loop",
         base: q[0:3]
         """
         # define return variables
-        num_time_steps = int(sim_time / sim_dt) - int(start_time / sim_dt)
+        num_time_steps = int(sim_time / sim_dt) - int(start_time/sim_dt)
         state_history = np.zeros((num_time_steps, n_state))
         base_history = np.zeros((num_time_steps, 3))
         vc_goal_history = np.zeros((num_time_steps, 3))
@@ -389,20 +389,35 @@ def rollout_mpc(mode: str = "close_loop",
         action_history = np.zeros((num_time_steps, n_action)) # define action space
         
     
-        for file in os.listdir(record_dir):
-            if file.startswith("simulation_data_") and file.endswith(".npz"):
-                data_file = os.path.join(record_dir, file)
-                break
+        # for file in os.listdir(record_dir):
+        #     if file.startswith("simulation_data_") and file.endswith(".npz"):
+        #         data_file = os.path.join(record_dir, file)
+        #         break
         
-        if data_file:
-            data = np.load(data_file)
-            print("data loaded from", data_file)
+        files = [
+        os.path.join(record_dir, file)
+        for file in os.listdir(record_dir)
+        if file.startswith("simulation_data_") and file.endswith(".npz")
+        ]
+        
+        if files:
+            # Sort files by modification time (latest file first)
+            files.sort(key=os.path.getmtime, reverse=True)
+            latest_file = files[0]  # Get the most recent file
+            
+            data = np.load(latest_file)
+            print("data loaded from", latest_file)
             
             time_array = np.array(data["time"])
             q_array = np.array(data["q"])
             v_array = np.array(data["v"])
             ctrl_array = np.array(data["ctrl"])
             
+            print("length of time_array = ",len(time_array))
+            print("num_time_steps = ", num_time_steps)
+            # if simulation failed, return empty state history
+            if len(time_array)<num_time_steps:
+                return record_dir, [], [], [], [], []
             
             # form state and action history
             for i in range(num_time_steps):
@@ -444,7 +459,7 @@ def rollout_mpc(mode: str = "close_loop",
                 # print("shape of state_history = ",np.shape(state_history))
                 # input()
             return record_dir, state_history, base_history, vc_goal_history, cc_goal_history, action_history
-    return record_dir, [], [], [], [], [], []
+    return record_dir, [], [], [], [], []
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run MPC simulations.")

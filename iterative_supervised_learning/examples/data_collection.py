@@ -232,7 +232,7 @@ class DataCollection:
     def run_perturbed_mpc_when_replanning_test(self):
         nv = 18
         nq = 17 # 19 - 2(two absolute horizontal coordinate of base point)
-        plan_freq = 1000  # Replan every 1000 steps
+        plan_freq = 100  # Replan every 1000 steps
         n_state = 36
         
         # pertubation variables
@@ -323,27 +323,26 @@ class DataCollection:
                     # print(np.shape(initial_state))
                     # input()
                     
-                    
-                    
-                    
                     # Run MPC from this replanning state
-                    __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
-                        mode="close_loop",
-                        sim_time=3.0,
-                        robot_name=self.cfg.robot_name,
-                        record_dir=record_dir + f"/replanning_{i_replanning}/",
-                        v_des=v_des,
-                        save_data=True,
-                        visualize=True,
-                        randomize_initial_state=False,  # Use predefined state
-                        randomize_on_given_state=nominal_state,
-                        show_plot=False
-                    )
-                    
-                    # NOTE: seems wrong
-                    if len(replanned_state_history) == 0:
-                        print(f"Replanned MPC rollout failed at step {i_replanning}")
-                        continue  # Skip if the rollout failed
+                    while True:
+                        __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
+                            mode="close_loop",
+                            sim_time=3.0,
+                            robot_name=self.cfg.robot_name,
+                            record_dir=record_dir + f"/replanning_{i_replanning}/",
+                            v_des=v_des,
+                            save_data=True,
+                            visualize=True,
+                            randomize_initial_state=False,  # Use predefined state
+                            randomize_on_given_state=nominal_state,
+                            show_plot=False
+                        )
+                        
+                        # NOTE: break loop if simulation 
+                        if len(replanned_state_history) != 0:
+                            break
+                        else:
+                            print(f"Replanned MPC rollout failed at step {i_replanning}")
 
                     # Store replanned trajectory in database
                     self.database.append(
