@@ -10,9 +10,39 @@ from mj_pin.abstract import VisualCallback, DataRecorder  # type: ignore
 from mj_pin.simulator import Simulator  # type: ignore
 from mj_pin.utils import get_robot_description  # type: ignore
 from mpc_controller.mpc import LocomotionMPC
+import scipy.spatial.transform as st
 
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
+
+# pertubation variables
+mu_base_pos = 0.0
+sigma_base_pos = 0.1
+mu_joint_pos = 0.0
+sigma_joint_pos = 0.2
+mu_base_ori = 0.0
+sigma_base_ori = 0.1
+mu_vel = 0.0
+sigma_vel = 0.1
+
+def random_quaternion_perturbation(sigma):
+    """
+    Generate a small random quaternion perturbation.
+    The perturbation is sampled from a normal distribution with standard deviation sigma.
+    """
+    random_axis = np.random.normal(0, 1, 3)  # Random rotation axis
+    random_axis /= np.linalg.norm(random_axis)  # Normalize to unit vector
+    angle = np.random.normal(0, sigma)  # Small random rotation angle
+    perturb_quat = st.Rotation.from_rotvec(angle * random_axis).as_quat()  # Convert to quaternion
+    return perturb_quat
+
+def apply_quaternion_perturbation(nominal_quat, sigma_base_ori):
+    """
+    Apply a small random rotation perturbation to a given quaternion.
+    """
+    perturb_quat = random_quaternion_perturbation(sigma_base_ori)
+    perturbed_quat = st.Rotation.from_quat(nominal_quat) * st.Rotation.from_quat(perturb_quat)
+    return perturbed_quat.as_quat()  # Convert back to quaternion
 
 class ReferenceVisualCallback(VisualCallback):
     def __init__(self, mpc_controller, update_step = 1):
@@ -80,8 +110,13 @@ class StateDataRecorder(DataRecorder):
         self.data["q"].append(mj_data.qpos.copy())
         self.data["v"].append(mj_data.qvel.copy())
         self.data["ctrl"].append(mj_data.ctrl.copy())
-        # save data for phase percentage
-        # self.data["phase percentage"].append()
+        
+        # # Record feet position in the world
+        # q, v = mj_data.qpos.copy(), mj_data.qvel.copy()
+        # q_pin, v_pin = self.mpc.solver.dyn.convert_from_mujoco(q, v)
+        # self.mpc.solver.dyn.update_pin(q_pin, v_pin)
+        # feet_pos_w = self.mpc.solver.dyn.get_feet_position_w()
+        # self.data["feet_pos_w"].append(feet_pos_w)
 
 class RolloutMPC:
     def __init__(self, args):
@@ -143,14 +178,37 @@ class RolloutMPC:
         v_mj = np.zeros(mpc.pin_model.nv)  # Default initial velocity
         
         #===============================================
-        if self.args.customized_initial_state is not None:
-            customized_state = np.array(self.args.customized_initial_state)  # Convert list to NumPy array
+        if self.args.randomize_on_given_state is not None:
+            nominal_state = np.array(self.args.randomize_on_given_state)  # Convert list to NumPy array
             # print(customized_state)
             # print("shape of customized_state", customized_state)
             # input()
-            q_mj = customized_state[:nq] 
-            v_mj = customized_state[nq:]
-
+            while True:
+                # keep randomizing if some feet is under the ground
+                q_mj = nominal_state[:nq] 
+                v_mj = nominal_state[nq:]
+                nominal_quat = q_mj[3:7]
+                perturbed_quat = apply_quaternion_perturbation(nominal_quat, sigma_base_ori)
+                perturbation_q = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
+                                                        perturbed_quat ,\
+                                                        np.random.normal(mu_joint_pos,sigma_joint_pos,len(q_mj)-7)))
+                perturbation_v = np.random.normal(mu_vel,sigma_vel,len(v_mj))
+                
+                q_mj += perturbation_q
+                v_mj += perturbation_v
+                
+                q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj, v_mj)
+                mpc.solver.dyn.update_pin(q_pin, v_pin)
+                feet_pos_w = mpc.solver.dyn.get_feet_position_w()
+                
+                # TODO:
+                # if feet_pos_w is under the ground, randomize again, until all the feet are above the ground
+                if np.all(feet_pos_w[:,-1]>=0):
+                    print("feet_pos_w = ", feet_pos_w)
+                    print("shape of feet_pos_w is = ", np.shape(feet_pos_w))
+                    break
+                
+            
         #===============================================      
         if self.args.randomize_initial_state:
             q_mj += np.random.uniform(low=-0.05, high=0.05, size=q_mj.shape)
@@ -162,13 +220,23 @@ class RolloutMPC:
         sim.set_initial_state(q0=q_mj,v0=v_mj)
         
         # check for feet position
-        # this is the feet position in mpc solver
-        # feet_pos = mpc.solver.dyn.get_feet_position_w()
-        # print(feet_pos)
-        
-        # this is the contact position in mujoco simulation
-        # print(sim.mj_data.contact.pos)
+        # q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj, v_mj)
+        # mpc.solver.dyn.update_pin(q_pin, v_pin)
+        # feet_pos_w = mpc.solver.dyn.get_feet_position_w()
+        # print("feet_pos_w = ", feet_pos_w)
         # input()
+        
+    #     # **Thread to Monitor MPC Divergence**
+    # def monitor_mpc():
+    #     while not sim.stop_sim:
+    #         if mpc.diverged:
+    #             print("MPC has diverged! Stopping simulation...")
+    #             sim.stop_sim = True  # Stops the physics thread
+    #             break
+    #         time.sleep(0.1)  # Check every 100ms
+
+    # monitor_thread = threading.Thread(target=monitor_mpc, daemon=True)
+    # monitor_thread.start()
         
         sim.run(
             sim_time=self.args.sim_time,
@@ -176,6 +244,7 @@ class RolloutMPC:
             visual_callback=vis_feet_pos,
             data_recorder=data_recorder,
             use_viewer=self.args.visualize,
+            allowed_collision=["FL_foot", "FR_foot", "RL_foot", "RR_foot","Floor"]
         )
             
         if self.args.show_plot:
@@ -246,7 +315,7 @@ def rollout_mpc(mode: str = "close_loop",
                 record_video: bool = False,
                 visualize: bool = False,
                 randomize_initial_state: bool = False,
-                set_initial_state: List[float] = None,
+                randomize_on_given_state: List[float] = None,
                 show_plot:bool= True) -> Tuple[str, List[float], List[List[float]], List[List[float]], List[List[float]],]:
 
     # Create argparse-like structure
@@ -262,7 +331,7 @@ def rollout_mpc(mode: str = "close_loop",
             self.record_video = record_video
             self.visualize = visualize
             self.randomize_initial_state = randomize_initial_state
-            self.customized_initial_state = set_initial_state
+            self.randomize_on_given_state = randomize_on_given_state
             self.show_plot = show_plot
     args = Args()
 
