@@ -337,7 +337,7 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_12_2025_22_46_48/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_12_2025_23_41_12/network/policy_final.pth'
     
     
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)
