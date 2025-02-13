@@ -232,7 +232,7 @@ class DataCollection:
     def run_perturbed_mpc_when_replanning_test(self):
         nv = 18
         nq = 17 # 19 - 2(two absolute horizontal coordinate of base point)
-        plan_freq = 1000  # Replan every 1000 steps
+        plan_freq = 250  # Replan every 1000 steps
         n_state = 36
         
         # pertubation variables
@@ -284,7 +284,7 @@ class DataCollection:
             print("Nominal trajectory saved in database.")
 
             # Calculate replanning points
-            replanning_points = np.arange(0, self.episode_length, plan_freq)[1:]
+            replanning_points = np.arange(0, self.episode_length, plan_freq)
             print("Replanning points:", replanning_points)
 
             # Rollout MPC from each replanning point
