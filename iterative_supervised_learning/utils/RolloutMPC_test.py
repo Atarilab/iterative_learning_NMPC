@@ -311,8 +311,8 @@ def rollout_mpc(mode: str = "close_loop",
     nv = 18
     nq = 17
     f_arr = ["FL_FOOT", "FR_FOOT", "HL_FOOT", "HR_FOOT"]
-    kp = 2.0
-    kd = 0.1
+    kp = 40.0
+    kd = 5.0
     
     
     # Ensure the record directory exists
@@ -390,9 +390,9 @@ def rollout_mpc(mode: str = "close_loop",
             ctrl_array = np.array(data["ctrl"])
             base_wrt_feet = np.array(data["base_wrt_feet"])
             
-            print("length of time_array = ",len(time_array))
-            print("num_time_steps = ", num_time_steps)
-            print("base_wrt_feet is  = ", base_wrt_feet[:2])
+            # print("length of time_array = ",len(time_array))
+            # print("num_time_steps = ", num_time_steps)
+            # print("base_wrt_feet is  = ", base_wrt_feet[:2])
             
             # if simulation failed middleway, return empty state history
             if len(time_array)<num_time_steps:
