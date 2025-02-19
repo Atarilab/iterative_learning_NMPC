@@ -9,7 +9,7 @@ import pinocchio as pin
 import numpy as np
 from mj_pin.abstract import VisualCallback, DataRecorder # type: ignore
 from mj_pin.simulator import Simulator # type: ignore
-from mj_pin.utils import get_robot_description   # type: ignore
+from mj_pin.utils import get_robot_description, mj_frame_pos   # type: ignore
 
 from mpc_controller.mpc import LocomotionMPC
 from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
@@ -21,10 +21,12 @@ import mujoco.viewer
 
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
-n_state = 39 # state:36 + vc_goal:3
+n_state = 44 # state:44 + vc_goal:3
+n_state += 3
+print("n_state = ",n_state)
 n_action = 12
-kp = 2.0
-kd = 0.1 
+kp = 40.0
+kd = 5.0 
 
 class ReferenceVisualCallback(VisualCallback):
     def __init__(self, mpc_controller, update_step = 1):
@@ -132,6 +134,10 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
 
     # Load robot description
     robot_description = get_robot_description("go2")
+    xml_path = robot_description.xml_path
+    feet_names = ["FL", "FR", "RL", "RR"]
+    mj_model = mujoco.MjModel.from_xml_path(xml_path)
+    
     sim = Simulator(robot_description.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     
     # Set camera view
@@ -176,6 +182,16 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
         
         phase_percentage = get_phase_percentage(t*SIM_DT)
         print(phase_percentage)
+        
+        # extract feet position
+        feet_pos_all = []
+        base_wrt_feet = np.zeros(2*len(feet_names))
+        for i, f_name in enumerate(feet_names):
+            feet_pos = mj_frame_pos(mj_model, sim.mj_data, f_name)
+            print("feet_pos = ",feet_pos)
+            print("base_pos = ", base_pos)
+            feet_pos_all.extend(feet_pos)
+            base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]  # Correct indexing
         
         state = np.concatenate([[phase_percentage],v,robot_state])
         state = np.concatenate([state,v_des])
@@ -235,6 +251,9 @@ def rollout_policy_multithread(policy_path: str, sim_time=3.0, v_des=[0.3, 0.0, 
 
     # Load robot description
     robot_description = get_robot_description("go2")
+    xml_path = robot_description.xml_path
+    feet_names = ["FL", "FR", "RL", "RR"]
+    mj_model = mujoco.MjModel.from_xml_path(xml_path)
     sim = Simulator(robot_description.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
 
     # Set camera view
@@ -278,17 +297,30 @@ def rollout_policy_multithread(policy_path: str, sim_time=3.0, v_des=[0.3, 0.0, 
             print(f"❌ Simulation failed at step {t}: NaN/Inf detected! Stopping.")
             break
         
+        # extract phase percentage
         print("current_time = ", t*SIM_DT)
         phase_percentage = get_phase_percentage(t*SIM_DT)
         print("phase_percentage = ", phase_percentage)
         
+        # extract feet position and base_wrt_feet
+        feet_pos_all = []
+        base_wrt_feet = np.zeros(2*len(feet_names))
+        for i, f_name in enumerate(feet_names):
+            feet_pos = mj_frame_pos(mj_model, sim.mj_data, f_name)
+            print("feet_pos = ",feet_pos)
+            print("base_pos = ", q[:3])
+            feet_pos_all.extend(feet_pos)
+            base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]  # Correct indexing
+        # input()
         # Construct state vector
-        state = np.concatenate([[phase_percentage],v, q[2:]])[:n_state-3]
+        state = np.concatenate(([phase_percentage], v, q[2:], base_wrt_feet))[:n_state-3]
         print("state = ",state)
         print("shape of the state = ", np.shape(state))
+        input()
+        
         # TODO: deal with norm_policy_input problem        
         if norm_policy_input:
-            # Normalize only the last n_state-1 entries (excluding phase_percentage)
+            # we should normalize from training data distribution
             state_mean = np.mean(state[1:])  # Compute mean (excluding first entry)
             state_std = np.std(state[1:])  # Compute std (excluding first entry)
             if state_std == 0:  # Prevent division by zero
@@ -350,7 +382,7 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_14_2025_11_31_16/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_19_2025_15_49_01/network/policy_final.pth'
     
     
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)
