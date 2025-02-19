@@ -177,7 +177,7 @@ def rollout_policy(policy_path: str, sim_time=5.0,v_des=[0.5,0,0], gait="trot", 
         phase_percentage = get_phase_percentage(t*SIM_DT)
         print(phase_percentage)
         
-        state = np.concatenate([[phase_percentage],v,robot_state])[:n_state]
+        state = np.concatenate([[phase_percentage],v,robot_state])
         state = np.concatenate([state,v_des])
         # print("state", state)
         # input()
@@ -266,6 +266,7 @@ def rollout_policy_multithread(policy_path: str, sim_time=3.0, v_des=[0.3, 0.0, 
 
     print(f"🚀 Starting rollout for {sim_time} seconds ({num_steps} steps)...")
     start_time = time.time()
+    norm_policy_input = False
 
     for t in tqdm(range(num_steps)):
         # Get state
@@ -282,12 +283,24 @@ def rollout_policy_multithread(policy_path: str, sim_time=3.0, v_des=[0.3, 0.0, 
         print("phase_percentage = ", phase_percentage)
         
         # Construct state vector
-        state = np.concatenate([[phase_percentage],v, q[2:], v_des])[:n_state]
+        state = np.concatenate([[phase_percentage],v, q[2:]])[:n_state-3]
         print("state = ",state)
-        # input()
+        print("shape of the state = ", np.shape(state))
+        # TODO: deal with norm_policy_input problem        
+        if norm_policy_input:
+            # Normalize only the last n_state-1 entries (excluding phase_percentage)
+            state_mean = np.mean(state[1:])  # Compute mean (excluding first entry)
+            state_std = np.std(state[1:])  # Compute std (excluding first entry)
+            if state_std == 0:  # Prevent division by zero
+                state_std = 1.0    
+            state[1:] = (state[1:] - state_mean) / state_std  # Normalize all but the first entry  
         
+        state = np.concatenate([np.array(state), np.array(v_des)])[:n_state]
+       
         # Predict action
         state_tensor = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+        # print(state_tensor)
+        # input()
         
         # action is actually a PD target
         action_tensor = policy_net(state_tensor)
@@ -337,7 +350,7 @@ if __name__ == "__main__":
     parser.add_argument("--record_video", action="store_true", help="Record rollout video")
     
     args = parser.parse_args()
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_12_2025_23_41_12/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_14_2025_11_31_16/network/policy_final.pth'
     
     
     # rollout_policy(policy_path=policy_path, sim_time=args.time, gait=args.gait, record_video=args.record_video)

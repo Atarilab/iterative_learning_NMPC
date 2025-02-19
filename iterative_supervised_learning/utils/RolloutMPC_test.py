@@ -8,9 +8,10 @@ import pinocchio as pin
 import numpy as np
 from mj_pin.abstract import VisualCallback, DataRecorder  # type: ignore
 from mj_pin.simulator import Simulator  # type: ignore
-from mj_pin.utils import get_robot_description  # type: ignore
+from mj_pin.utils import get_robot_description, mj_frame_pos # type: ignore
 from mpc_controller.mpc import LocomotionMPC
 import scipy.spatial.transform as st
+import mujoco
 
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
@@ -43,7 +44,7 @@ def apply_quaternion_perturbation(nominal_quat, sigma_base_ori):
     perturb_quat = random_quaternion_perturbation(sigma_base_ori)
     perturbed_quat = st.Rotation.from_quat(nominal_quat) * st.Rotation.from_quat(perturb_quat)
     return perturbed_quat.as_quat()  # Convert back to quaternion
-
+    
 class ReferenceVisualCallback(VisualCallback):
     def __init__(self, mpc_controller, update_step = 1):
         super().__init__(update_step)
@@ -74,17 +75,29 @@ class StateDataRecorder(DataRecorder):
     def __init__(
         self,
         record_dir: str = "",
-        record_step: int = 1,
-    ) -> None:
+        record_step: int = 1) -> None:
         """
         A simple data recorder that saves simulation data to a .npz file.
         """
         super().__init__(record_dir, record_step)
         self.data = {}
+        
+        # some initialization
+        self.feet_names = ["FL", "FR", "RL", "RR"]
+        self.robot_name = "go2"
+        xml_path = get_robot_description(self.robot_name).xml_path
+        self.mj_model = mujoco.MjModel.from_xml_path(xml_path)
+        
+        # reset
         self.reset()
 
     def reset(self) -> None:
-        self.data = {"time": [], "q": [], "v": [], "ctrl": [],"feet_pos_w":[]}
+        self.data = {"time": [], 
+                     "q": [], 
+                     "v": [], 
+                     "ctrl": [],
+                     "feet_pos_w":[],
+                     "base_wrt_feet":[]}
 
     def save(self) -> None:
         if not self.record_dir:
@@ -106,49 +119,39 @@ class StateDataRecorder(DataRecorder):
         Record simulation data at the current simulation step.
         """
         # Record time and state
+        q = mj_data.qpos.copy()
+        v = mj_data.qvel.copy()
         self.data["time"].append(round(mj_data.time, 4))
-        self.data["q"].append(mj_data.qpos.copy())
-        self.data["v"].append(mj_data.qvel.copy())
+        self.data["q"].append(q)
+        self.data["v"].append(v)
         self.data["ctrl"].append(mj_data.ctrl.copy())
         
         # # Record feet position in the world
-        # q, v = mj_data.qpos.copy(), mj_data.qvel.copy()
-        # q_pin, v_pin = self.mpc.solver.dyn.convert_from_mujoco(q, v)
-        # self.mpc.solver.dyn.update_pin(q_pin, v_pin)
-        # feet_pos_w = self.mpc.solver.dyn.get_feet_position_w()
-        # self.data["feet_pos_w"].append(feet_pos_w)
+        feet_pos_all = []
+        base_wrt_feet = np.zeros(2*len(self.feet_names))
+        
+        for i, f_name in enumerate(self.feet_names):
+            feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)
+            # print("feet_pos = ",feet_pos)
+            # print("base_pos = ",q[:3])
+            feet_pos_all.extend(feet_pos)
+            base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]  # Correct indexing
+        
+        # print("base_wrt_feet = ", base_wrt_feet)
+        # input()
+        self.data["feet_pos_w"].append(np.array(feet_pos_all))
+        self.data["base_wrt_feet"].append(np.array(base_wrt_feet))
+
 
 class RolloutMPC:
     def __init__(self, args):
         self.args = args
 
     def run_traj_opt(self):
-        robot_desc = get_robot_description(self.args.robot_name)
-        feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
-
-        mpc = LocomotionMPC(
-            path_urdf=robot_desc.urdf_path,
-            feet_frame_names=feet_frame_names,
-            robot_name=self.args.robot_name,
-            joint_ref=robot_desc.q0,
-            sim_dt=SIM_DT,
-            print_info=True,
-        )
-        mpc.set_command(self.args.v_des, 0.0)
-        mpc.set_convergence_on_first_iter()
-
-        q = robot_desc.q0
-        v = np.zeros(mpc.pin_model.nv)
-        q_plan, v_plan, _, _, dt_plan = mpc.optimize(q, v)
-
-        q_plan_mj = np.array([
-            mpc.solver.dyn.convert_to_mujoco(q_plan[i], v_plan[i])[0] for i in range(len(q_plan))
-        ])
-        time_traj = np.concatenate(([0], np.cumsum(dt_plan)))
-
-        sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
-        sim.vs.set_high_quality()
-        sim.visualize_trajectory(q_plan_mj, time_traj, record_video=self.args.record_video)
+        pass
+    
+    def run_open_loop(self):
+        pass
 
     def run_mpc(self):
         # init
@@ -227,25 +230,6 @@ class RolloutMPC:
         
         #==================================================
         sim.set_initial_state(q0=q_mj,v0=v_mj)
-        
-        # check for feet position
-        # q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj, v_mj)
-        # mpc.solver.dyn.update_pin(q_pin, v_pin)
-        # feet_pos_w = mpc.solver.dyn.get_feet_position_w()
-        # print("feet_pos_w = ", feet_pos_w)
-        # input()
-        
-    #     # **Thread to Monitor MPC Divergence**
-    # def monitor_mpc():
-    #     while not sim.stop_sim:
-    #         if mpc.diverged:
-    #             print("MPC has diverged! Stopping simulation...")
-    #             sim.stop_sim = True  # Stops the physics thread
-    #             break
-    #         time.sleep(0.1)  # Check every 100ms
-
-    # monitor_thread = threading.Thread(target=monitor_mpc, daemon=True)
-    # monitor_thread.start()
        
         sim.run(
             sim_time=self.args.sim_time,
@@ -263,30 +247,6 @@ class RolloutMPC:
             mpc.plot_traj("tau")
             mpc.show_plots()
 
-    def run_open_loop(self):
-        robot_desc = get_robot_description(self.args.robot_name)
-        feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
-
-        mpc = LocomotionMPC(
-            path_urdf=robot_desc.urdf_path,
-            feet_frame_names=feet_frame_names,
-            robot_name=self.args.robot_name,
-            joint_ref=robot_desc.q0,
-            interactive_goal=False,
-            sim_dt=SIM_DT,
-            print_info=False,
-        )
-        mpc.set_command(self.args.v_des, 0.0)
-
-        q = robot_desc.q0
-        v = np.zeros(mpc.pin_model.nv)
-        q_traj = mpc.open_loop(q, v, self.args.sim_time)
-
-        mpc.print_timings()
-        sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT)
-        sim.vs.set_high_quality()
-        sim.visualize_trajectory(q_traj, record_video=self.args.record_video)
-
     def run(self):
         if self.args.mode == 'traj_opt':
             self.run_traj_opt()
@@ -294,14 +254,13 @@ class RolloutMPC:
             self.run_open_loop()
         elif self.args.mode == 'close_loop':
             self.run_mpc()
-    
-    
-    
+
+
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
 
     Args:
-        t (int): current sim step (NOT sim time!)
+        t (int): current sim step (NOT sim time in seconds!)
 
     Returns:
         phi: current gait phase. between 0 - 1
@@ -347,7 +306,7 @@ def rollout_mpc(mode: str = "close_loop",
     # NOTE: Why is phase percentage a part of vc_goals?
     
     # define some global variables
-    n_state = 36
+    n_state = 44
     n_action = 12
     nv = 18
     nq = 17
@@ -399,9 +358,9 @@ def rollout_mpc(mode: str = "close_loop",
         """
         # define return variables
         num_time_steps = int(sim_time / sim_dt) - int(start_time/sim_dt)
-        state_history = np.zeros((num_time_steps, n_state))
-        base_history = np.zeros((num_time_steps, 3))
-        vc_goal_history = np.zeros((num_time_steps, 3))
+        state_history = np.zeros((num_time_steps, n_state)) # [phase_percentage, q[2:], v, base_wrt_feet]
+        base_history = np.zeros((num_time_steps, 3)) # [x,y,z]
+        vc_goal_history = np.zeros((num_time_steps, 3)) # [vx,vy,w]
         cc_goal_history = np.zeros((num_time_steps, 3))  # Assuming it should be 3D
         action_history = np.zeros((num_time_steps, n_action)) # define action space
         
@@ -429,11 +388,13 @@ def rollout_mpc(mode: str = "close_loop",
             q_array = np.array(data["q"])
             v_array = np.array(data["v"])
             ctrl_array = np.array(data["ctrl"])
+            base_wrt_feet = np.array(data["base_wrt_feet"])
             
             print("length of time_array = ",len(time_array))
             print("num_time_steps = ", num_time_steps)
-            # if simulation failed, return empty state history
+            print("base_wrt_feet is  = ", base_wrt_feet[:2])
             
+            # if simulation failed middleway, return empty state history
             if len(time_array)<num_time_steps:
                 return record_dir, [], [], [], [], []
             
@@ -461,14 +422,13 @@ def rollout_mpc(mode: str = "close_loop",
                 # state_history[i, nv + 1:nv + 1 + 2 * len(f_arr)] = base_wrt_foot(q)
 
                 # Store configuration (excluding first two elements)
-                state_history[i, nv+1:] = q[2:]
+                state_history[i, nv+1:n_state-8] = q[2:]
+                
+                # Add base_wrt_foot information in the state space
+                state_history[i,n_state-8:] = base_wrt_feet[i]
+                
                 # print("state is ", state_history[i])
                 # input()
-                
-                # TODO: add base_wrt_foot information in the state space
-                # q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj, v_mj)
-                # mpc.solver.dyn.update_pin(q_pin, v_pin)
-                # feet_pos_w = mpc.solver.dyn.get_feet_position_w()
                 
                 # Store vc_goal_history
                 vc_goal_history[i,:] = v_des
@@ -495,14 +455,14 @@ if __name__ == "__main__":
     parser.add_argument('--sim_time', type=float, default=5, help='Simulation time.')
     parser.add_argument('--robot_name', type=str, default='go2', help='Name of the robot.')
     parser.add_argument('--record_dir', type=str, default='./data/', help='Directory to save recorded data.')
-    parser.add_argument('--v_des', type=float, nargs=3, default=[0.3, 0.0, 0.0], help='Desired velocity.')
+    parser.add_argument('--v_des', type=float, nargs=3, default=[0.5, 0.0, 0.0], help='Desired velocity.')
     parser.add_argument('--save_data', action='store_true', help='Flag to save data.')
     parser.add_argument('--interactive', action='store_true', help='Use keyboard to set the velocity goal (zqsd).')
     parser.add_argument('--record_video', action='store_true', help='Record a video of the viewer.')
     parser.add_argument('--visualize', default=True, help='Enable or disable simulation visualization.')
-    parser.add_argument('--randomize_initial_state', default=True, help='Enable or disable simulation visualization.')
+    parser.add_argument('--randomize_initial_state', default=False, help='Enable or disable simulation visualization.')
     parser.add_argument('--randomize_on_given_state',default = None)
-    parser.add_argument('--show_plot',default=True)
+    parser.add_argument('--show_plot',default=False)
     args = parser.parse_args()
 
     rollout_mpc = RolloutMPC(args)
