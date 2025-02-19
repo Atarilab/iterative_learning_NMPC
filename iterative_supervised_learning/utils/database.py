@@ -194,9 +194,26 @@ class Database():
         # Get the current mean and std of the database for each element of the input along time. 
         # Not of all the inputs for one time step!
         # States
+        # current implementation put phase percentage as the first entry of state, so it must be constraint within 0-1
+        
+        # Compute mean and std across all states
         self.states_mean = np.mean(np.array(self.states[:self.length]), axis=0)
         self.states_std = np.std(np.array(self.states[:self.length]), axis=0)
-        self.states_norm = (np.array(self.states[:self.length]) - self.states_mean) / self.states_std
+        # Normalize all but the first column (first feature)
+        states_array = np.array(self.states[:self.length])  # Convert to array for easier slicing
+        states_norm = np.copy(states_array)  # Create a copy to preserve structure
+        # Normalize only columns 1-35 (excluding the first column)
+        states_norm[:, 1:] = (states_array[:, 1:] - self.states_mean[1:]) / self.states_std[1:]
+        # The first column remains unchanged
+        self.states_norm = states_norm
+        # print("shape of self.states is = ", np.shape(self.states[:self.length]))
+        # print("shape of states_mean is = ",np.shape(self.states_mean))
+        # print("shape of states_norm is = ",np.shape(self.states_norm))
+        
+        # print(np.array(self.states[:self.length])[:1,:])
+        # input()
+        # print(self.states_norm[:1,:])
+        
         
         # vc goal will not be normalized as phi is already constrainted betweeon 0 - 1
         # desired velocities are also always constant throughout the rollout process
@@ -204,7 +221,8 @@ class Database():
             self.vc_goals_mean = 0.0
             self.vc_goals_std = 1.0
             self.vc_goals_norm = (np.array(self.vc_goals[:self.length]) - self.vc_goals_mean) / self.vc_goals_std   
-        
+            # print("normalized vc_goal is = ",self.vc_goals_norm)
+            
         # cc goal
         # if None not in np.array(self.cc_goals[:self.length]):
         if cc_goal is not None:

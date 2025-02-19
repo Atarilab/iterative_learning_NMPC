@@ -232,8 +232,8 @@ class DataCollection:
     def run_perturbed_mpc_when_replanning_test(self):
         nv = 18
         nq = 17 # 19 - 2(two absolute horizontal coordinate of base point)
-        plan_freq = 250  # Replan every 1000 steps
-        n_state = 36
+        plan_freq = 100  # Replan every 1000 steps
+        n_state = 36 # nv + nq + phase_percentage
         
         # pertubation variables
         mu_base_pos = 0.0
@@ -294,11 +294,12 @@ class DataCollection:
                 for j in range(self.num_pertubations_per_replanning):
                     print(f"executing the {j+1}th pertubation at replanning point {i_replanning}")
                     # Extract nominal state at replanning point
-                    initial_q = nominal_pos[i_replanning]  # Position (full state q)
-                    initial_v = nominal_vel[i_replanning]  # Velocity
+                    nominal_q = nominal_pos[i_replanning]  # Position (full state q)
+                    nominal_v = nominal_vel[i_replanning]  # Velocity
                     
                     # very important: pass current time(i_replanning) to rollout_mpc in order to calculate current phase percentage
-                    nominal_state = np.concatenate((initial_q,initial_v,np.array([i_replanning])))
+                    nominal_state = np.concatenate((nominal_q, nominal_v, np.array([i_replanning])))
+                    
                     # print("shape of initial_q is = ",np.shape(initial_q))
                     # print("shape of initial_v is = ",np.shape(initial_v))
                     
@@ -331,7 +332,7 @@ class DataCollection:
                     while True:
                         __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
                             mode="close_loop",
-                            sim_time=3.0,
+                            sim_time=4.0,
                             robot_name=self.cfg.robot_name,
                             record_dir=record_dir + f"/replanning_{i_replanning}/",
                             v_des=v_des,
@@ -356,6 +357,7 @@ class DataCollection:
                         actions=replanned_ctrl,
                     )
                 print(f"Replanned trajectory at step {i_replanning} saved in database.")
+                print("current database length is = ", self.database.length)
 
             # Save dataset after each iteration
             self.save_dataset(i)
