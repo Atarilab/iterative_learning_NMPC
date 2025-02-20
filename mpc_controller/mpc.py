@@ -129,6 +129,9 @@ class LocomotionMPC(PinController):
         self.q_opt : np.ndarray = None
         self.v_opt : np.ndarray = None
         self.time_traj : np.ndarray = np.array([])
+        self.q0 : np.ndarray = None
+        self.first_solve : bool = True
+        self.t0 : float = 0.
 
         # For plots
         self.q_full = []
@@ -157,7 +160,10 @@ class LocomotionMPC(PinController):
         Record trajectory of the last 
         """
         replan = self.sim_step % self.replanning_steps == 0
-
+        
+        if self.first_solve:
+            replan = replan and self.optimize_future is None
+            
         if self.solve_async:
             replan = replan and (self.optimize_future is None or self.optimize_future.done())
 
@@ -519,39 +525,46 @@ class LocomotionMPC(PinController):
         return q_full_traj_arr
     
     def set_convergence_on_first_iter(self):
-        if self.sim_step == 0:
-            self.solver.set_max_iter(50)
+        if self.first_solve:
+            self.solver.set_max_iter(15)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
             self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 10.)
-        elif self.sim_step <= self.replanning_steps:
+        else:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
             self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
     
     def get_torques(self, sim_step : int, mj_data: Any) -> Dict[str, float]:
+            """
+            Compute torques based on robot state in the MuJoCo simulation.
+            """
+            # Get state
+            t, q_mj, v_mj = mj_data.time, mj_data.qpos, mj_data.qvel
+            return self._get_torques(t, q_mj, v_mj)
+        
+    def _get_torques(self, sim_time : float, q_mj : np.ndarray, v_mj : np.ndarray) -> Dict[str, float]:
         """
         Compute torques based on robot state in the MuJoCo simulation.
         """
-        # Get state in pinocchio format
-        q_mj, v_mj = mj_data.qpos, mj_data.qvel
-        
-        # Increment the optimization node every dt_nodes
-        # TODO: This may be changed in case of dt time optimization
-        # One may update the opt node according to the last dt results
-        sim_time = round(mj_data.time, 4)
-        if sim_time >= (self.current_opt_node+1) * self.dt_nodes:
-            self.current_opt_node += 1
+        t = round(sim_time - self.t0, 4)
 
+        if not self.first_solve:
+            # Increment the optimization node every dt_nodes
+            # TODO: This may be changed in case of dt time optimization
+            # One may update the opt node according to the last dt results
+            if t >= (self.current_opt_node+1) * self.dt_nodes:
+                self.current_opt_node += 1
+        
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
 
             # Compute replanning time
-            self.start_time = sim_time
+            self.start_time = t
             # Set solver parameters on first iteration
             self.set_convergence_on_first_iter()
 
             # Set up asynchronous optimize call
-            self.time_start_plan = sim_time
+            self.time_start_plan = t
             self.optimize_future = self.executor.submit(self.optimize, q_mj, v_mj)
             self.plan_submitted = True
 
@@ -559,37 +572,37 @@ class LocomotionMPC(PinController):
                 print()
                 print("#"*10, "Replan", "#"*10)
                 print("Current node:", self.current_opt_node,
-                      "Sim time:", sim_time,
+                      "Sim time:", t,
                       "Sim step:", self.sim_step)
                 print()
 
             # Wait for the solver if no delay
             while not self.solve_async and not self.optimize_future.done():
-                time.sleep(5.0e-4)
+                t.sleep(5.0e-4)
 
         # Check if the future is done and if the new plan is ready to be used
-        if (self.plan_submitted and self.optimize_future.done() or
-            self.sim_step == 0):
+        if (self.plan_submitted and self.optimize_future.done()):
             try:
                 # Retrieve new plan from future
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
 
                 # Record trajectory
-                if self.sim_step > 0:
+                if self.q_plan is not None:
                     self._record_plan()
 
                 # Interpolate plan at sim_dt interval
                 self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
 
-                # Apply delay
-                if (self.solve_async and self.sim_step != 0):
-                    replanning_time = sim_time - self.start_time
+                # Apply delay, not for first iteration
+                if (self.solve_async and not self.first_solve):
+                    replanning_time = t - self.start_time
                     self.delay = math.ceil(replanning_time / self.sim_dt)
                 else:
                     self.delay = 0
 
                 self.plan_step = self.delay
                 self.plan_submitted = False
+                self.first_solve = False
                 
                 # Plot current state vs optimization plan
                 # self.plot_current_vs_plan(q_mj, v_mj)
@@ -603,25 +616,34 @@ class LocomotionMPC(PinController):
                 self.executor.shutdown(wait=False, cancel_futures=True)
                 time.sleep(0.1)
         
-        q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
-        torques = self.solver.dyn.id_torques(
-            q,
-            v,
-            self.a_plan[self.plan_step],
-            self.f_plan[self.plan_step],
-        )
+        # Wait for to solver to plan the first trajectory
+        # Use PD control
+        if self.first_solve:
+            if self.q0 is None:
+                self.q0 = q_mj.copy()
+            
+            self.torques_dof[-self.nu:] = (
+            3 * self.Kp * (self.q0[-self.nu:] - q_mj[-self.nu:]) -
+            2 * self.Kd * v_mj[-self.nu:]
+            )
+            self.t0 = sim_time
 
-        self.torques_dof[-self.nu:] = (torques +
-                      self.Kp * (self.q_plan[self.plan_step, -self.nu:] - q_mj[-self.nu:]) +
-                      self.Kd * (self.v_plan[self.plan_step, -self.nu:] - v_mj[-self.nu:]))
+        else:
+            q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
+            torques = self.solver.dyn.id_torques(
+                q,
+                v,
+                self.a_plan[self.plan_step],
+                self.f_plan[self.plan_step],
+            )
+            self.torques_dof[-self.nu:] = (torques +
+                        self.Kp * (self.q_plan[self.plan_step, -self.nu:] - q_mj[-self.nu:]) +
+                        self.Kd * (self.v_plan[self.plan_step, -self.nu:] - v_mj[-self.nu:]))
+            # Record trajectories
+            self.tau_full.append(self.torques_dof[-self.nu:].copy())
+            self._step()
         
         torque_map = self.get_torque_map()
-
-        # Record trajectories
-        self.tau_full.append(self.torques_dof[-self.nu:].copy())
-        
-        self._step()
-
         return torque_map
         
     def plot_current_vs_plan(self, q_mj: np.ndarray, v_mj: np.ndarray):
