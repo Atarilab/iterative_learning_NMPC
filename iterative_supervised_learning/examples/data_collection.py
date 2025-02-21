@@ -368,7 +368,7 @@ class DataCollection:
     def run_perturbed_mpc_when_replanning_with_new_state_space(self):
         nv = 18
         nq = 17 # 19 - 2(two absolute horizontal coordinate of base point)
-        plan_freq = 500  # Replan every 1000 steps
+        plan_freq = 200  # Replan every 1000 steps
         n_state = 44 # phase_percentage + q[2:] + v + base_wrt_feet
         
         for i in range(self.n_iteration):
@@ -437,7 +437,7 @@ class DataCollection:
                     while True:
                         __, replanned_state_history, replanned_base_history, replanned_vc_goal_history, replanned_cc_goal_history, replanned_ctrl = rollout_mpc(
                             mode="close_loop",
-                            sim_time=5.0,
+                            sim_time=self.episode_length * self.sim_dt,
                             robot_name=self.cfg.robot_name,
                             record_dir=record_dir + f"/replanning_{i_replanning}/",
                             v_des=v_des,
