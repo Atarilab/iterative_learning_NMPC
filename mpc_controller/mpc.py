@@ -18,7 +18,6 @@ from .utils.profiling import time_fn, print_timings
 from .config.quadruped.utils import get_quadruped_config
 
 class LocomotionMPC(PinController):
-    CONTACT_PLANNERS = ["raibert", "custom"]
     """
     Abstract base class for an MPC controller.
     This class defines the structure for an MPC controller
@@ -56,18 +55,20 @@ class LocomotionMPC(PinController):
         super().__init__(pin_model=self.solver.dyn.pin_model)
 
         # Set joint reference
-        nu = self.solver.dyn.pin_model.nv - 6
+        self.nu = self.solver.dyn.pin_model.nv - 6
+        self.nq = self.solver.dyn.pin_model.nq
+        self.nv = self.solver.dyn.pin_model.nv
         if joint_ref is None:
             if self.solver.dyn.pin_model.referenceConfigurations["home"]:
-                joint_ref = self.solver.dyn.pin_model.referenceConfigurations["home"][-nu:]
+                joint_ref = self.solver.dyn.pin_model.referenceConfigurations["home"][-self.nu:]
             else:
                 print("Joint reference not found in pinocchio model. Set to zero.")
-                joint_ref = np.zeros(nu)
-        self.joint_ref = joint_ref[-nu:]
+                joint_ref = np.zeros(self.nu)
+        self.joint_ref = joint_ref[-self.nu:]
                
         # Contact planner
-        q0, v0 = np.zeros(self.solver.dyn.pin_model.nq), np.zeros(self.solver.dyn.pin_model.nv)
-        q0[-nu:] = self.joint_ref
+        q0, v0 = np.zeros(self.nq), np.zeros(self.nv)
+        q0[-self.nu:] = self.joint_ref
         self.solver.dyn.update_pin(q0, v0)
         self.base_ref_vel_tracking = np.zeros(6)
 
@@ -122,14 +123,13 @@ class LocomotionMPC(PinController):
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
         self.base_ref_vel_tracking : np.ndarray = np.zeros(12)
-        self.q_plan : np.ndarray = None
-        self.v_plan : np.ndarray = None
-        self.a_plan : np.ndarray = None
-        self.f_plan : np.ndarray = None
-        self.q_opt : np.ndarray = None
-        self.v_opt : np.ndarray = None
-        self.time_traj : np.ndarray = np.array([])
-        self.q0 : np.ndarray = None
+        self.n_plan = int(self.config_opt.time_horizon / self.sim_dt)
+        self.q_plan : np.ndarray = np.zeros((self.n_plan, self.nv))
+        self.v_plan : np.ndarray = np.zeros((self.n_plan, self.nv))
+        self.a_plan : np.ndarray = np.zeros((self.n_plan, self.nv))
+        self.f_plan : np.ndarray = np.zeros((self.n_plan, self.n_foot, 3))
+        self.time_traj : np.ndarray = np.zeros(self.n_plan)
+        self.q0 : np.ndarray = np.zeros((self.nq))
         self.first_solve : bool = True
         self.t0 : float = 0.
 
@@ -178,10 +178,10 @@ class LocomotionMPC(PinController):
         """
         Record trajectory of the last plan until self.plan_step.
         """
-        self.q_full.append(self.q_plan[self.delay : self.plan_step])
-        self.v_full.append(self.v_plan[self.delay : self.plan_step])
-        self.a_full.append(self.a_plan[self.delay : self.plan_step])
-        self.f_full.append(self.f_plan[self.delay : self.plan_step])
+        self.q_full.append(self.q_plan[self.delay:self.plan_step].copy())
+        self.v_full.append(self.v_plan[self.delay:self.plan_step].copy())
+        self.a_full.append(self.a_plan[self.delay:self.plan_step].copy())
+        self.f_full.append(self.f_plan[self.delay:self.plan_step].copy())
 
     def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
         """
@@ -196,7 +196,7 @@ class LocomotionMPC(PinController):
         self.base_ref_vel_tracking[:2] += v_des_glob[:2] * self.sim_dt
         self.base_ref_vel_tracking[3] += self.w_des[-1] * self.sim_dt
 
-    def compute_base_ref_vel_tracking(self, q_mj : np.ndarray) -> np.ndarray:
+    def compute_base_ref_vel_tracking(self, q : np.ndarray) -> np.ndarray:
         """
         Compute base reference for the solver.
         """
@@ -204,13 +204,11 @@ class LocomotionMPC(PinController):
 
         # Set position
         base_ref = np.zeros(12)
-        base_ref[:2] = np.round(q_mj[:2], 2)
+        base_ref[:2] = np.round(q[:2], 2)
         # Height to config
         base_ref[2] = self.config_gait.nom_height + self.height_offset
         # Set yaw
-        qw, qx, qy, qz = q_mj[3:7]
-        yaw = math.atan2(2.0*(qy*qx + qw*qz), -1. + 2. * (qw*qw + qx*qx))
-        base_ref[3] = round(yaw, 1)
+        base_ref[3] = round(q[3], 1)
 
         # Setup reference velocities in global frame
         # v_des is in local frame
@@ -230,8 +228,8 @@ class LocomotionMPC(PinController):
         base_ref_e[6:9] = R_yaw @ base_ref[6:9]
 
         if self.velocity_goal:
-            pos_ref = np.round(q_mj[:3], 2)
-            yaw_ref = yaw
+            pos_ref = np.round(q[:3], 2)
+            yaw_ref = q[3]
         else:
             pos_ref = self.base_ref_vel_tracking[:3]
             yaw_ref = self.base_ref_vel_tracking[3]
@@ -328,13 +326,12 @@ class LocomotionMPC(PinController):
     
     @time_fn("optimize")
     def optimize(self,
-                 q_mj : np.ndarray,
-                 v_mj : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+                 q : np.ndarray,
+                 v : np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         return optimized trajectories.
         """
         # Update model state based on current MuJoCo state
-        q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
         self.solver.dyn.update_pin(q, v)
 
         # Update goal
@@ -354,9 +351,9 @@ class LocomotionMPC(PinController):
             cnt_locations = self.contact_planner.get_locations(self.current_opt_node, self.config_opt.n_nodes+1)
         
         # Base reference
-            base_ref, base_ref_e = self.compute_base_ref_cnt_restricted(q_mj, cnt_locations)
+            base_ref, base_ref_e = self.compute_base_ref_cnt_restricted(q, cnt_locations)
         else:
-            base_ref, base_ref_e = self.compute_base_ref_vel_tracking(q_mj)
+            base_ref, base_ref_e = self.compute_base_ref_vel_tracking(q)
 
         self.solver.init(
             self.current_opt_node,
@@ -403,7 +400,7 @@ class LocomotionMPC(PinController):
             )
         
         # Interpolate the trajectory for all dimensions at once
-        t_interpolated = np.linspace(0., time_traj[-1], int(time_traj[-1]/self.sim_dt)+1)
+        t_interpolated = np.arange(0., time_traj[-1], self.sim_dt)
         interpolated_traj = interp_func(t_interpolated)
 
         return interpolated_traj
@@ -412,33 +409,18 @@ class LocomotionMPC(PinController):
                         q_sol : np.ndarray,
                         v_sol : np.ndarray,
                         a_sol : np.ndarray,
-                        f_sol : np.ndarray,
                         dt_sol : np.ndarray,
-                        ) -> Tuple[np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
+                        ) -> Tuple[np.ndarray,np.ndarray]:
         """
         Interpolate solution found by the solver at sim dt time intervals.
         Repeat for inputs.
         Linear interpolation for states.
         """
-        # Interpolate plan at sim_dt intervals
-        input_full = np.concatenate((
-            a_sol,
-            f_sol.reshape(-1, self.n_foot * 3),
-        ), axis=-1)
-
         time_traj = np.cumsum(dt_sol)
         time_traj = np.concatenate(([0.], time_traj))
-
         q_plan, v_plan = self.interpolate_trajectory_with_derivatives(time_traj, q_sol, v_sol, a_sol)
-        input_full_interp = self.interpolate_trajectory(input_full, time_traj[:-1], kind='zero')
-        a_plan, f_plan = np.split(
-            input_full_interp,
-            [a_sol.shape[-1]],
-                axis=-1
-        )
-        f_plan = f_plan.reshape(-1, self.n_foot, 3)
-
-        return q_plan, v_plan, a_plan, f_plan, time_traj
+        # 0 is current state
+        return q_plan[:-1], v_plan[:-1]
             
     def interpolate_trajectory_with_derivatives(
         self,
@@ -458,7 +440,7 @@ class LocomotionMPC(PinController):
         Returns:
             np.ndarray: Interpolated trajectory at 1/sim_dt frequency. Shape: (T, d).
         """
-        t_interpolated = np.arange(0., time_traj[-1], self.sim_dt)
+        t_interpolated = np.arange(time_traj[0], time_traj[-1], self.sim_dt)
         poly_pos = CubicHermiteSpline(time_traj, positions, velocities)
         interpolated_pos = poly_pos(t_interpolated)
         a0 = (velocities[1] - velocities[0]).reshape(1, -1) / self.dt_nodes
@@ -485,10 +467,12 @@ class LocomotionMPC(PinController):
         """
         q_full_traj = []
         sim_time = 0.
-        time_traj = []
 
         while sim_time <= trajectory_time:
 
+            if sim_time >= (self.current_opt_node+1) * self.dt_nodes:
+                self.current_opt_node += 1
+                
             # Replan trajectory    
             if self._replan():
 
@@ -499,21 +483,11 @@ class LocomotionMPC(PinController):
                 self.set_convergence_on_first_iter()
                 
                 # Find the corresponding optimization node
-                self.current_opt_node += bisect_right(time_traj, sim_time - self.sim_dt)
-
-                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize(q_mj, v_mj)
-
-                (
-                self.q_plan,
-                self.v_plan,
-                self.a_plan,
-                self.f_plan,
-                time_traj,
-                ) = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
-
-                time_traj += sim_time
-                self.plan_step = 1
-                self.delay = 0
+                q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
+                q_sol, v_sol, a_sol, _, dt_sol = self.optimize(q, v)
+                self.q_plan[:], self.v_plan[:] = self.interpolate_sol(q_sol, v_sol, a_sol, dt_sol)
+                self.plan_step = 0
+                self.first_solve = False
             
             # Simulation step
             q_mj, v_mj = self.solver.dyn.convert_to_mujoco(self.q_plan[self.plan_step], self.v_plan[self.plan_step])
@@ -534,19 +508,25 @@ class LocomotionMPC(PinController):
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
             self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
     
-    def get_torques(self, sim_step : int, mj_data: Any) -> Dict[str, float]:
+    def compute_torques_dof(self, mj_data: Any) -> None:
             """
             Compute torques based on robot state in the MuJoCo simulation.
             """
             # Get state
             t, q_mj, v_mj = mj_data.time, mj_data.qpos, mj_data.qvel
-            return self._get_torques(t, q_mj, v_mj)
-        
-    def _get_torques(self, sim_time : float, q_mj : np.ndarray, v_mj : np.ndarray) -> Dict[str, float]:
+            torques_ff = self._compute_torques_ff(t, q_mj, v_mj)
+            torques_pd = self._compute_pd_torques(q_mj, v_mj, torques_ff)
+            # Record torques
+            self.tau_full.append(torques_pd.copy())
+            # Update torques dof
+            self.torques_dof[-self.nu:] = torques_pd
+
+    def _compute_torques_ff(self, sim_time : float, q_mj : np.ndarray, v_mj : np.ndarray) -> np.ndarray:
         """
         Compute torques based on robot state in the MuJoCo simulation.
         """
         t = round(sim_time - self.t0, 4)
+        q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
 
         if not self.first_solve:
             # Increment the optimization node every dt_nodes
@@ -565,7 +545,7 @@ class LocomotionMPC(PinController):
 
             # Set up asynchronous optimize call
             self.time_start_plan = t
-            self.optimize_future = self.executor.submit(self.optimize, q_mj, v_mj)
+            self.optimize_future = self.executor.submit(self.optimize, q, v)
             self.plan_submitted = True
 
             if self.print_info:
@@ -587,11 +567,15 @@ class LocomotionMPC(PinController):
                 q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
 
                 # Record trajectory
-                if self.q_plan is not None:
+                if not self.first_solve:
                     self._record_plan()
 
                 # Interpolate plan at sim_dt interval
-                self.q_plan, self.v_plan, self.a_plan, self.f_plan, self.time_traj = self.interpolate_sol(q_sol, v_sol, a_sol, f_sol, dt_sol)
+                self.q_plan[:], self.v_plan[:] = self.interpolate_sol(q_sol, v_sol, a_sol, dt_sol)
+                # Zero order interpolation (repeat) for actions
+                id_repeat = np.int32(np.linspace(0, 1, self.n_plan)*(a_sol.shape[0]-1))
+                self.a_plan[:] = np.take_along_axis(a_sol, id_repeat.reshape(-1, 1), 0)
+                self.f_plan[:] = np.take_along_axis(f_sol, id_repeat.reshape(-1, 1, 1), 0)
 
                 # Apply delay, not for first iteration
                 if (self.solve_async and not self.first_solve):
@@ -616,35 +600,28 @@ class LocomotionMPC(PinController):
                 self.executor.shutdown(wait=False, cancel_futures=True)
                 time.sleep(0.1)
         
-        # Wait for to solver to plan the first trajectory
-        # Use PD control
+        # Wait for to solver to plan the first trajectory -> PD controller
         if self.first_solve:
-            if self.q0 is None:
-                self.q0 = q_mj.copy()
-            
-            self.torques_dof[-self.nu:] = (
-            3 * self.Kp * (self.q0[-self.nu:] - q_mj[-self.nu:]) -
-            2 * self.Kd * v_mj[-self.nu:]
-            )
-            self.t0 = sim_time
-
+            torques_ff = np.zeros(self.nu)
+            self.t0 = t
+            # Set PD reference as first state
+            if np.all(self.q_plan[0, :] == 0.):
+                self.q_plan[:] = q.reshape(1, -1)
         else:
-            q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
-            torques = self.solver.dyn.id_torques(
+            torques_ff = self.solver.dyn.id_torques(
                 q,
                 v,
                 self.a_plan[self.plan_step],
                 self.f_plan[self.plan_step],
             )
-            self.torques_dof[-self.nu:] = (torques +
-                        self.Kp * (self.q_plan[self.plan_step, -self.nu:] - q_mj[-self.nu:]) +
-                        self.Kd * (self.v_plan[self.plan_step, -self.nu:] - v_mj[-self.nu:]))
-            # Record trajectories
-            self.tau_full.append(self.torques_dof[-self.nu:].copy())
             self._step()
-        
-        torque_map = self.get_torque_map()
-        return torque_map
+        return torques_ff
+    
+    def _compute_pd_torques(self, q : np.ndarray, v : np.ndarray, torques_ff : np.ndarray) -> np.ndarray:
+        torques_pd = (torques_ff +
+                      self.Kp * (self.q_plan[self.plan_step, -self.nu:] - q[-self.nu:]) +
+                      self.Kd * (self.v_plan[self.plan_step, -self.nu:] - v[-self.nu:]))
+        return torques_pd
         
     def plot_current_vs_plan(self, q_mj: np.ndarray, v_mj: np.ndarray):
         """
