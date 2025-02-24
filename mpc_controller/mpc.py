@@ -70,7 +70,6 @@ class LocomotionMPC(PinController):
         q0, v0 = np.zeros(self.nq), np.zeros(self.nv)
         q0[-self.nu:] = self.joint_ref
         self.solver.dyn.update_pin(q0, v0)
-        self.base_ref_vel_tracking = np.zeros(6)
 
         self.n_foot = len(feet_frame_names)
         self._contact_planner_str = contact_planner 
@@ -107,31 +106,45 @@ class LocomotionMPC(PinController):
         # Set params
         self.Kp = self.solver.config_opt.Kp
         self.Kd = self.solver.config_opt.Kd
-
         self.sim_dt = sim_dt
         self.dt_nodes : float = self.solver.dt_nodes
         self.replanning_freq : int = self.config_opt.replanning_freq
         self.replanning_steps : int = int(1 / (self.replanning_freq * sim_dt))
+        self.solve_async : bool = solve_async
+        self.compute_timings : bool = compute_timings
+        self.interactive_goal : bool = interactive_goal
+
+        # Init variables
+        self.reset(reset_solver=False)
+
+    def reset(self, reset_solver : bool = True) -> None:
+        """
+        Reset the controller state and reinitialize parameters.
+        """
+        if reset_solver:
+            self.solver.reset()
+        
+        # Counter variables and flags
+        self.first_solve : bool = True
+        self.diverged : bool = False
+        self.t0 : float = 0.
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
-        self.node_since_last_opt : int = 0
-        self.solve_async : bool = solve_async
         self.delay : int = 0
-        self.last : int = 0
-
+        
+        # Init arrays
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
         self.base_ref_vel_tracking : np.ndarray = np.zeros(12)
-        self.n_plan = int(self.config_opt.time_horizon / self.sim_dt)
-        self.q_plan : np.ndarray = np.zeros((self.n_plan, self.nv))
-        self.v_plan : np.ndarray = np.zeros((self.n_plan, self.nv))
-        self.a_plan : np.ndarray = np.zeros((self.n_plan, self.nv))
-        self.f_plan : np.ndarray = np.zeros((self.n_plan, self.n_foot, 3))
-        self.time_traj : np.ndarray = np.zeros(self.n_plan)
-        self.q0 : np.ndarray = np.zeros((self.nq))
-        self.first_solve : bool = True
-        self.t0 : float = 0.
+        self.n_interp_plan = int(self.config_opt.time_horizon / self.sim_dt)
+        self.id_repeat = np.int32(np.linspace(0, 1, self.n_interp_plan)*(self.config_opt.n_nodes-1))
+        self.q_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
+        self.v_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
+        self.a_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
+        self.f_plan : np.ndarray = np.zeros((self.n_interp_plan, self.n_foot, 3))
+        self.time_traj : np.ndarray = np.zeros(self.n_interp_plan)
+        self.qref_pd : np.ndarray = np.zeros((self.nq))
 
         # For plots
         self.q_full = []
@@ -141,19 +154,17 @@ class LocomotionMPC(PinController):
         self.tau_full = []
         self.dt_full = []
 
-        self.diverged : bool = False
-
         # Setup timings
-        self.compute_timings = compute_timings
         self.timings = defaultdict(list)
 
         # Multiprocessing
         self.executor = ThreadPoolExecutor(max_workers=1)  # One thread for asynchronous optimization
-        self.optimize_future: Future = None                # Store the future result of optimize
+        self.optimize_future: Future = Future()                # Store the future result of optimize
         self.plan_submitted = False                        # Flag to indicate if a new plan is ready
 
-        self.velocity_goal = SetVelocityGoal() if interactive_goal else None
-
+        # Interactive goal (keyboard)
+        self.velocity_goal = SetVelocityGoal() if self.interactive_goal else None
+    
     def _replan(self) -> bool:
         """
         Returns true if replanning step.
@@ -161,12 +172,9 @@ class LocomotionMPC(PinController):
         """
         replan = self.sim_step % self.replanning_steps == 0
         
-        if self.first_solve:
-            replan = replan and self.optimize_future is None
-            
         if self.solve_async:
-            replan = replan and (self.optimize_future is None or self.optimize_future.done())
-
+            replan &= not self.plan_submitted
+        
         return replan
     
     def _step(self) -> None:
@@ -303,27 +311,6 @@ class LocomotionMPC(PinController):
 
         return base_ref, base_ref_e
 
-    def reset(self) -> None:
-        """
-        Reset the controller state and reinitialize parameters.
-        """
-        self.solver.reset()
-        self.executor = ThreadPoolExecutor(max_workers=1)  # One thread for asynchronous optimization
-        self.optimize_future: Future = None                # Store the future result of optimize
-        self.plan_submitted = False                        # Flag to indicate if a new plan is ready
-
-        self.sim_step : int = 0
-        self.plan_step : int = 0
-        self.current_opt_node : int = 0
-        self.node_since_last_opt : int = 0
-        self.delay : int = 0
-        self.last : int = 0
-        
-        self.v_des : np.ndarray = np.zeros(3)
-        self.w_des : float = np.zeros(3)
-
-        self.diverged : bool = False
-    
     @time_fn("optimize")
     def optimize(self,
                  q : np.ndarray,
@@ -499,11 +486,12 @@ class LocomotionMPC(PinController):
         return q_full_traj_arr
     
     def set_convergence_on_first_iter(self):
+        N_SQP_FIRST = 15
         if self.first_solve:
-            self.solver.set_max_iter(15)
+            self.solver.set_max_iter(N_SQP_FIRST)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol / 10.)
             self.solver.set_qp_tol(self.solver.config_opt.qp_tol / 10.)
-        else:
+        elif self.sim_step <= self.replanning_steps:
             self.solver.set_max_iter(self.solver.config_opt.max_iter)
             self.solver.set_nlp_tol(self.solver.config_opt.nlp_tol)
             self.solver.set_qp_tol(self.solver.config_opt.qp_tol)
@@ -538,13 +526,12 @@ class LocomotionMPC(PinController):
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
 
-            # Compute replanning time
-            self.start_time = t
             # Set solver parameters on first iteration
             self.set_convergence_on_first_iter()
-
+            
+            # Compute replanning time
+            self.start_time = t
             # Set up asynchronous optimize call
-            self.time_start_plan = t
             self.optimize_future = self.executor.submit(self.optimize, q, v)
             self.plan_submitted = True
 
@@ -573,9 +560,8 @@ class LocomotionMPC(PinController):
                 # Interpolate plan at sim_dt interval
                 self.q_plan[:], self.v_plan[:] = self.interpolate_sol(q_sol, v_sol, a_sol, dt_sol)
                 # Zero order interpolation (repeat) for actions
-                id_repeat = np.int32(np.linspace(0, 1, self.n_plan)*(a_sol.shape[0]-1))
-                self.a_plan[:] = np.take_along_axis(a_sol, id_repeat.reshape(-1, 1), 0)
-                self.f_plan[:] = np.take_along_axis(f_sol, id_repeat.reshape(-1, 1, 1), 0)
+                self.a_plan[:] = np.take_along_axis(a_sol, self.id_repeat.reshape(-1, 1), 0)
+                self.f_plan[:] = np.take_along_axis(f_sol, self.id_repeat.reshape(-1, 1, 1), 0)
 
                 # Apply delay, not for first iteration
                 if (self.solve_async and not self.first_solve):
@@ -607,6 +593,7 @@ class LocomotionMPC(PinController):
             # Set PD reference as first state
             if np.all(self.q_plan[0, :] == 0.):
                 self.q_plan[:] = q.reshape(1, -1)
+        # Compute inverse dynamics torques from solver
         else:
             torques_ff = self.solver.dyn.id_torques(
                 q,
