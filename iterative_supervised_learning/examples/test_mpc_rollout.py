@@ -6,8 +6,7 @@ import argparse
 from typing import Tuple, List
 import numpy as np
 from datetime import datetime
-# from iterative_supervised_learning.utils.RolloutMPC import rollout_mpc
-from iterative_supervised_learning.utils.RolloutMPC_test import rollout_mpc
+from iterative_supervised_learning.utils.RolloutMPC import rollout_mpc
 
 # # Example usage
 # if __name__ == "__main__":
