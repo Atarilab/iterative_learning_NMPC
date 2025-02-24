@@ -9,11 +9,9 @@ from typing import Tuple, List
 import os
 import numpy as np
 from datetime import datetime
-# from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
-# from iterative_supervised_learning.utils.RolloutMPC import rollout_mpc
 
-from iterative_supervised_learning.utils.RolloutMPC_test import RolloutMPC
-from iterative_supervised_learning.utils.RolloutMPC_test import rollout_mpc
+from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
+from iterative_supervised_learning.utils.RolloutMPC import rollout_mpc
 from iterative_supervised_learning.utils.database import Database
 import random
 import hydra

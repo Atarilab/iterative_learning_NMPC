@@ -33,7 +33,7 @@ class DummyController(Controller):
         super().__init__()
         self.control_file = control_file
         self.controls = None
-        self.current_step = 0
+        self.current_step = -1  # Start at -1 to apply the first control correctly
         self.joint_name2act_id = joint_name2act_id
         self.load_controls()
 
@@ -43,26 +43,25 @@ class DummyController(Controller):
         data = np.load(self.control_file)
         if "ctrl" not in data:
             raise ValueError(f"Control file does not contain 'ctrl' data: {self.control_file}")
-        self.controls = data["ctrl"]
+        self.controls = np.array(data["ctrl"], dtype=np.float64)  # Enforce float64 precision
+        print("Loaded controls with precision:", self.controls.dtype)
 
     def get_torques(self, step: int, mj_data) -> Dict[str, float]:
-        if self.controls is None or self.current_step >= len(self.controls):
+        if self.controls is None or self.current_step >= len(self.controls) - 1:
             return {}
-        torque = self.controls[self.current_step]
-        # In DummyController's get_torques method:
-        print(f"Step {step}: Applied control torques: {torque}")
-        # print("Control data type:", torque.dtype)
-        # input()
-        
         self.current_step += 1
+        torque = self.controls[self.current_step]
+        print(f"Step {step}: Applied control torques (high precision): {torque}")
+        # input()
         return self.create_torque_map(torque)
 
     def create_torque_map(self, torques: np.ndarray) -> Dict[str, float]:
         torque_map = {
-            j_name: torques[joint_id]
+            j_name: float(torques[joint_id])  # Ensure float64 precision is maintained
             for j_name, joint_id in self.joint_name2act_id.items()
             if joint_id < len(torques)
         }
+        print(torque_map)
         return torque_map
 
 
@@ -116,7 +115,7 @@ def run_simulation_no_controller(
 
 def run_simulation_with_dummy_controller(
     robot_name: str = "go2",
-    control_file: str = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_02_21_2025_15_49_00.npz",
+    control_file: str = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_02_21_2025_16_39_37.npz",
     sim_time: float = 5.0,
     record_video: bool = False,
     save_data: bool = True,
