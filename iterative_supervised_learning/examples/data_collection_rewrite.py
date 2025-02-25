@@ -21,6 +21,8 @@ import scipy.spatial.transform as st
 import pinocchio as pin
 from mj_pin.utils import get_robot_description
 
+SIM_DT = 0.001
+
 class DataCollection():
     def __init__(self, cfg):
         self.cfg = cfg
@@ -67,10 +69,23 @@ class DataCollection():
         replan_freq = 2000
         n_state = 44
         
+        # Create a unified directory for experiment files and the final database
+        current_time = datetime.now().strftime("%b_%d_%Y_%H_%M_%S")
+        base_path = f"{self.cfg.data_save_path}/behavior_cloning/{'_'.join(self.gaits)}"
+        
+        # Add optional suffix to the base path
+        if self.cfg.suffix:
+            base_path += f"_{self.cfg.suffix}"
+        
+        # Create a single directory to hold both experiment data and final dataset
+        experiment_dir = os.path.join(base_path, f"experiment_{current_time}")
+        os.makedirs(experiment_dir, exist_ok=True)
+        
         # rollout nominal trajectory
         _, record_path_nominal = rollout_mpc(show_plot=False,
                                          v_des = [0.3,0.0,0.0],
-                                         sim_time=4.0)
+                                         sim_time=4.0,
+                                         record_dir=experiment_dir)
         
         # calculate replanning points
         replanning_points = np.arange(0, self.episode_length, replan_freq)
@@ -82,7 +97,6 @@ class DataCollection():
         # print(state[:2])
         # input()
         
-        phase_percentage = state[:,0]
         nominal_v = data["v"]
         nominal_q = data["q"]
         # print("shape of v is = ",np.shape(nominal_v))
@@ -96,9 +110,15 @@ class DataCollection():
         # rollout MPC at each replanning point
         for i_replanning in replanning_points:
             print(f"Replanning at step {i_replanning}")
+            
             q0 = nominal_q[i_replanning]
             v0 = nominal_v[i_replanning]
             for j in range(self.num_pertubations_per_replanning):
+                phase_percentage = state[:,0]
+                # print(phase_percentage)
+                # print(phase_percentage[i_replanning])
+                # input()
+            
                 # randomize on given state and pass to mpc simulator
                 randomize_on_given_state = np.concatenate((q0, v0, np.array([phase_percentage[i_replanning]])))
                 
@@ -108,10 +128,24 @@ class DataCollection():
                     early_termination, record_path_replanning = rollout_mpc(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=[0.3,0.0,0.0],
                                                                             sim_time=4.0,
-                                                                            show_plot=False)
+                                                                            show_plot=False,
+                                                                            record_dir=experiment_dir)
                     if not early_termination:
                         break
                     
+        for file_name in os.listdir(experiment_dir):
+            file_path = os.path.join(experiment_dir, file_name)
+            if file_name.endswith(".npz") and os.path.isfile(file_path):
+                print(f"Loading data from: {file_path}")
+            data = np.load(file_path)
+            self.database.append(
+                states = data["state"],
+                vc_goals = data["vc_goals"],
+                cc_goals = [],
+                actions = data["ctrl"]
+            )
+        
+        self.save_dataset(iteration=0)
                 
 # Example usage with database
 @hydra.main(config_path='cfgs', config_name='data_collection_config.yaml',version_base="1.1")
