@@ -135,7 +135,7 @@ def run_simulation_with_dummy_controller(
     # input()
     
     # Initialize the simulator to populate joint_name2act_id
-    sim._init_model_data()
+    # sim._init_model_data()
     controller = DummyController(control_file, sim.joint_name2act_id)
     
     initial_state = np.load(control_file)

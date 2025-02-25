@@ -101,12 +101,14 @@ class DataCollection():
             for j in range(self.num_pertubations_per_replanning):
                 # randomize on given state and pass to mpc simulator
                 randomize_on_given_state = np.concatenate((q0, v0, np.array([phase_percentage[i_replanning]])))
+                
                 early_termination = False
                 # run MPC from replanning state until the simulation finishes
                 while True:
                     early_termination, record_path_replanning = rollout_mpc(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=[0.3,0.0,0.0],
-                                                                            sim_time=4.0)
+                                                                            sim_time=4.0,
+                                                                            show_plot=False)
                     if not early_termination:
                         break
                     
