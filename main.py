@@ -30,13 +30,11 @@ class ReferenceVisualCallback(VisualCallback):
         # Base reference
         BLACK = self.colors.name("black")
         base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
-        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
-        self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=BLACK)
         
         # Base terminal reference
         base_ref = self.mpc.solver.cost_ref_terminal[self.mpc.solver.dyn.base_cost.name]
-        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
-        self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=BLACK)
 
 class StateDataRecorder(DataRecorder):
     def __init__(
