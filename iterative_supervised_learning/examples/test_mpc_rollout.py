@@ -10,7 +10,5 @@ from iterative_supervised_learning.utils.RolloutMPC_rewrite import rollout_mpc
 
 if __name__ == "__main__":
     # rollout_mpc
-    record_dir = rollout_mpc(show_plot=False)
-    print(record_dir)
-    
-    # read from recorded data
+    early_termination, record_path = rollout_mpc(show_plot=False)
+    print(record_path)
