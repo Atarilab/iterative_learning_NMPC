@@ -25,7 +25,7 @@ sigma_base_pos = 0.1
 mu_joint_pos = 0.0
 sigma_joint_pos = 0.2
 mu_base_ori = 0.0
-sigma_base_ori = 0.5
+sigma_base_ori = 0.3
 mu_vel = 0.0
 sigma_vel = 0.2
 
@@ -48,13 +48,11 @@ class ReferenceVisualCallback(VisualCallback):
         # Base reference
         BLACK = self.colors.name("black")
         base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
-        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
-        self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=BLACK)
         
         # Base terminal reference
         base_ref = self.mpc.solver.cost_ref_terminal[self.mpc.solver.dyn.base_cost.name]
-        R_WB = pin.rpy.rpyToMatrix(base_ref[3:6][::-1]).flatten()
-        self.add_box(base_ref[:3], rot=R_WB, size=[0.08, 0.04, 0.04], rgba=BLACK)
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=BLACK)
         
 # Data recorder
 class StateDataRecorder(DataRecorder):
@@ -136,6 +134,7 @@ class StateDataRecorder(DataRecorder):
         
         ## form state variable
         # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
+        # if in replanning step, phase percentage is not starting from 0
         phase_percentage = np.round([get_phase_percentage(mj_data.time)], 4)
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
         self.data["state"].append(np.array(state))
@@ -391,14 +390,20 @@ def rollout_mpc(robot_name = "go2",
     
     # record_path is name of the recorded file with time_stamp
     record_path = ""
-    if save_data and data_recorder:
-        record_path = data_recorder.save()
-        # print(f"Data recorded at: {record_path}")
+    if save_data and os.path.exists(record_dir):
+        # Find the latest file in the directory by modification time
+        record_path = max([os.path.join(record_dir, f) for f in os.listdir(record_dir)], key=os.path.getmtime)
+        print(f"Latest file found: {record_path}")
     
     data = np.load(record_path)
     sim_over = data["time"][-1]
     early_termination = sim_over < sim_time
-            
+    
+    if early_termination:
+        # delete the file of record_path
+        os.remove(record_path)
+        record_path = ""
+        
     return early_termination, record_path
 
 if __name__ == "__main__":
