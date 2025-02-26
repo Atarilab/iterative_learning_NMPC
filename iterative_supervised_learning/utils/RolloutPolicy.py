@@ -258,7 +258,7 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/network/policy_final.pth'
     rollout_policy(policy_path, sim_time=5.0, v_des=[0.3, 0.0, 0.0], record_video=False)
     
 
