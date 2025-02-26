@@ -35,7 +35,7 @@ class DataCollection():
         self.vx_range = (cfg.vx_des_min, cfg.vx_des_max)
         self.vy_range = (cfg.vy_des_min, cfg.vy_des_max)
         self.w_range = (cfg.w_des_min, cfg.w_des_max)
-        self.database = Database(limit=cfg.database_size,norm_input=False)
+        self.database = Database(limit=cfg.database_size,norm_input=True)
         self.data_save_path = self._prepare_save_path()
         
     

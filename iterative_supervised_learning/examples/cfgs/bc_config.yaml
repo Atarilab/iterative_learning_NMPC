@@ -56,7 +56,7 @@ sigma_vel: # joint velocity
 
 # ------- Model Parameters -----------------------------------
 action_type: "pd_target" #"pd_target", "torque", "structured"
-normalize_policy_input: True
+normalize_policy_input: False
 
 # ------- Saving Paths ----------------------------------
 save_data: True
