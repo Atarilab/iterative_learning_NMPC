@@ -4,7 +4,6 @@ import time
 from typing import Any, Dict, List, Tuple
 from matplotlib import pyplot as plt
 import numpy as np
-from bisect import bisect_left, bisect_right
 from scipy.interpolate import interp1d, CubicHermiteSpline
 from concurrent.futures import ThreadPoolExecutor, Future
 import pinocchio as pin
@@ -137,7 +136,7 @@ class LocomotionMPC(PinController):
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
         self.base_ref_vel_tracking : np.ndarray = np.zeros(12)
-        self.n_interp_plan = int(self.config_opt.time_horizon / self.sim_dt)
+        self.n_interp_plan = round(self.config_opt.time_horizon / self.sim_dt)
         self.id_repeat = np.int32(np.linspace(0, 1, self.n_interp_plan)*(self.config_opt.n_nodes-1))
         self.q_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
         self.v_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
@@ -534,7 +533,7 @@ class LocomotionMPC(PinController):
                 # Apply delay, not for first iteration
                 if (self.solve_async and not self.first_solve):
                     replanning_time = t - self.start_time
-                    replanning_time -= 5e-3
+                    replanning_time -= 4.0e-3
                     self.delay = math.ceil(replanning_time / self.sim_dt)
                 else:
                     self.delay = 0
