@@ -11,22 +11,31 @@ import mujoco
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 
+# VisualCallback
 class ReferenceVisualCallback(VisualCallback):
-    def __init__(self, mpc_controller=None, update_step=1):
+    def __init__(self, mpc_controller, update_step = 1):
         super().__init__(update_step)
         self.mpc = mpc_controller
         self.radius = 0.01
 
     def add_visuals(self, mj_data):
-        if self.mpc is None:
-            return
+        # Contact locations
         for i, foot_cnt in enumerate(self.mpc.solver.dyn.feet):
             cnt_pos = self.mpc.solver.params[foot_cnt.plane_point.name]
             cnt_pos_unique = np.unique(cnt_pos, axis=1).T
             for pos in cnt_pos_unique:
-                if np.sum(pos) == 0.:
-                    continue
+                if np.sum(pos) == 0.: continue
                 self.add_sphere(pos, self.radius, self.colors.id(i))
+
+        # Base reference
+        BLACK = self.colors.name("black")
+        base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=BLACK)
+        
+        # Base terminal reference
+        base_ref = self.mpc.solver.cost_ref_terminal[self.mpc.solver.dyn.base_cost.name]
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=BLACK)
+        
 
 class DummyController(Controller):
     def __init__(self, control_file: str, joint_name2act_id: Dict[str, int]) -> None:
@@ -99,8 +108,8 @@ def run_simulation_no_controller(
     visualize: bool = True
 ):
     robot_desc = get_robot_description(robot_name)
-    visual_callback = ReferenceVisualCallback() if visualize else None
-    data_recorder = StateDataRecorder(record_dir) if save_data else None
+    # visual_callback = ReferenceVisualCallback() if visualize else None
+    # data_recorder = StateDataRecorder(record_dir) if save_data else None
 
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.set_high_quality()
@@ -108,14 +117,12 @@ def run_simulation_no_controller(
         sim_time=sim_time,
         use_viewer=True,
         controller=None,
-        visual_callback=visual_callback,
-        data_recorder=data_recorder,
         record_video=record_video
     )
 
 def run_simulation_with_dummy_controller(
     robot_name: str = "go2",
-    control_file: str = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_02_21_2025_16_39_37.npz",
+    control_file: str = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/dataset/experiment/simulation_data_02_26_2025_10_35_57.npz",
     sim_time: float = 5.0,
     record_video: bool = False,
     save_data: bool = True,
@@ -123,8 +130,8 @@ def run_simulation_with_dummy_controller(
     visualize: bool = True
 ):
     robot_desc = get_robot_description(robot_name)
-    visual_callback = ReferenceVisualCallback() if visualize else None
-    data_recorder = StateDataRecorder(record_dir) if save_data else None
+    # visual_callback = ReferenceVisualCallback() if visualize else None
+    # data_recorder = StateDataRecorder(record_dir) if save_data else None
 
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.set_high_quality()
@@ -138,17 +145,18 @@ def run_simulation_with_dummy_controller(
     # sim._init_model_data()
     controller = DummyController(control_file, sim.joint_name2act_id)
     
-    initial_state = np.load(control_file)
-    if "q" in initial_state and "v" in initial_state:
-        sim.set_initial_state(q0=initial_state["q"][0], v0=initial_state["v"][0])
+    # initial_state = np.load(control_file)
+    # if "q" in initial_state and "v" in initial_state:
+    #     sim.set_initial_state(q0=initial_state["q"][0], v0=initial_state["v"][0])
 
-
+    sim.setup()
+    sim._init_model_data()
     sim.run(
         sim_time=sim_time,
         use_viewer=True,
         controller=controller,
-        visual_callback=visual_callback,
-        data_recorder=data_recorder,
+        # visual_callback=visual_callback,
+        # data_recorder=data_recorder,
         record_video=record_video
     )
     

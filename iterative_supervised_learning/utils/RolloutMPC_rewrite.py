@@ -18,6 +18,8 @@ gait_period = 0.5 # trotting
 n_state = 44
 nq = 19
 nv = 17
+kp = 40
+kd = 5.0
 
 # initialize pertubation variables
 mu_base_pos = 0.0
@@ -60,13 +62,16 @@ class StateDataRecorder(DataRecorder):
         self,
         record_dir: str = "",
         record_step: int = 1,
-        v_des: np.ndarray = np.array([0,0,0])) -> None:
+        v_des: np.ndarray = np.array([0,0,0]),
+        current_time: float = 0.0) -> None:
         """
         A simple data recorder that saves simulation data to a .npz file.
         """
         super().__init__(record_dir, record_step)
         self.data = {}
         self.vc_goals = v_des
+        self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
+        self.current_time = current_time
         
         # some initialization
         self.feet_names = ["FL", "FR", "RL", "RR"]
@@ -85,7 +90,9 @@ class StateDataRecorder(DataRecorder):
                      "feet_pos_w":[],
                      "base_wrt_feet":[],
                      "state":[],
-                     "vc_goals":[]}
+                     "action":[],
+                     "vc_goals":[],
+                     "cc_goals":[]}
 
     def save(self) -> None:
         if not self.record_dir:
@@ -111,7 +118,10 @@ class StateDataRecorder(DataRecorder):
         # Record time and state
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
-        self.data["time"].append(round(mj_data.time, 4))
+        self.data["time"].append(round(mj_data.time + self.current_time, 4))
+        # print("time to be recorded is = ",self.data["time"])
+        # input()
+        
         self.data["q"].append(q)
         self.data["v"].append(v)
         self.data["ctrl"].append(mj_data.ctrl.copy())
@@ -135,12 +145,21 @@ class StateDataRecorder(DataRecorder):
         ## form state variable
         # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
         # if in replanning step, phase percentage is not starting from 0
-        phase_percentage = np.round([get_phase_percentage(mj_data.time)], 4)
+        phase_percentage = np.round([get_phase_percentage(mj_data.time + self.current_time)], 4)
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
         self.data["state"].append(np.array(state))
         
-        # record the desired velocity
+        # transform action from torque to PD target and store
+        tau = mj_data.ctrl
+        action = (tau + kd * v[6:])/kp + q[7:]
+        self.data["action"].append(np.array(action))
+        
+        # record the velocity conditioned goals
         self.data["vc_goals"].append(self.vc_goals)
+        
+        # record contact conditioned goals(currently just a random noise)
+        self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
+        self.data["cc_goals"].append(self.cc_goals)
 
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
@@ -157,24 +176,24 @@ def get_phase_percentage(t:int):
     phi = (t % gait_period)/gait_period
     return phi
 
-def random_quaternion_perturbation(sigma):
-    """
-    Generate a small random quaternion perturbation.
-    The perturbation is sampled from a normal distribution with standard deviation sigma.
-    """
-    random_axis = np.random.normal(0, 1, 3)  # Random rotation axis
-    random_axis /= np.linalg.norm(random_axis)  # Normalize to unit vector
-    angle = np.random.normal(0, sigma)  # Small random rotation angle
-    perturb_quat = st.Rotation.from_rotvec(angle * random_axis).as_quat()  # Convert to quaternion
-    return perturb_quat
+# def random_quaternion_perturbation(sigma):
+#     """
+#     Generate a small random quaternion perturbation.
+#     The perturbation is sampled from a normal distribution with standard deviation sigma.
+#     """
+#     random_axis = np.random.normal(0, 1, 3)  # Random rotation axis
+#     random_axis /= np.linalg.norm(random_axis)  # Normalize to unit vector
+#     angle = np.random.normal(0, sigma)  # Small random rotation angle
+#     perturb_quat = st.Rotation.from_rotvec(angle * random_axis).as_quat()  # Convert to quaternion
+#     return perturb_quat
 
-def apply_quaternion_perturbation(nominal_quat, sigma_base_ori):
-    """
-    Apply a small random rotation perturbation to a given quaternion.
-    """
-    perturb_quat = random_quaternion_perturbation(sigma_base_ori)
-    perturbed_quat = st.Rotation.from_quat(nominal_quat) * st.Rotation.from_quat(perturb_quat)
-    return perturbed_quat.as_quat()  # Convert back to quaternion
+# def apply_quaternion_perturbation(nominal_quat, sigma_base_ori):
+#     """
+#     Apply a small random rotation perturbation to a given quaternion.
+#     """
+#     perturb_quat = random_quaternion_perturbation(sigma_base_ori)
+#     perturbed_quat = st.Rotation.from_quat(nominal_quat) * st.Rotation.from_quat(perturb_quat)
+#     return perturbed_quat.as_quat()  # Convert back to quaternion
 
 def rotate_jacobian(controller, jac, index):
     """change jacobian frame
@@ -196,6 +215,7 @@ def rollout_mpc(robot_name = "go2",
                 save_data = True,
                 record_dir = "./data",
                 sim_time = 5.0,
+                current_time = 0.0,
                 visualize = True,
                 show_plot = True,
                 randomize_on_given_state = None):
@@ -222,7 +242,7 @@ def rollout_mpc(robot_name = "go2",
     vis_feet_pos = ReferenceVisualCallback(mpc)
     
     #initialize data recorder
-    data_recorder = StateDataRecorder(record_dir,v_des=v_des) if save_data else None
+    data_recorder = StateDataRecorder(record_dir,v_des=v_des,current_time = current_time) if save_data else None
     
     #initialize simulator
     sim = Simulator(robot_desc.xml_scene_path,sim_dt=SIM_DT,viewer_dt=VIEWER_DT)
@@ -397,10 +417,16 @@ def rollout_mpc(robot_name = "go2",
     
     data = np.load(record_path)
     sim_over = data["time"][-1]
-    early_termination = sim_over < sim_time
+    tolerance = 1e-2
+    early_termination = False
+    
+    if (sim_time - (sim_over - current_time)) > tolerance:
+        early_termination = True
     
     if early_termination:
         # delete the file of record_path
+        print("sim_over time = ", sim_over)
+        print("real sim time = ", sim_over - current_time)
         os.remove(record_path)
         record_path = ""
         
