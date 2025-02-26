@@ -199,11 +199,14 @@ class Database():
         # Compute mean and std across all states
         self.states_mean = np.mean(np.array(self.states[:self.length]), axis=0)
         self.states_std = np.std(np.array(self.states[:self.length]), axis=0)
+        
         # Normalize all but the first column (first feature)
         states_array = np.array(self.states[:self.length])  # Convert to array for easier slicing
         states_norm = np.copy(states_array)  # Create a copy to preserve structure
-        # Normalize only columns 1-35 (excluding the first column)
+        
+        # Normalize only columns 1-44 (excluding the first column)
         states_norm[:, 1:] = (states_array[:, 1:] - self.states_mean[1:]) / self.states_std[1:]
+        
         # The first column remains unchanged
         self.states_norm = states_norm
         # print("shape of self.states is = ", np.shape(self.states[:self.length]))

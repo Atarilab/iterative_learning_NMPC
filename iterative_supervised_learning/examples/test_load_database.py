@@ -9,7 +9,7 @@ from iterative_supervised_learning.utils.database import Database  # Ensure this
 database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/dataset/database_0.hdf5"
 
 # Initialize Database with a suitable limit
-db = Database(limit=10000000,norm_input=True)  # Ensure the limit is large enough to load the full dataset
+db = Database(limit=10000000,norm_input=False)  # Ensure the limit is large enough to load the full dataset
 
 # Load the saved database
 print(f"Loading database from: {database_path}")
@@ -19,7 +19,7 @@ db.load_saved_database(database_path)
 print(f"Database loaded successfully. Total stored samples: {len(db)}")
 
 # Retrieve and print a few samples
-num_samples_to_print = 5
+num_samples_to_print = 15
 for i in range(min(num_samples_to_print, len(db))):
     x, y = db[i]
     print(f"\nSample {i+1}:")

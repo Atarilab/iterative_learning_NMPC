@@ -176,25 +176,6 @@ def get_phase_percentage(t:int):
     phi = (t % gait_period)/gait_period
     return phi
 
-# def random_quaternion_perturbation(sigma):
-#     """
-#     Generate a small random quaternion perturbation.
-#     The perturbation is sampled from a normal distribution with standard deviation sigma.
-#     """
-#     random_axis = np.random.normal(0, 1, 3)  # Random rotation axis
-#     random_axis /= np.linalg.norm(random_axis)  # Normalize to unit vector
-#     angle = np.random.normal(0, sigma)  # Small random rotation angle
-#     perturb_quat = st.Rotation.from_rotvec(angle * random_axis).as_quat()  # Convert to quaternion
-#     return perturb_quat
-
-# def apply_quaternion_perturbation(nominal_quat, sigma_base_ori):
-#     """
-#     Apply a small random rotation perturbation to a given quaternion.
-#     """
-#     perturb_quat = random_quaternion_perturbation(sigma_base_ori)
-#     perturbed_quat = st.Rotation.from_quat(nominal_quat) * st.Rotation.from_quat(perturb_quat)
-#     return perturbed_quat.as_quat()  # Convert back to quaternion
-
 def rotate_jacobian(controller, jac, index):
     """change jacobian frame
 
