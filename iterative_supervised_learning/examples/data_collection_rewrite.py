@@ -23,6 +23,7 @@ from mj_pin.utils import get_robot_description
 
 SIM_DT = 0.001
 
+
 class DataCollection():
     def __init__(self, cfg):
         self.cfg = cfg
@@ -66,7 +67,7 @@ class DataCollection():
     def run(self):
         nq = 19
         nv = 17
-        replan_freq = 400
+        replan_freq = 25
         n_state = 44
         
         # Use the prepared dataset path for saving experiments
@@ -77,11 +78,16 @@ class DataCollection():
         _, record_path_nominal = rollout_mpc(show_plot=False,
                                         visualize= True,
                                         v_des = [0.3,0.0,0.0],
-                                        sim_time=4.0,
+                                        sim_time=2.0,
                                         record_dir=experiment_dir)
         
         # calculate replanning points
-        replanning_points = np.arange(0, self.episode_length, replan_freq)
+        replanning_points = []
+        gait_period = 0.5
+        num_replanning = int(gait_period*1000/replan_freq)
+        for i in range(num_replanning):
+            next_replanning_point = i*replan_freq
+            replanning_points.append(next_replanning_point)
         print("Replanning points:", replanning_points)
         
         # extract nominal state on replanning points
@@ -122,7 +128,7 @@ class DataCollection():
                 while True:
                     early_termination, record_path_replanning = rollout_mpc(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=[0.3,0.0,0.0],
-                                                                            sim_time=4.0,
+                                                                            sim_time=2.0,
                                                                             current_time = current_time,
                                                                             show_plot=False,
                                                                             visualize=True,
