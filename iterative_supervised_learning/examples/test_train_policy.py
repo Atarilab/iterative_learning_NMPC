@@ -32,15 +32,21 @@ wandb.login()
 class BehavioralCloning:
     def __init__(self, cfg):
         self.cfg = cfg
+        
+        # define device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {self.device}")
 
         # Model Parameters
         self.n_state = cfg.n_state + 3
         self.n_action = cfg.n_action
-        # only for contact conditioned goals
-        self.goal_horizon = cfg.goal_horizon
+        
+        # # only for contact conditioned goals
+        # self.goal_horizon = cfg.goal_horizon
+        
+        # define input normalization
         self.normalize_policy_input = cfg.normalize_policy_input
+        self.action_type = cfg.action_type
         
         # Training properties
         self.batch_size = cfg.batch_size
@@ -62,7 +68,11 @@ class BehavioralCloning:
         dataset_size = len(self.database)
         train_size = int(self.n_train_frac * dataset_size)
         test_size = dataset_size - train_size
-        
+        print("training dataset size = ",train_size)
+        print("validation dataset size = ", test_size)
+        print("learning rate = ", self.learning_rate)
+        print("number of epochs = ", self.n_epoch)
+                
         train_data, test_data = torch.utils.data.random_split(self.database, [train_size, test_size])
         train_loader = DataLoader(train_data, self.batch_size, shuffle=True, drop_last=True)
         test_loader = DataLoader(test_data, self.batch_size, shuffle=True, drop_last=True)
@@ -102,17 +112,30 @@ class BehavioralCloning:
             
             valid_losses = []
             network.eval()
-            with torch.no_grad():
-                for z, w in test_loader:
-                    z, w = z.to(self.device).float(), w.to(self.device).float()
-                    w_pred = network(z)
-                    test_loss = self.criterion(w_pred, w)
-                    valid_losses.append(test_loss.item())
+            # with torch.no_grad():
+            #     for z, w in test_loader:
+            #         z, w = z.to(self.device).float(), w.to(self.device).float()
+            #         w_pred = network(z)
+            #         test_loss = self.criterion(w_pred, w)
+            #         valid_losses.append(test_loss.item())
             
-            wandb.log({
-                'Training Loss': np.mean(train_losses),
-                'Validation Loss': np.mean(valid_losses)
-            })
+            for z, w in test_loader:
+                z, w = z.to(self.device).float(), w.to(self.device).float()
+                w_pred = network(z)
+                test_loss = self.criterion(w_pred, w)
+                valid_losses.append(test_loss.item())
+            
+            train_loss_avg = np.mean(train_losses)
+            valid_loss_avg = np.mean(valid_losses)
+            
+            # wandb log    
+            # wandb.log({
+            #     'Training Loss': np.mean(train_losses),
+            #     'Validation Loss': np.mean(valid_losses)
+            # })
+            
+            wandb.log({'Training Loss': train_loss_avg,
+                       'Validation Loss': valid_loss_avg})
             
             if epoch % 10 == 0:
                 self.save_network(network, f"policy_{epoch}")
