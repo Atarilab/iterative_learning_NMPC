@@ -10,6 +10,7 @@ from mj_pin.utils import get_robot_description, mj_frame_pos # type: ignore
 from mpc_controller.mpc import LocomotionMPC
 import scipy.spatial.transform as st
 import mujoco 
+import matplotlib.pyplot as plt
 
 # initialize global variables
 SIM_DT = 1.0e-3
@@ -27,7 +28,7 @@ sigma_base_pos = 0.1
 mu_joint_pos = 0.0
 sigma_joint_pos = 0.2
 mu_base_ori = 0.0
-sigma_base_ori = 0.3
+sigma_base_ori = 0.5
 mu_vel = 0.0
 sigma_vel = 0.2
 
@@ -110,7 +111,7 @@ class StateDataRecorder(DataRecorder):
         except Exception as e:
             print(f"Error saving data: {e}")
             return ""
-
+    
     def record(self, mj_data) -> None:
         """
         Record simulation data at the current simulation step.
@@ -136,6 +137,10 @@ class StateDataRecorder(DataRecorder):
             # print("base_pos = ",q[:3])
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]  # Correct indexing
+        
+        # print("feet positions are = ",feet_pos_all)
+        # print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
+        # input()
         
         # print("base_wrt_feet = ", base_wrt_feet)
         # input()

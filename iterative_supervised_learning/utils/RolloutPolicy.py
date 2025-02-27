@@ -75,8 +75,8 @@ class PolicyController(Controller):
         
         # initialize robot description
         self.robot_name = "go2"
-        xml_path = get_robot_description(self.robot_name).xml_path
-        self.mj_model = mujoco.MjModel.from_xml_path(xml_path)
+        # xml_path = get_robot_description(self.robot_name).xml_path
+        self.mj_model = mj_model
 
         # load data base and get mean & std
         self.norm_policy_input = norm_policy_input
@@ -159,19 +159,19 @@ class PolicyController(Controller):
         
         # print("torque map = ", torque_map)
         # input()
-        time.sleep(0.01)
+        time.sleep(0.002)
         return torque_map
 
 def rollout_policy(
     policy_path: str,
     robot_name: str = "go2",
-    sim_time: float = 5.0,
+    sim_time: float = 2.0,
     v_des: np.ndarray = np.array([0.3, 0.0, 0.0]),
     record_video: bool = False,
     save_data: bool = True,
     record_dir: str = "./data/",
     visualize: bool = True,
-    norm_policy_input: bool = True,
+    norm_policy_input: bool = False,
     database_path: str = ""
 ):  
     # set up robot description
@@ -179,10 +179,11 @@ def rollout_policy(
     
     # set up simulator
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
-    sim.vs.set_high_quality()
+    sim.vs.track_obj = "base"
     sim.setup()
-    sim._init_model_data()
     joint_name2dof = mj_joint_name2act_id(sim.mj_model)
+    print("Joint to Actuator ID Mapping:", joint_name2dof)
+    input()
 
     controller = PolicyController(
         policy_path=policy_path,
@@ -208,7 +209,7 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/network/policy_final.pth'
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_27_2025_11_04_31/network/policy_final.pth'
     database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
                    sim_time=4.0, 
