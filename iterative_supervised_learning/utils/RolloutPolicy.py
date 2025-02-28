@@ -99,20 +99,41 @@ class PolicyController(Controller):
         print("current v is = ", v)
         
         # calculate phase_percentage
-        current_time = round(mj_data.time,4)
+        current_time = np.round(mj_data.time,4)
         print("current simulation time = ", current_time)
         phase_percentage = get_phase_percentage(current_time)
         print("current phase_percentage is = ", phase_percentage)
+        # input()
         
         # robot_state
         robot_state = q[2:]
         
+        # base position
+        base_position = q[:3]
+        print("current base_position is = ",base_position)
+        
         # base with right to feet
-        base_wrt_feet = self._get_base_wrt_feet(mj_data)
+        # base_wrt_feet = self._get_base_wrt_feet(mj_data)
+        
+        feet_names = ["FL", "FR", "RL", "RR"]
+        base_wrt_feet = np.zeros(2 * len(feet_names))
+        feet_pos_all = []
+        
+        for i, f_name in enumerate(feet_names):
+            feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)  # Add self.mj_model as the first argument
+            feet_pos_all.extend(feet_pos)
+            base_wrt_feet[2 * i:2 * i + 2] = (q[:3] - feet_pos)[:2]
+            
+        print("feet positions are = ",feet_pos_all)
+        print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
+        
+        print("base_wrt_feet = ", base_wrt_feet)
+        
         
         # combine state variable
         state = np.concatenate(([phase_percentage], v, robot_state, base_wrt_feet))[:self.n_state-3]
         print("current state is  = ", state)
+        # input()
         
         # normalize state without phase percentage
         if self.norm_policy_input and self.mean_std is not None:
@@ -138,17 +159,7 @@ class PolicyController(Controller):
         # store torque to self.torques_dof
         self.torques_dof = tau
         print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
-        # input()
-        
-    def _get_base_wrt_feet(self, mj_data) -> np.ndarray:
-        # get base with right to feet position (x,y)*4
-        feet_names = ["FL", "FR", "RL", "RR"]
-        base_wrt_feet = np.zeros(2 * len(feet_names))
-        
-        for i, f_name in enumerate(feet_names):
-            feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)  # Add self.mj_model as the first argument
-            base_wrt_feet[2 * i:2 * i + 2] = (mj_data.qpos[:3] - feet_pos)[:2]
-        return base_wrt_feet
+        input()
 
     def get_torque_map(self) -> Dict[str, float]:
         # print(self.joint_name2dof)
@@ -156,10 +167,7 @@ class PolicyController(Controller):
             j_name: self.torques_dof[dof_id]
             for j_name, dof_id in self.joint_name2dof.items()
         }
-        
-        # print("torque map = ", torque_map)
-        # input()
-        time.sleep(0.002)
+        print(torque_map)
         return torque_map
 
 def rollout_policy(
@@ -183,7 +191,7 @@ def rollout_policy(
     sim.setup()
     joint_name2dof = mj_joint_name2act_id(sim.mj_model)
     print("Joint to Actuator ID Mapping:", joint_name2dof)
-    input()
+    # input()
 
     controller = PolicyController(
         policy_path=policy_path,
@@ -209,8 +217,8 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_27_2025_11_04_31/network/policy_final.pth'
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/dataset/database_0.hdf5"
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_28_2025_09_54_01/network/policy_final.pth'
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_28_2025_09_54_01/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
                    sim_time=4.0, 
                    v_des=[0.3, 0.0, 0.0], 

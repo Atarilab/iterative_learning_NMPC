@@ -28,7 +28,7 @@ sigma_base_pos = 0.1
 mu_joint_pos = 0.0
 sigma_joint_pos = 0.2
 mu_base_ori = 0.0
-sigma_base_ori = 0.5
+sigma_base_ori = 0.4
 mu_vel = 0.0
 sigma_vel = 0.2
 
@@ -74,7 +74,7 @@ class StateDataRecorder(DataRecorder):
         self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
         self.current_time = current_time
         
-        # some initialization
+        # initialization of robot model
         self.feet_names = ["FL", "FR", "RL", "RR"]
         self.robot_name = "go2"
         xml_path = get_robot_description(self.robot_name).xml_path
@@ -120,14 +120,14 @@ class StateDataRecorder(DataRecorder):
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
         self.data["time"].append(round(mj_data.time + self.current_time, 4))
-        # print("time to be recorded is = ",self.data["time"])
+        # print("time to be recorded is = ",round(mj_data.time + self.current_time, 4))
         # input()
         
         self.data["q"].append(q)
         self.data["v"].append(v)
         self.data["ctrl"].append(mj_data.ctrl.copy())
         
-        # # Record feet position in the world
+        # # Record feet position in the world (x,y,z)
         feet_pos_all = []
         base_wrt_feet = np.zeros(2*len(self.feet_names))
         
@@ -155,8 +155,9 @@ class StateDataRecorder(DataRecorder):
         self.data["state"].append(np.array(state))
         
         # transform action from torque to PD target and store
-        tau = mj_data.ctrl
+        tau = mj_data.ctrl.copy()
         action = (tau + kd * v[6:])/kp + q[7:]
+        # print("current action is = ",action)
         self.data["action"].append(np.array(action))
         
         # record the velocity conditioned goals
