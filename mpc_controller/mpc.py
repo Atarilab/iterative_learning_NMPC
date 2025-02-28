@@ -374,7 +374,7 @@ class LocomotionMPC(PinController):
         time_traj = np.concatenate(([0.], time_traj))
         q_plan, v_plan = self.interpolate_trajectory_with_derivatives(time_traj, q_sol, v_sol, a_sol)
         # 0 is current state
-        return q_plan[:-1], v_plan[:-1]
+        return q_plan[1:], v_plan[1:]
             
     def interpolate_trajectory_with_derivatives(
         self,
@@ -394,7 +394,7 @@ class LocomotionMPC(PinController):
         Returns:
             np.ndarray: Interpolated trajectory at 1/sim_dt frequency. Shape: (T, d).
         """
-        t_interpolated = np.arange(time_traj[0], time_traj[-1], self.sim_dt)
+        t_interpolated = np.linspace(time_traj[0], time_traj[-1], self.n_interp_plan+1)
         poly_pos = CubicHermiteSpline(time_traj, positions, velocities)
         interpolated_pos = poly_pos(t_interpolated)
         a0 = accelerations[0].reshape(1, -1)
@@ -533,8 +533,8 @@ class LocomotionMPC(PinController):
                 # Apply delay, not for first iteration
                 if (self.solve_async and not self.first_solve):
                     replanning_time = t - self.start_time
-                    replanning_time -= 4.0e-3
-                    self.delay = math.ceil(replanning_time / self.sim_dt)
+                    # replanning_time -= 4.0e-3
+                    self.delay = math.ceil(replanning_time / self.sim_dt) - 1
                 else:
                     self.delay = 0
 
