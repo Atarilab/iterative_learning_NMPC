@@ -22,10 +22,15 @@ import pinocchio as pin
 from mj_pin.utils import get_robot_description
 
 SIM_DT = 0.001
+nq = 19
+nv = 17
+replan_freq = 20
+n_state = 44
 
 
 class DataCollection():
     def __init__(self, cfg):
+        # initialize parameters from configuration
         self.cfg = cfg
         self.episode_length = cfg.episode_length
         self.sim_dt = cfg.sim_dt
@@ -33,9 +38,13 @@ class DataCollection():
         self.num_pertubations_per_replanning = cfg.num_pertubations_per_replanning
         
         self.gaits = cfg.gaits
+        
+        # currently v_des = [vx,vy,w] is a given number [0.3,0.0,0.0]
         self.vx_range = (cfg.vx_des_min, cfg.vx_des_max)
         self.vy_range = (cfg.vy_des_min, cfg.vy_des_max)
         self.w_range = (cfg.w_des_min, cfg.w_des_max)
+        
+        # initialize database
         self.database = Database(limit=cfg.database_size,norm_input=True)
         self.data_save_path = self._prepare_save_path()
         
@@ -64,12 +73,7 @@ class DataCollection():
                 pickle.dump(self.cfg, f)
         print(f"Dataset saved at iteration {iteration+1}")
 
-    def run(self):
-        nq = 19
-        nv = 17
-        replan_freq = 25
-        n_state = 44
-        
+    def run(self):        
         # Use the prepared dataset path for saving experiments
         experiment_dir = os.path.join(self.data_save_path, "experiment")
         os.makedirs(experiment_dir, exist_ok=True)
@@ -78,7 +82,7 @@ class DataCollection():
         _, record_path_nominal = rollout_mpc(show_plot=False,
                                         visualize= True,
                                         v_des = [0.3,0.0,0.0],
-                                        sim_time=2.0,
+                                        sim_time=4.0,
                                         record_dir=experiment_dir)
         
         # calculate replanning points
@@ -89,6 +93,7 @@ class DataCollection():
             next_replanning_point = i*replan_freq
             replanning_points.append(next_replanning_point)
         print("Replanning points:", replanning_points)
+        # input()
         
         # extract nominal state on replanning points
         data = np.load(record_path_nominal)
@@ -114,21 +119,22 @@ class DataCollection():
             v0 = nominal_v[i_replanning]
             for j in range(self.num_pertubations_per_replanning):
                 phase_percentage = state[:,0]
-                # print(phase_percentage)
+                print("current replanning phase percentage is = ", phase_percentage[i_replanning])
                 # print(phase_percentage[i_replanning])
                 # input()
             
                 # randomize on given state and pass to mpc simulator
                 randomize_on_given_state = np.concatenate((q0, v0, np.array([phase_percentage[i_replanning]])))
-                current_time = np.float32(i_replanning * SIM_DT)
+                current_time = np.round(i_replanning * SIM_DT,4)
                 # print(current_time)
                 # input()
+                
                 early_termination = False
                 # run MPC from replanning state until the simulation finishes
                 while True:
                     early_termination, record_path_replanning = rollout_mpc(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=[0.3,0.0,0.0],
-                                                                            sim_time=2.0,
+                                                                            sim_time=4.0,
                                                                             current_time = current_time,
                                                                             show_plot=False,
                                                                             visualize=True,

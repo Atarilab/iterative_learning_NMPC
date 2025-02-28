@@ -61,8 +61,8 @@ data_save_path: "./data" # folder to store database snapshots
 suffix: '' # suffix model name for saving
 
 #------------------ Simulation Rollout Parameters ----------------------------
-episode_length: 4000 # steps in rollout
-sim_time: 4.0
+episode_length: 2000 # steps in rollout
+sim_time: 2.0
 sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
