@@ -10,7 +10,7 @@ import numpy as np
 
 from mj_pin.abstract import VisualCallback, DataRecorder, Controller # type: ignore
 from mj_pin.simulator import Simulator # type: ignore
-from mj_pin.utils import get_robot_description, mj_frame_pos, mj_joint_name2act_id   # type: ignore
+from mj_pin.utils import get_robot_description, mj_frame_pos, mj_joint_name2act_id, mj_joint_name2dof   # type: ignore
 
 from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
 from iterative_supervised_learning.utils.database import Database
@@ -51,7 +51,7 @@ class PolicyController(Controller):
     def __init__(self, policy_path: str, 
                  n_state: int, 
                  n_action: int, 
-                 joint_name2dof: Dict[str, int],
+                 joint_name2act_id: Dict[str, int],
                  v_des: np.ndarray = np.array([0.3, 0.0, 0.0]), 
                  norm_policy_input: bool = False,
                  database_path: str = "", 
@@ -66,12 +66,13 @@ class PolicyController(Controller):
         self.policy_net.load_state_dict(torch.load(policy_path, map_location=device)['network'])
         self.policy_net.to(device)
         self.policy_net.eval()
-        
+        print("policy network is = ", self.policy_net)
         
         # initialization 
-        self.joint_name2dof = joint_name2dof
+        self.joint_name2act_id = joint_name2act_id
         self.v_des = v_des
         self.n_state = n_state
+        self.nu = 18 # base joint: 6 + 4* each leg:3
         
         # initialize robot description
         self.robot_name = "go2"
@@ -132,8 +133,6 @@ class PolicyController(Controller):
         
         # combine state variable
         state = np.concatenate(([phase_percentage], v, robot_state, base_wrt_feet))[:self.n_state-3]
-        print("current state is  = ", state)
-        # input()
         
         # normalize state without phase percentage
         if self.norm_policy_input and self.mean_std is not None:
@@ -143,6 +142,9 @@ class PolicyController(Controller):
             # input()
             state[1:] = (state[1:] - state_mean[1:]) / state_std[1:]
 
+        print("current state is  = ", state)
+        # input()
+        
         # form policy input
         x = np.concatenate([np.array(state), np.array(self.v_des)])[:self.n_state]
         print("current policy input is = ", x)
@@ -150,24 +152,41 @@ class PolicyController(Controller):
         
         # get policy output
         y_tensor = self.policy_net(x_tensor)
-        print("current policy output is = ",y_tensor)
-        action = y_tensor.cpu().detach().numpy().reshape(-1)
+        action = y_tensor.detach().cpu().numpy().reshape(-1)
+        print("PD target is = ", action)
+        
+        # for debug purpose
+        # hold original position
+        # action = [0,0.9,-1.8,
+        #           0,0.9,-1.8,
+        #           0,0.9,-1.8,
+        #           0,0.9,-1.8,]
 
+        # hold given position
+        # action = [0.1,1.0,-1.8,
+        #           0.1,1.0,-1.8,
+        #           0.1,1.9,-1.8,
+        #           0.1,1.9,-1.8,]
+        
         # calculate torque based on PD target
         tau = kp * (action - q[7:]) - kd * v[6:]
+        print("joint position is = ", q[7:])
+        print("joint velocity is = ", v[6:])
         
         # store torque to self.torques_dof
-        self.torques_dof = tau
+        self.torques_dof = np.zeros(self.nu)
+        self.torques_dof[-12:] = tau
         print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
+        # time.sleep(0.005)
         input()
 
     def get_torque_map(self) -> Dict[str, float]:
-        # print(self.joint_name2dof)
+        # print(self.joint_name2act_id)
         torque_map = {
             j_name: self.torques_dof[dof_id]
-            for j_name, dof_id in self.joint_name2dof.items()
+            for j_name, dof_id in self.joint_name2act_id.items()
         }
-        print(torque_map)
+        print("current torque map is = ", torque_map)
         return torque_map
 
 def rollout_policy(
@@ -189,15 +208,16 @@ def rollout_policy(
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
     sim.setup()
-    joint_name2dof = mj_joint_name2act_id(sim.mj_model)
-    print("Joint to Actuator ID Mapping:", joint_name2dof)
+    # joint_name2act_id= mj_joint_name2act_id(sim.mj_model)
+    joint_name2act_id= mj_joint_name2dof(sim.mj_model)
+    print("Joint to Actuator ID Mapping:", joint_name2act_id)
     # input()
 
     controller = PolicyController(
         policy_path=policy_path,
         n_state=n_state,
         n_action=n_action,
-        joint_name2dof=joint_name2dof,
+        joint_name2act_id=joint_name2act_id,
         v_des=v_des,
         norm_policy_input=norm_policy_input,
         database_path=database_path,
