@@ -29,7 +29,7 @@ sigma_base_pos = 0.1
 mu_joint_pos = 0.0
 sigma_joint_pos = 0.2
 mu_base_ori = 0.0
-sigma_base_ori = 0.4
+sigma_base_ori = 0.6
 mu_vel = 0.0
 sigma_vel = 0.2
 
@@ -153,7 +153,7 @@ class StateDataRecorder(DataRecorder):
         # if in replanning step, phase percentage is not starting from 0
         phase_percentage = np.round([get_phase_percentage(mj_data.time + self.current_time)], 4)
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
-        self.data["state"].append(np.array(state))
+        self.data["state"].append(np.array(state)) # here is unnormalized state
         
         # transform action from torque to PD target and store
         tau = mj_data.ctrl.copy()

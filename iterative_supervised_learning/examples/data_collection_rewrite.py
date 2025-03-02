@@ -24,7 +24,7 @@ from mj_pin.utils import get_robot_description
 SIM_DT = 0.001
 nq = 19
 nv = 17
-replan_freq = 100
+replan_freq = 25
 n_state = 44
 
 
@@ -137,7 +137,7 @@ class DataCollection():
                 while True:
                     early_termination, record_path_replanning = rollout_mpc(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=[0.3,0.0,0.0],
-                                                                            sim_time=4.0,
+                                                                            sim_time=2.0,
                                                                             current_time = current_time,
                                                                             show_plot=False,
                                                                             visualize=True,
