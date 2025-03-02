@@ -91,6 +91,11 @@ class PolicyController(Controller):
             print("self.mean_std = ", self.mean_std)
             # print("shape of self.mean_std = ", np.shape(self.mean_std))
             input()
+        
+        # for debugging purpose: load PD target from file and see if it replays
+        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_02_2025_14_53_49.npz"
+        data = np.load(data_path)
+        self.action_history = data["action"]
 
     def compute_torques_dof(self, mj_data) -> Dict[str, float]:
         # extract q and v from mujoco
@@ -145,15 +150,15 @@ class PolicyController(Controller):
         print("current state is  = ", state)
         # input()
         
-        # form policy input
-        x = np.concatenate([np.array(state), np.array(self.v_des)])[:self.n_state]
-        print("current policy input is = ", x)
-        x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
+        # # form policy input
+        # x = np.concatenate([np.array(state), np.array(self.v_des)])[:self.n_state]
+        # print("current policy input is = ", x)
+        # x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
         
-        # get policy output
-        y_tensor = self.policy_net(x_tensor)
-        action = y_tensor.detach().cpu().numpy().reshape(-1)
-        print("PD target is = ", action)
+        # # get policy output
+        # y_tensor = self.policy_net(x_tensor)
+        # action = y_tensor.detach().cpu().numpy().reshape(-1)
+        # print("PD target is = ", action)
         
         # for debug purpose
         # hold original position
@@ -167,6 +172,11 @@ class PolicyController(Controller):
         #           0.1,1.0,-1.8,
         #           0.1,1.9,-1.8,
         #           0.1,1.9,-1.8,]
+        
+        # read from file to see if PD controller works
+        action = self.action_history[int(current_time/SIM_DT)]
+        print("current action index = ", int(current_time/SIM_DT))
+        print("current PD target = ",action)
         
         # calculate torque based on PD target
         tau = kp * (action - q[7:]) - kd * v[6:]
@@ -198,7 +208,7 @@ def rollout_policy(
     save_data: bool = True,
     record_dir: str = "./data/",
     visualize: bool = True,
-    norm_policy_input: bool = False,
+    norm_policy_input: bool = True,
     database_path: str = ""
 ):  
     # set up robot description
@@ -237,10 +247,10 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_14_27_43/network/policy_final.pth'
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_14_27_43/dataset/database_0.hdf5"
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_20_50_25/network/policy_final.pth'
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_20_50_25/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
-                   sim_time=4.0, 
+                   sim_time=2.0, 
                    v_des=[0.3, 0.0, 0.0], 
                    record_video=False,
                    database_path=database_path,

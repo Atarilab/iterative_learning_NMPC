@@ -208,7 +208,7 @@ class Database():
         states_norm[:, 1:] = (states_array[:, 1:] - self.states_mean[1:]) / self.states_std[1:]
         
         # The first column remains unchanged
-        self.states_norm = states_norm
+        self.states_norm = states_norm  # here we only set states_norm to normalized state
         # print("shape of self.states is = ", np.shape(self.states[:self.length]))
         # print("shape of states_mean is = ",np.shape(self.states_mean))
         # print("shape of states_norm is = ",np.shape(self.states_norm))
