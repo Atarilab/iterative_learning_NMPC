@@ -11,6 +11,7 @@ from mpc_controller.mpc import LocomotionMPC
 import scipy.spatial.transform as st
 import mujoco 
 import matplotlib.pyplot as plt
+import time
 
 # initialize global variables
 SIM_DT = 1.0e-3
@@ -166,6 +167,7 @@ class StateDataRecorder(DataRecorder):
         # record contact conditioned goals(currently just a random noise)
         self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
         self.data["cc_goals"].append(self.cc_goals)
+        
 
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period

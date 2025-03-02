@@ -508,6 +508,11 @@ class LocomotionMPC(PinController):
             self.tau_full.append(torques_pd.copy())
             # Update torques dof
             self.torques_dof[-self.nu:] = torques_pd
+            # print("to show the difference between tau_pd and tau_dof")
+            # print("self.nu is = ",self.nu)
+            # print("tau_pd is = ", torques_pd)
+            # print("tau_dof is = ",self.torques_dof)
+            # input()
 
     def _compute_torques_ff(self, sim_time : float, q_mj : np.ndarray, v_mj : np.ndarray) -> np.ndarray:
         """

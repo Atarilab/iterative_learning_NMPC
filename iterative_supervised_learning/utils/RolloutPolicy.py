@@ -178,7 +178,7 @@ class PolicyController(Controller):
         self.torques_dof[-12:] = tau
         print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
         # time.sleep(0.005)
-        input()
+        # input()
 
     def get_torque_map(self) -> Dict[str, float]:
         # print(self.joint_name2act_id)
@@ -237,14 +237,14 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_28_2025_09_54_01/network/policy_final.pth'
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_28_2025_09_54_01/dataset/database_0.hdf5"
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_14_27_43/network/policy_final.pth'
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_14_27_43/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
                    sim_time=4.0, 
                    v_des=[0.3, 0.0, 0.0], 
                    record_video=False,
                    database_path=database_path,
-                   norm_policy_input=False)
+                   norm_policy_input=True)
     
 
     
