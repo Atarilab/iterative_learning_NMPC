@@ -86,29 +86,20 @@ class BehavioralCloning:
             for x, y in train_loader:
                 optimizer.zero_grad()
                 x, y = x.to(self.device).float(), y.to(self.device).float()
-                
-                # print("network input = ",x)
-                # # Check if the first column of x is within [0,1]
-                # first_entry = x[:, 0]  # Extract the first feature of each sample
-                # out_of_bounds = (first_entry < 0) | (first_entry > 1)  # Find out-of-bound values
-
-                # if out_of_bounds.any():
-                #     print("Warning! Some first entries are out of bounds:")
-                #     print(first_entry[out_of_bounds])  # Print only the values that are out of range
-                # else:
-                #     print("All first entries of x are within [0,1]")
-                    
-                # print("shape of x is = ",x.shape)
-                # print("to be matched output = ",y)
-                # print("shape of y is = ",y.shape)
-                
                 y_pred = network(x)
-                # print("calculated output = ",y_pred)
-                # input()
+                
                 loss = self.criterion(y_pred, y)
                 loss.backward()
                 optimizer.step()
                 train_losses.append(loss.item())
+                
+                print("network input = ",x[0])                    
+                print("shape of x is = ",x.shape)
+                print("to be matched output = ",y[0])
+                print("shape of y is = ",y.shape)
+                print("calculated output = ",y_pred[0])
+                print("current training loss = ", loss)
+                # input()
             
             valid_losses = []
             network.eval()

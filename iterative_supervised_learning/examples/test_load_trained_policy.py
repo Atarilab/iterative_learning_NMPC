@@ -13,10 +13,10 @@ n_action = 12
 
 if __name__ == "__main__":
     # initialize some path
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/network/policy_final.pth"
-    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/dataset/experiment/simulation_data_02_26_2025_10_35_57.npz"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_26_2025_10_35_39/dataset/database_0.hdf5"
-    norm_policy_input = False
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_14_27_43/network/policy_final.pth"
+    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_02_2025_14_53_49.npz"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_02_2025_14_27_43/dataset/database_0.hdf5"
+    norm_policy_input = True
     v_des = [0.3,0.0,0.0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -63,13 +63,14 @@ if __name__ == "__main__":
         # get policy input
         x = np.concatenate([np.array(current_state), np.array(v_des)])[:n_state]
         x_tensor = torch.tensor(x, dtype=torch.float32, device=device).unsqueeze(0)
+        print("shape of policy input is = ",np.shape(x))
         print("policy input = ", x)
     
         # get policy output
         y_tensor = policy_net(x_tensor)
         y = y_tensor.cpu().detach().numpy().reshape(-1)
-        print("action should be = ",current_action)
-        print("current ctrl is  = ", current_ctrl)
-        print("inferenced action = ", y)
+        print("PD target should be = ",current_action)
+        print("inferenced PD target = ", y)
+        print("current torque should be  = ", current_ctrl)
 
         input()

@@ -24,7 +24,7 @@ from mj_pin.utils import get_robot_description
 SIM_DT = 0.001
 nq = 19
 nv = 17
-replan_freq = 20
+replan_freq = 100
 n_state = 44
 
 
@@ -117,6 +117,9 @@ class DataCollection():
             
             q0 = nominal_q[i_replanning]
             v0 = nominal_v[i_replanning]
+            print("print out replanning points")
+            print("nominal q0 is = ", q0)
+            print("nominal v0 is = ", v0)
             for j in range(self.num_pertubations_per_replanning):
                 phase_percentage = state[:,0]
                 print("current replanning phase percentage is = ", phase_percentage[i_replanning])
@@ -126,7 +129,7 @@ class DataCollection():
                 # randomize on given state and pass to mpc simulator
                 randomize_on_given_state = np.concatenate((q0, v0, np.array([phase_percentage[i_replanning]])))
                 current_time = np.round(i_replanning * SIM_DT,4)
-                # print(current_time)
+                print("current time is  = ", current_time)
                 # input()
                 
                 early_termination = False
