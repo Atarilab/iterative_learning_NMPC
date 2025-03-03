@@ -24,8 +24,13 @@ from mj_pin.utils import get_robot_description
 SIM_DT = 0.001
 nq = 19
 nv = 17
-replan_freq = 25
-n_state = 44
+replan_freq = 10
+
+# with base_wrt_feet
+# n_state = 44
+
+# without base_wrt_feet
+n_state = 36
 
 
 class DataCollection():
@@ -82,7 +87,7 @@ class DataCollection():
         _, record_path_nominal = rollout_mpc(show_plot=False,
                                         visualize= True,
                                         v_des = [0.3,0.0,0.0],
-                                        sim_time=4.0,
+                                        sim_time=5.0,
                                         record_dir=experiment_dir)
         
         # calculate replanning points
