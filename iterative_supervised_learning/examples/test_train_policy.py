@@ -93,12 +93,12 @@ class BehavioralCloning:
                 optimizer.step()
                 train_losses.append(loss.item())
                 
-                print("network input = ",x[0])                    
-                print("shape of x is = ",x.shape)
-                print("to be matched output = ",y[0])
-                print("shape of y is = ",y.shape)
-                print("calculated output = ",y_pred[0])
-                print("current training loss = ", loss)
+                # print("network input = ",x[0])                    
+                # print("shape of x is = ",x.shape)
+                # print("to be matched output = ",y[0])
+                # print("shape of y is = ",y.shape)
+                # print("calculated output = ",y_pred[0])
+                # print("current training loss = ", loss)
                 # input()
             
             valid_losses = []

@@ -17,7 +17,10 @@ import time
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 gait_period = 0.5 # trotting
-n_state = 44
+# with base_wrt_feet
+# n_state = 44
+# without base_wrt_feet
+n_state = 36
 nq = 19
 nv = 17
 kp = 40
@@ -25,11 +28,11 @@ kd = 5.0
 
 # initialize pertubation variables
 mu_base_pos = 0.0
-sigma_base_pos = 0.1
+sigma_base_pos = 0.2
 mu_joint_pos = 0.0
 sigma_joint_pos = 0.2
 mu_base_ori = 0.0
-sigma_base_ori = 0.6
+sigma_base_ori = 0.5
 mu_vel = 0.0
 sigma_vel = 0.2
 
@@ -128,7 +131,7 @@ class StateDataRecorder(DataRecorder):
         self.data["v"].append(v)
         self.data["ctrl"].append(mj_data.ctrl.copy())
         
-        # # Record feet position in the world (x,y,z)
+        # Record feet position in the world (x,y,z)
         feet_pos_all = []
         base_wrt_feet = np.zeros(2*len(self.feet_names))
         
@@ -146,14 +149,24 @@ class StateDataRecorder(DataRecorder):
         # print("base_wrt_feet = ", base_wrt_feet)
         # input()
         self.data["feet_pos_w"].append(np.array(feet_pos_all))
+        
+        # base with right to feet in world frame
         self.data["base_wrt_feet"].append(np.array(base_wrt_feet))
         
         ## form state variable
         # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
         # if in replanning step, phase percentage is not starting from 0
         phase_percentage = np.round([get_phase_percentage(mj_data.time + self.current_time)], 4)
-        state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
+        
+        #==========================================================================================
+        # state with base_wrt_feet
+        # state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
+        
+        # state wiout base_wrt_feet
+        state = np.concatenate([phase_percentage, v, q[2:]])
         self.data["state"].append(np.array(state)) # here is unnormalized state
+        #=========================================================================================
+        
         
         # transform action from torque to PD target and store
         tau = mj_data.ctrl.copy()

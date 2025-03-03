@@ -56,7 +56,7 @@ sigma_vel: # joint velocity
 
 # ------- Model Parameters -----------------------------------
 action_type: "pd_target" #"pd_target", "torque", "structured"
-normalize_policy_input: False
+normalize_policy_input: True
 
 # ------- Saving Paths ----------------------------------
 save_data: True
@@ -68,26 +68,27 @@ episode_length: 5000  # steps in rollout
 sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
-n_state: 44 # input size 47 = n_state 44 + n_goals 3
+# n_state: 44 # input size 47 = n_state 44 + n_goals 3 # with base_wrt_feet
+n_state: 36 # without base_wrt_feet
 n_action: 12
 goal_horizon: 1
-kp: 2.
-kd: .1
+kp: 40
+kd: 5
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Feb_28_2025_09_54_01/dataset/database_0.hdf5"
+database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_03_2025_14_59_45/dataset/database_0.hdf5"
 
 #---------- Network parameters-------------
 num_hidden_layer: 3
-hidden_dim: 512
+hidden_dim: 256
 batch_norm: True
 goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint
 
 #---------- Training parameters-------------
 batch_size: 256
 learning_rate: 0.002
-n_epoch: 150 # default=150
+n_epoch: 500 # default=150
 n_train_frac: 0.9 # fraction of the data used for training
 
 
