@@ -26,9 +26,11 @@ import mujoco.viewer
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 # with base_wrt_feet
-# n_state = 44 # state:44 + vc_goal:3
+n_state = 44 # state:44 + vc_goal:3
+
 # without base_wrt_feet
-n_state = 36
+# n_state = 36
+
 n_state += 3
 print("n_state = ",n_state)
 n_action = 12
@@ -65,7 +67,7 @@ class PolicyController(Controller):
         # initialize policy network
         self.device = device
         self.policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=3,
-                                                   hidden_dim=256, batch_norm=True)
+                                                   hidden_dim=512, batch_norm=True)
         self.policy_net.load_state_dict(torch.load(policy_path, map_location=device)['network'])
         self.policy_net.to(device)
         self.policy_net.eval()
@@ -96,7 +98,7 @@ class PolicyController(Controller):
             input()
         
         # # for debugging purpose: load PD target from file and see if it replays
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_02_2025_14_53_49.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_04_2025_14_35_43.npz"
         # data = np.load(data_path)
         # self.action_history = data["action"]
 
@@ -141,10 +143,10 @@ class PolicyController(Controller):
         
         # combine state variable
         # state with base_wrt_feet
-        # state = np.concatenate(([phase_percentage], v, robot_state, base_wrt_feet))[:self.n_state-3]
+        state = np.concatenate(([phase_percentage], v, robot_state, base_wrt_feet))[:self.n_state-3]
         
         # state without base_wrt_feet
-        state = state = np.concatenate(([phase_percentage], v, robot_state))[:self.n_state-3]
+        # state = state = np.concatenate(([phase_percentage], v, robot_state))[:self.n_state-3]
         
         # normalize state without phase percentage
         if self.norm_policy_input and self.mean_std is not None:
@@ -157,6 +159,7 @@ class PolicyController(Controller):
         print("current state is  = ", state)
         # input()
         
+        #==============================================================================================
         # form policy input
         x = np.concatenate([np.array(state), np.array(self.v_des)])[:self.n_state]
         print("current policy input is = ", x)
@@ -166,8 +169,9 @@ class PolicyController(Controller):
         y_tensor = self.policy_net(x_tensor)
         action = y_tensor.detach().cpu().numpy().reshape(-1)
         print("PD target is = ", action)
+        #===================================================================================================
         
-        # for debug purpose
+        # for debugging purposes
         # hold original position
         # action = [0,0.9,-1.8,
         #           0,0.9,-1.8,
@@ -181,18 +185,38 @@ class PolicyController(Controller):
         #           -0.3,1.0,-1.8,]
         
         # # read from file to see if PD controller works
-        # action = self.action_history[int(current_time/SIM_DT)]
+        # action = self.action_history[int(current_time/SIM_DT)] # action is in the order of [FL,FR,RL,RR]
         # print("current action index = ", int(current_time/SIM_DT))
         # print("current PD target = ",action)
         
         # calculate torque based on PD target
-        tau = kp * (action - q[7:]) - kd * v[6:]
+        tau_flfrrlrr = kp * (action - q[7:]) - kd * v[6:]
+        FL_torque = tau_flfrrlrr[0:3]
+        FR_torque = tau_flfrrlrr[3:6]
+        RL_torque = tau_flfrrlrr[6:9]
+        RR_torque = tau_flfrrlrr[9:]
+        tau_frflrrrl = np.concatenate([FR_torque,FL_torque,RR_torque,RL_torque])
+        
         print("joint position is = ", q[7:])
         print("joint velocity is = ", v[6:])
         
+        print("tau_flfrrlrr is = ")
+        print(tau_flfrrlrr)
+        print("FR torque is ")
+        print(FR_torque)
+        print("FL torque is ")
+        print(FL_torque)
+        print("RR torque is ")
+        print(RR_torque)
+        print("RL torque is ")
+        print(RL_torque)
+        print("tau_frflrrrl is = ")
+        print(tau_frflrrrl)
+        # input()
+        
         # store torque to self.torques_dof
         self.torques_dof = np.zeros(self.nu)
-        self.torques_dof[-12:] = tau
+        self.torques_dof[-12:] = tau_flfrrlrr
         print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
         # input()
 
@@ -223,6 +247,7 @@ def rollout_policy(
     # set up simulator
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
+    sim.vs.set_front_view()
     sim.setup()
     # joint_name2act_id= mj_joint_name2act_id(sim.mj_model)
     joint_name2act_id= mj_joint_name2dof(sim.mj_model)
@@ -253,10 +278,10 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_03_2025_14_59_45/network/policy_final.pth'
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_03_2025_14_59_45/dataset/database_0.hdf5"
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/network/policy_final.pth'
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
-                   sim_time=4.0, 
+                   sim_time=2.0, 
                    v_des=[0.3, 0.0, 0.0], 
                    record_video=False,
                    database_path=database_path,

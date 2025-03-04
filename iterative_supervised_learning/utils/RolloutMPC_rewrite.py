@@ -17,10 +17,13 @@ import time
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 gait_period = 0.5 # trotting
+
 # with base_wrt_feet
 # n_state = 44
-# without base_wrt_feet
-n_state = 36
+
+# # without base_wrt_feet
+# n_state = 36
+
 nq = 19
 nv = 17
 kp = 40
@@ -28,11 +31,11 @@ kd = 5.0
 
 # initialize pertubation variables
 mu_base_pos = 0.0
-sigma_base_pos = 0.2
+sigma_base_pos = 0.1
 mu_joint_pos = 0.0
 sigma_joint_pos = 0.2
 mu_base_ori = 0.0
-sigma_base_ori = 0.5
+sigma_base_ori = 0.7
 mu_vel = 0.0
 sigma_vel = 0.2
 
@@ -127,9 +130,9 @@ class StateDataRecorder(DataRecorder):
         # print("time to be recorded is = ",round(mj_data.time + self.current_time, 4))
         # input()
         
-        self.data["q"].append(q)
-        self.data["v"].append(v)
-        self.data["ctrl"].append(mj_data.ctrl.copy())
+        self.data["q"].append(q) # in the order of [FL,FR,RL,RR]
+        self.data["v"].append(v) # in the order of [FL,FR,RL,RR]
+        self.data["ctrl"].append(mj_data.ctrl.copy()) # in the order of [FR,FL,RR,RL]
         
         # Record feet position in the world (x,y,z)
         feet_pos_all = []
@@ -140,7 +143,7 @@ class StateDataRecorder(DataRecorder):
             # print("feet_pos = ",feet_pos)
             # print("base_pos = ",q[:3])
             feet_pos_all.extend(feet_pos)
-            base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]  # Correct indexing
+            base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]
         
         # print("feet positions are = ",feet_pos_all)
         # print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
@@ -160,17 +163,36 @@ class StateDataRecorder(DataRecorder):
         
         #==========================================================================================
         # state with base_wrt_feet
-        # state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
+        state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
         
-        # state wiout base_wrt_feet
-        state = np.concatenate([phase_percentage, v, q[2:]])
+        # # state wiout base_wrt_feet
+        # state = np.concatenate([phase_percentage, v, q[2:]])
+        
         self.data["state"].append(np.array(state)) # here is unnormalized state
         #=========================================================================================
         
         
         # transform action from torque to PD target and store
-        tau = mj_data.ctrl.copy()
-        action = (tau + kd * v[6:])/kp + q[7:]
+        tau_frflrrrl = mj_data.ctrl.copy() # in the order of [FR,FL,RR,RL]
+        FR_torque = tau_frflrrrl[0:3]
+        FL_torque = tau_frflrrrl[3:6]
+        RR_torque = tau_frflrrrl[6:9]
+        RL_torque = tau_frflrrrl[9:]
+        tau_flfrrlrr = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
+        # print("tau is = ", tau_frflrrrl)
+        # print("FR torque is ")
+        # print(FR_torque)
+        # print("FL torque is ")
+        # print(FL_torque)
+        # print("RR torque is ")
+        # print(RR_torque)
+        # print("RL torque is ")
+        # print(RL_torque)
+        # print("transformed tau is = ")
+        # print(tau_flfrrlrr)
+        # input()
+        
+        action = (tau_flfrrlrr + kd * v[6:])/kp + q[7:]
         # print("current action is = ",action)
         self.data["action"].append(np.array(action))
         

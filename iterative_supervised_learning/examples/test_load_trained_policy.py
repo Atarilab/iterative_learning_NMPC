@@ -8,15 +8,15 @@ from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
 from iterative_supervised_learning.utils.database import Database
 
 n_state = 44 # with base_wrt_feet
-n_state = 36 # without base_wrt_feet
+# n_state = 36 # without base_wrt_feet
 n_state += 3
 n_action = 12
 
 if __name__ == "__main__":
     # initialize some path
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_03_2025_10_29_35/network/policy_final.pth"
-    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_03_2025_10_21_11.npz"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_03_2025_10_29_35/dataset/database_0.hdf5"
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/network/policy_final.pth"
+    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_04_2025_15_59_50.npz"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/dataset/database_0.hdf5"
     norm_policy_input = True
     v_des = [0.3,0.0,0.0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     
     
     # iterate over state
-    for i in range(10):
+    for i in range(50,75):
         current_state = state[i]
         current_action = action[i]
         current_ctrl = ctrl[i]
@@ -72,6 +72,7 @@ if __name__ == "__main__":
         y = y_tensor.cpu().detach().numpy().reshape(-1)
         print("PD target should be = ",current_action)
         print("inferenced PD target = ", y)
-        print("current torque should be  = ", current_ctrl)
+        
+        # print("current torque should be  = ", current_ctrl)
 
         input()
