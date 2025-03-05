@@ -104,7 +104,7 @@ class GaitPlanner(ABC):
 
             # Peak in the middle
             peak = end_idx + (start_idx+end_idx) // 2
-            o = abs(start_idx - end_idx) // 4
+            o = abs(peak - end_idx) // 3
             self.peak_swing[foot_id, end_idx+o:start_idx-o] = 1
             if peak < len(self.peak_swing):
                 self.peak_swing[foot_id, peak] = 0.75
