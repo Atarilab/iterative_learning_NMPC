@@ -92,15 +92,15 @@ def run_traj_opt(args):
         )
     mpc.set_command(args.v_des, 0.0)
     mpc.set_convergence_on_first_iter()
-
-    q = robot_desc.q0
-    v = np.zeros(mpc.pin_model.nv)
-    q_plan, v_plan, _, _, dt_plan = mpc.optimize(q, v)
     
+    sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
+    q0_mj, v0_mj = sim.get_initial_state()
+    q0, v0 = mpc.solver.dyn.convert_from_mujoco(q0_mj, v0_mj)
+    q_plan, v_plan, _, _, dt_plan = mpc.optimize(q0, v0)
+        
     q_plan_mj = np.array([mpc.solver.dyn.convert_to_mujoco(q_plan[i], v_plan[i])[0] for i in range(len(q_plan))])
     time_traj = np.concatenate(([0], np.cumsum(dt_plan)))
 
-    sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.set_high_quality()
     sim.visualize_trajectory(q_plan_mj, time_traj, record_video=args.record_video)
 
@@ -137,6 +137,7 @@ def run_mpc(args):
     
     mpc.print_timings()
     mpc.plot_traj("q")
+    mpc.plot_traj("v")
     mpc.plot_traj("f")
     mpc.plot_traj("tau")
     mpc.show_plots()
