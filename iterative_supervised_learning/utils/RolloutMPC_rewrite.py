@@ -165,7 +165,7 @@ class StateDataRecorder(DataRecorder):
         # state with base_wrt_feet
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
         
-        # # state wiout base_wrt_feet
+        # # state without base_wrt_feet
         # state = np.concatenate([phase_percentage, v, q[2:]])
         
         self.data["state"].append(np.array(state)) # here is unnormalized state
@@ -192,7 +192,7 @@ class StateDataRecorder(DataRecorder):
         # print(tau_flfrrlrr)
         # input()
         
-        action = (tau_flfrrlrr + kd * v[6:])/kp + q[7:]
+        action = (tau_flfrrlrr + kd * v[6:])/kp + q[7:] # in the order of [FL,FR,RL,RR]
         # print("current action is = ",action)
         self.data["action"].append(np.array(action))
         
@@ -268,18 +268,19 @@ def rollout_mpc(robot_name = "go2",
     #initialize data recorder
     data_recorder = StateDataRecorder(record_dir,v_des=v_des,current_time = current_time) if save_data else None
     
-    #initialize simulator
+    # initialize simulator
     sim = Simulator(robot_desc.xml_scene_path,sim_dt=SIM_DT,viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
+    sim.vs.set_front_view()
     
-    #get default position and velocity
-    q_mj = robot_desc.q0
-    v_mj = np.zeros(mpc.pin_model.nv)
-    q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+    # # get default position and velocity
+    # q_mj = robot_desc.q0
+    # v_mj = np.zeros(mpc.pin_model.nv)
+    # q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
     
-    # set robot to initial position
-    pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
-    pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
+    # # set pin model to initial position
+    # pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
+    # pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
     # input()
     
     # TODO: randomize on given state
@@ -313,12 +314,15 @@ def rollout_mpc(robot_name = "go2",
     #             input()
     #             break
     
-    # TODO: implement null space randomization
-    if randomize_on_given_state is not None:
+    
+    if randomize_on_given_state is not None: # if starting from replanning point
+        # implement null space randomization
         nominal_state = randomize_on_given_state
-        # TODO: keep randomizing until all the feet are above the ground
+        # get replanning mujoco state(q, v) from nominal state
         q_mj = nominal_state[:nq] 
         v_mj = nominal_state[nq:-1]
+        
+        # convert replanning state from mujoco data to pin data
         q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
         
         # perform forward kinematics and compute jacobian
@@ -409,13 +413,32 @@ def rollout_mpc(robot_name = "go2",
                 if mpc.pin_data.oMf[frame_id].translation[2] < 0.:
                     ee_below_ground.append(feet_frame_names[e])
             if ee_below_ground == []:
+                print("found a feasible initial condition for rollout")
                 min_ee_height = -1.
-                
-            q_mj, v_mj = mpc.solver.dyn.convert_to_mujoco(new_q0,new_v0)
+            
+        # update pin model from perturbed state
+        pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
+        pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
+        
+        # convert new_q0, new_v0 from pin data to mj data
+        # ready to initialize mujoco model from perturbed state 
+        q_mj, v_mj = mpc.solver.dyn.convert_to_mujoco(new_q0,new_v0)
     
-    # Set randomized state and simulate from there
+    else:
+        # starting from default state(q,v)
+        # get default position and velocity
+        q_mj = robot_desc.q0
+        v_mj = np.zeros(mpc.pin_model.nv)
+        q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+        
+        # set pin model to initial position
+        pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
+        pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
+        
+    
+    # Set mujoco model from unperturbed/perturbed initial state
     sim.set_initial_state(q0=q_mj,v0=v_mj)
-    
+
     sim.run(
         sim_time = sim_time,
         controller=mpc,

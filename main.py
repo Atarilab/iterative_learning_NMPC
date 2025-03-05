@@ -128,11 +128,12 @@ def run_mpc(args):
 
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
+    # sim.vs.set_front_view()
     sim.run(
         sim_time=args.sim_time,
         controller=mpc,
         visual_callback=vis_feet_pos,
-        data_recorder=data_recorder
+        data_recorder=data_recorder,
         )
     
     mpc.print_timings()
