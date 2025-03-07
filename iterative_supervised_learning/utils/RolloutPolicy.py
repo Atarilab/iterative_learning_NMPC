@@ -21,6 +21,8 @@ import threading
 import mujoco
 import mujoco.viewer
 
+import matplotlib.pyplot as plt
+
 # define global variables
 
 SIM_DT = 1.0e-3
@@ -34,8 +36,12 @@ n_state = 44 # state:44 + vc_goal:3
 n_state += 3
 print("n_state = ",n_state)
 n_action = 12
+
+# kp = 20.0
+# kd = 1.5
+
 kp = 40.0
-kd = 5.0 
+kd = 5.0
 
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
@@ -52,6 +58,150 @@ def get_phase_percentage(t:int):
     phi = (t % gait_period)/gait_period
     return phi
 
+# Data recorder
+class StateDataRecorder(DataRecorder):
+    def __init__(
+        self,
+        record_dir: str = "",
+        record_step: int = 1,
+        v_des: np.ndarray = np.array([0,0,0]),
+        current_time: float = 0.0) -> None:
+        """
+        A simple data recorder that saves simulation data to a .npz file.
+        """
+        super().__init__(record_dir, record_step)
+        self.data = {}
+        self.vc_goals = v_des
+        self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
+        self.current_time = current_time
+        
+        # initialization of robot model
+        self.feet_names = ["FL", "FR", "RL", "RR"]
+        self.robot_name = "go2"
+        xml_path = get_robot_description(self.robot_name).xml_path
+        self.mj_model = mujoco.MjModel.from_xml_path(xml_path)
+        
+        # reset
+        self.reset()
+
+    def reset(self) -> None:
+        self.data = {"time": [], 
+                     "q": [], 
+                     "v": [], 
+                     "ctrl": [],
+                     "feet_pos_w":[],
+                     "base_wrt_feet":[],
+                     "state":[],
+                     "action":[],
+                     "vc_goals":[],
+                     "cc_goals":[]}
+
+    def save(self) -> None:
+        if not self.record_dir:
+            self.record_dir = os.getcwd()
+        os.makedirs(self.record_dir, exist_ok=True)
+
+        timestamp = self.get_date_time_str()
+        file_path = os.path.join(self.record_dir, f"simulation_data_{timestamp}.npz")
+
+        try:
+            # Uncomment to save data
+            np.savez(file_path, **self.data)
+            print(f"Data successfully saved to {file_path}")
+            return file_path
+        except Exception as e:
+            print(f"Error saving data: {e}")
+            return ""
+    
+    def record(self, mj_data) -> None:
+        """
+        Record simulation data at the current simulation step.
+        """
+        # Record time and state
+        q = mj_data.qpos.copy()
+        v = mj_data.qvel.copy()
+        self.data["time"].append(round(mj_data.time + self.current_time, 4))
+        self.data["q"].append(q) # in the order of [FL,FR,RL,RR]
+        self.data["v"].append(v) # in the order of [FL,FR,RL,RR]
+        self.data["ctrl"].append(mj_data.ctrl.copy()) # in the order of [FR,FL,RR,RL]
+        
+        # Record feet position in the world (x,y,z)
+        feet_pos_all = []
+        ee_in_contact = []
+        base_wrt_feet = np.zeros(2*len(self.feet_names))
+        
+        for i, f_name in enumerate(self.feet_names):
+            feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)
+            # print(f"{f_name} feet_pos = {feet_pos}")
+            if feet_pos[-1] <= 0.005:
+                ee_in_contact.append(f_name)
+            feet_pos_all.extend(feet_pos)
+            base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]
+        
+        # print("current ee_in_contact is = ")
+        # print(ee_in_contact)
+        # input()
+        
+        
+        # print("base_pos = ",q[:3])
+        # print("feet positions are = ",feet_pos_all)
+        
+        # print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
+        # input()
+        
+        # print("base_wrt_feet = ", base_wrt_feet)
+        # input()
+        self.data["feet_pos_w"].append(np.array(feet_pos_all))
+        
+        # base with right to feet in world frame
+        self.data["base_wrt_feet"].append(np.array(base_wrt_feet))
+        
+        ## form state variable
+        # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
+        # if in replanning step, phase percentage is not starting from 0
+        phase_percentage = np.round([get_phase_percentage(mj_data.time + self.current_time)], 4)
+        
+        #==========================================================================================
+        # state with base_wrt_feet
+        state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
+        
+        # # state without base_wrt_feet
+        # state = np.concatenate([phase_percentage, v, q[2:]])
+        
+        self.data["state"].append(np.array(state)) # here is unnormalized state
+        #=========================================================================================
+        # transform action from torque to PD target and store
+        tau_frflrrrl = mj_data.ctrl.copy() # in the order of [FR,FL,RR,RL]
+        FR_torque = tau_frflrrrl[0:3]
+        FL_torque = tau_frflrrrl[3:6]
+        RR_torque = tau_frflrrrl[6:9]
+        RL_torque = tau_frflrrrl[9:]
+        tau_flfrrlrr = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
+        # print("tau is = ", tau_frflrrrl)
+        # print("FR torque is ")
+        # print(FR_torque)
+        # print("FL torque is ")
+        # print(FL_torque)
+        # print("RR torque is ")
+        # print(RR_torque)
+        # print("RL torque is ")
+        # print(RL_torque)
+        # print("transformed tau is = ")
+        # print(tau_flfrrlrr)
+        # input()
+        
+        # calculate realized PD target and store
+        action = (tau_flfrrlrr + kd * v[6:])/kp + q[7:] # in the order of [FL,FR,RL,RR]
+        # print("current action is = ",action)
+        self.data["action"].append(np.array(action))
+        
+        # record the velocity conditioned goals
+        self.data["vc_goals"].append(self.vc_goals)
+        
+        # record contact conditioned goals(currently just a random noise)
+        self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
+        self.data["cc_goals"].append(self.cc_goals)
+        
 class PolicyController(Controller):
     def __init__(self, policy_path: str, 
                  n_state: int, 
@@ -92,27 +242,36 @@ class PolicyController(Controller):
             db.load_saved_database(database_path)
             # db.calc_input_mean_std()
             self.mean_std = db.get_database_mean_std()
-            # self.mean_std = np.array(self.mean_std, dtype=np.float64)
-            print("self.mean_std = ", self.mean_std)
+            
+            # print("self.mean_std = ", self.mean_std)
             # print("shape of self.mean_std = ", np.shape(self.mean_std))
-            input()
+            # input()
         
-        # # for debugging purpose: load PD target from file and see if it replays
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_04_2025_14_35_43.npz"
-        # data = np.load(data_path)
-        # self.action_history = data["action"]
+        # for debugging purpose: load PD target from file and see if it replays
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
+        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp40_kd5.npz"
+        
+        data = np.load(data_path)
+        self.action_history = data["action"]
+        self.q_his = data["q"]
+        self.v_his = data["v"]
+        self.feet_pos_his = data["feet_pos_w"]
+        self.base_wrt_feet_his = data["base_wrt_feet"]
 
     def compute_torques_dof(self, mj_data) -> Dict[str, float]:
         # extract q and v from mujoco
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
-        print("current q is = ", q)
-        print("current v is = ", v)
+        # print("current q is = ", q)
+        # print("current v is = ", v)
         
         # calculate phase_percentage
         current_time = np.round(mj_data.time,4)
-        print("current simulation time = ", current_time)
         phase_percentage = get_phase_percentage(current_time)
+        
+        # print("current q from simulator is = ", q)
+        # print("current v from simulator is = ", v)
+        print("current simulation time = ", current_time)
         print("current phase_percentage is = ", phase_percentage)
         # input()
         
@@ -123,10 +282,9 @@ class PolicyController(Controller):
         base_position = q[:3]
         print("current base_position is = ",base_position)
         
-        # base with right to feet
-        # base_wrt_feet = self._get_base_wrt_feet(mj_data)
-        
+        # base with right to feet        
         feet_names = ["FL", "FR", "RL", "RR"]
+        
         base_wrt_feet = np.zeros(2 * len(feet_names))
         feet_pos_all = []
         
@@ -134,14 +292,17 @@ class PolicyController(Controller):
             feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)  # Add self.mj_model as the first argument
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2 * i:2 * i + 2] = (q[:3] - feet_pos)[:2]
-            
-        print("feet positions are = ",feet_pos_all)
-        print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
         
-        print("base_wrt_feet = ", base_wrt_feet)
+        # NOTE: print out real-time feet position and those from a recorded MPC file    
+        print("real-time feet positions are = ",feet_pos_all)
+        print("MPC feet positions are = ",self.feet_pos_his[int(current_time/SIM_DT)])
+        print()
         
+        # NOTE: print out base_wrt_feet
+        # print("base_wrt_feet = ", base_wrt_feet)
+        # print()
         
-        # combine state variable
+        # NOTE: form state variable for policy inference
         # state with base_wrt_feet
         state = np.concatenate(([phase_percentage], v, robot_state, base_wrt_feet))[:self.n_state-3]
         
@@ -156,27 +317,29 @@ class PolicyController(Controller):
             # input()
             state[1:] = (state[1:] - state_mean[1:]) / state_std[1:]
 
-        print("current state is  = ", state)
+        # print("current state is  = ", state)
         # input()
         
         #==============================================================================================
+        # NOTE: policy network inference
         # form policy input
-        x = np.concatenate([np.array(state), np.array(self.v_des)])[:self.n_state]
-        print("current policy input is = ", x)
-        x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
+        # x = np.concatenate([np.array(state), np.array(self.v_des)])[:self.n_state]
+        # # print("current policy input is = ", x)
+        # x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
         
-        # get policy output
-        y_tensor = self.policy_net(x_tensor)
-        action = y_tensor.detach().cpu().numpy().reshape(-1)
-        print("PD target is = ", action)
+        # # get policy output
+        # y_tensor = self.policy_net(x_tensor)
+        # action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+        # print()
+        # print("Policy generated PD target is = ", action_policy)
         #===================================================================================================
         
         # for debugging purposes
         # hold original position
-        # action = [0,0.9,-1.8,
-        #           0,0.9,-1.8,
-        #           0,0.9,-1.8,
-        #           0,0.9,-1.8,]
+        action = [0,0.9,-1.8,
+                  0,0.9,-1.8,
+                  0,0.9,-1.8,
+                  0,0.9,-1.8,]
 
         # # hold given position
         # action = [0.3,1.0,-1.8,
@@ -184,40 +347,78 @@ class PolicyController(Controller):
         #           0.3,1.0,-1.8,
         #           -0.3,1.0,-1.8,]
         
-        # # read from file to see if PD controller works
-        # action = self.action_history[int(current_time/SIM_DT)] # action is in the order of [FL,FR,RL,RR]
+        # read from MPC file and replay with the PD controller setup
+        action_MPC = self.action_history[int(current_time/SIM_DT)] # action is in the order of [FL,FR,RL,RR]
+        print("###############################################")
+        print("PD target from MPC is  = ")
+        print(action_MPC)
+        #===================================================================
+        # add noise to MPC generated PD target and mimic policy inference
+        error_magnitude = 0.15 + np.random.uniform(-2e-3, 2e-3, size=action_MPC.shape)  # Small variability
+        # error_magnitude = 2e-5
+        # error_magnitude = 0.0
+        
+        # Generate random signs (+1 or -1) for each action component
+        random_signs = np.random.choice([-1, 1], size=action_MPC.shape)
+        # random_signs = -1
+        
+        # Create noise with fixed magnitude
+        noise = random_signs * error_magnitude
+        # Apply noise
+        action_MPC += noise
+        print()
+        print("PD target from MPC with noise is = ")
+        print(action_MPC)
+        print("#################################################")
+        #====================================================================
+        
         # print("current action index = ", int(current_time/SIM_DT))
-        # print("current PD target = ",action)
+        # print("MPC PD target = ",action_MPC)
         
         # calculate torque based on PD target
-        tau_flfrrlrr = kp * (action - q[7:]) - kd * v[6:]
+        # use PD targets generated by the policy
+        # tau_flfrrlrr = kp * (action_policy - q[7:]) - kd * v[6:]
+        
+        # use PD targets read from a MPC file
+        tau_flfrrlrr_MPC = kp * (action_MPC- q[7:]) - kd * v[6:]
+        
+        # use dummy PD targets
+        tau_flfrrlrr = kp * (action- q[7:]) - kd * v[6:]
+        
         FL_torque = tau_flfrrlrr[0:3]
         FR_torque = tau_flfrrlrr[3:6]
         RL_torque = tau_flfrrlrr[6:9]
         RR_torque = tau_flfrrlrr[9:]
         tau_frflrrrl = np.concatenate([FR_torque,FL_torque,RR_torque,RL_torque])
         
-        print("joint position is = ", q[7:])
-        print("joint velocity is = ", v[6:])
+        print("joint position from simulator is = ", q[7:])
+        print("mpc joint position is = ",self.q_his[int(current_time/SIM_DT)][7:])
+        print()
+        print("joint velocity from simulator is = ", v[6:])
+        print("mpc joint velocity is = ",self.v_his[int(current_time/SIM_DT)][6:])
+        print()
         
-        print("tau_flfrrlrr is = ")
-        print(tau_flfrrlrr)
-        print("FR torque is ")
-        print(FR_torque)
-        print("FL torque is ")
-        print(FL_torque)
-        print("RR torque is ")
-        print(RR_torque)
-        print("RL torque is ")
-        print(RL_torque)
-        print("tau_frflrrrl is = ")
-        print(tau_frflrrrl)
+        # print("tau_flfrrlrr is = ")
+        # print(tau_flfrrlrr)
+        # print("FR torque is ")
+        # print(FR_torque)
+        # print("FL torque is ")
+        # print(FL_torque)
+        # print("RR torque is ")
+        # print(RR_torque)
+        # print("RL torque is ")
+        # print(RL_torque)
+        # print("tau_frflrrrl is = ")
+        # print(tau_frflrrrl)
         # input()
         
-        # store torque to self.torques_dof
+        # store torque to self.torques_dof, and apply torque
         self.torques_dof = np.zeros(self.nu)
-        self.torques_dof[-12:] = tau_flfrrlrr
+        self.torques_dof[-12:] = tau_flfrrlrr_MPC
+        # self.torques_dof[-12:] = tau_flfrrlrr
+        
         print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
+        print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
         # input()
 
     def get_torque_map(self) -> Dict[str, float]:
@@ -247,7 +448,6 @@ def rollout_policy(
     # set up simulator
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
-    sim.vs.set_front_view()
     sim.setup()
     # joint_name2act_id= mj_joint_name2act_id(sim.mj_model)
     joint_name2act_id= mj_joint_name2dof(sim.mj_model)
@@ -265,12 +465,19 @@ def rollout_policy(
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         mj_model=sim.mj_model
     )
+    
+    # initialize data recorder
+    if save_data:
+        data_recorder = StateDataRecorder(record_dir,v_des=v_des)
+    else:
+        data_recorder = None
 
     sim.run(
         sim_time=sim_time,
         use_viewer=visualize,
         controller=controller,
         record_video=record_video,
+        data_recorder=data_recorder
     )
     print("🎉 Policy rollout finished successfully.")
     
@@ -278,14 +485,15 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/network/policy_final.pth'
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/dataset/database_0.hdf5"
+    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/network/policy_final.pth'
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
-                   sim_time=2.0, 
+                   sim_time=3.0, 
                    v_des=[0.3, 0.0, 0.0], 
-                   record_video=False,
+                   record_video=True,
                    database_path=database_path,
-                   norm_policy_input=True)
+                   norm_policy_input=True,
+                   save_data=False)
     
 
     

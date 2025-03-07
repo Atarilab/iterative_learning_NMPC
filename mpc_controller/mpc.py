@@ -342,6 +342,13 @@ class LocomotionMPC(PinController):
             base_ref, base_ref_e = self.compute_base_ref_cnt_restricted(q, cnt_locations)
         else:
             base_ref, base_ref_e = self.compute_base_ref_vel_tracking(q)
+        
+        # print("current opt node is = ", self.current_opt_node)
+        # print("contact sequence is = ")
+        # print(cnt_sequence)
+        # print("contact locations are = ")
+        # print(cnt_locations)
+        # input()
 
         self.solver.init(
             self.current_opt_node,

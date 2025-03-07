@@ -14,9 +14,9 @@ n_action = 12
 
 if __name__ == "__main__":
     # initialize some path
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/network/policy_final.pth"
-    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_04_2025_15_59_50.npz"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/dataset/database_0.hdf5"
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/network/policy_final.pth"
+    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/database_0.hdf5"
     norm_policy_input = True
     v_des = [0.3,0.0,0.0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

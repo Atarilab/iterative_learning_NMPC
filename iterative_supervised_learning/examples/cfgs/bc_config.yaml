@@ -72,12 +72,12 @@ n_state: 44 # input size 47 = n_state 44 + n_goals 3 # with base_wrt_feet
 # n_state: 36 # without base_wrt_feet
 n_action: 12
 goal_horizon: 1
-kp: 40
-kd: 5
+kp: 20
+kd: 1.5
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_04_2025_15_40_12/dataset/database_0.hdf5"
+database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/database_0.hdf5"
 
 #---------- Network parameters-------------
 num_hidden_layer: 3
