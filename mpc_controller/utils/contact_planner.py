@@ -310,6 +310,8 @@ class RaiberContactPlanner(ContactPlanner):
 
                 if self.cache_cnt:
                     self.planed_cnt[i_foot][abs_i_node] = cnt_pos_w
+        
+        # print(contact_locations)
         return contact_locations
     
 class CustomContactPlanner(ContactPlanner):

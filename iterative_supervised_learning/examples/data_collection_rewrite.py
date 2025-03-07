@@ -43,6 +43,7 @@ class DataCollection():
         self.num_pertubations_per_replanning = cfg.num_pertubations_per_replanning
         
         self.gaits = cfg.gaits
+        self.feet_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
         
         # currently v_des = [vx,vy,w] is a given number [0.3,0.0,0.0]
         self.vx_range = (cfg.vx_des_min, cfg.vx_des_max)
@@ -103,6 +104,7 @@ class DataCollection():
         # extract nominal state on replanning points
         data = np.load(record_path_nominal)
         state = data["state"]
+        feet_pos = data["feet_pos_w"]
         # print(state[:2])
         # input()
         
@@ -122,10 +124,26 @@ class DataCollection():
             
             q0 = nominal_q[i_replanning]
             v0 = nominal_v[i_replanning]
+            feet_pos_all = feet_pos[i_replanning]
+            print("four feet positions = ")
+            print(feet_pos_all)
+            
+            ee_in_contact = []
+            for i,f_name in enumerate(self.feet_names):
+                feet_pos_current = feet_pos_all[3*i:3*i+3]
+                print("current feet name is = ", f_name)
+                print(feet_pos_current)
+                if feet_pos_current[-1] <= 0.005:
+                    ee_in_contact.append(f_name)
+            
             print("print out replanning points")
             print("nominal q0 is = ", q0)
             print("nominal v0 is = ", v0)
+            print("current ee in contact is = ", ee_in_contact)
+            # input()
             for j in range(self.num_pertubations_per_replanning):
+                # continue
+                # NOTE: use nullspace randomization
                 phase_percentage = state[:,0]
                 print("current replanning phase percentage is = ", phase_percentage[i_replanning])
                 # print(phase_percentage[i_replanning])
@@ -146,10 +164,33 @@ class DataCollection():
                                                                             current_time = current_time,
                                                                             show_plot=False,
                                                                             visualize=True,
-                                                                            record_dir=experiment_dir)
+                                                                            record_dir=experiment_dir,
+                                                                            ee_in_contact=ee_in_contact)
                     if not early_termination:
                         break
+                
+                # NOTE: use external external force perturbation
+                phase_percentage = state[:,0]
+                print("current replanning phase percentage is = ", phase_percentage[i_replanning])
+            
+                # pass nominal state and velocity to mpc simulator
+                randomize_on_given_state = np.concatenate((q0, v0, np.array([phase_percentage[i_replanning]])))
+                
+                # run MPC from nominal state and activate external force perturbation
+                while True:
+                    early_termination, record_path_replanning = rollout_mpc(randomize_on_given_state=randomize_on_given_state, 
+                                                                            v_des=[0.3,0.0,0.0],
+                                                                            sim_time=3.0,
+                                                                            current_time = current_time,
+                                                                            show_plot=False,
+                                                                            visualize=True,
+                                                                            record_dir=experiment_dir,
+                                                                            ee_in_contact=ee_in_contact,
+                                                                            apply_external_force=True)
+                    if not early_termination:
+                        break  
                     
+        
         for file_name in os.listdir(experiment_dir):
             file_path = os.path.join(experiment_dir, file_name)
             if file_name.endswith(".npz") and os.path.isfile(file_path):

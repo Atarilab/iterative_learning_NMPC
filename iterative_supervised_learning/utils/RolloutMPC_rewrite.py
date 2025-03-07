@@ -26,8 +26,8 @@ gait_period = 0.5 # trotting
 
 nq = 19
 nv = 17
-kp = 40
-kd = 5.0
+kp = 20.0
+kd = 1.5
 
 # initialize pertubation variables
 mu_base_pos = 0.0
@@ -127,8 +127,7 @@ class StateDataRecorder(DataRecorder):
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
         self.data["time"].append(round(mj_data.time + self.current_time, 4))
-        # print("time to be recorded is = ",round(mj_data.time + self.current_time, 4))
-        # input()
+        # print("current time is = ",round(mj_data.time + self.current_time, 4))
         
         self.data["q"].append(q) # in the order of [FL,FR,RL,RR]
         self.data["v"].append(v) # in the order of [FL,FR,RL,RR]
@@ -136,16 +135,25 @@ class StateDataRecorder(DataRecorder):
         
         # Record feet position in the world (x,y,z)
         feet_pos_all = []
+        ee_in_contact = []
         base_wrt_feet = np.zeros(2*len(self.feet_names))
         
         for i, f_name in enumerate(self.feet_names):
             feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)
-            # print("feet_pos = ",feet_pos)
-            # print("base_pos = ",q[:3])
+            # print(f"{f_name} feet_pos = {feet_pos}")
+            if feet_pos[-1] <= 0.005:
+                ee_in_contact.append(f_name)
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]
         
+        # print("current ee_in_contact is = ")
+        # print(ee_in_contact)
+        # input()
+        
+        
+        # print("base_pos = ",q[:3])
         # print("feet positions are = ",feet_pos_all)
+        
         # print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
         # input()
         
@@ -242,11 +250,14 @@ def rollout_mpc(robot_name = "go2",
                 current_time = 0.0,
                 visualize = True,
                 show_plot = True,
-                randomize_on_given_state = None):
+                randomize_on_given_state = None,
+                ee_in_contact = [],
+                apply_external_force = False):
     # init robot description
     robot_desc = get_robot_description(robot_name)
     feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
-    feet_name = ["FL", "FR", "RL", "RR"] 
+    feet_name = ["FL", "FR", "RL", "RR"]
+    ee_in_contact = ee_in_contact 
     # initialize mpc controller
     mpc = LocomotionMPC(
             path_urdf=robot_desc.urdf_path,
@@ -269,9 +280,13 @@ def rollout_mpc(robot_name = "go2",
     data_recorder = StateDataRecorder(record_dir,v_des=v_des,current_time = current_time) if save_data else None
     
     # initialize simulator
-    sim = Simulator(robot_desc.xml_scene_path,sim_dt=SIM_DT,viewer_dt=VIEWER_DT)
+    sim = Simulator(robot_desc.xml_scene_path,
+                    sim_dt=SIM_DT,
+                    viewer_dt=VIEWER_DT,
+                    apply_external_force=apply_external_force)
+    
     sim.vs.track_obj = "base"
-    sim.vs.set_front_view()
+    # sim.vs.set_front_view()
     
     # # get default position and velocity
     # q_mj = robot_desc.q0
@@ -283,7 +298,8 @@ def rollout_mpc(robot_name = "go2",
     # pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
     # input()
     
-    # TODO: randomize on given state
+    # TODO: randomize on nominal state
+    #======================================= Randomize naively on all the entries of q and v ==============================================
     # if randomize_on_given_state is not None:
     #     nominal_state = randomize_on_given_state
     #     # xml_path = get_robot_description(robot_name).xml_path
@@ -314,8 +330,139 @@ def rollout_mpc(robot_name = "go2",
     #             input()
     #             break
     
+    # ======================================== Nullspace Randomization (have some bugs) ==================================================
+    # if randomize_on_given_state is not None: # if starting from replanning point
+    #     # implement null space randomization
+    #     nominal_state = randomize_on_given_state
+    #     # get replanning mujoco state(q, v) from nominal state
+    #     q_mj = nominal_state[:nq] 
+    #     v_mj = nominal_state[nq:-1]
+        
+    #     # convert replanning state from mujoco data to pin data
+    #     q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+        
+    #     # perform forward kinematics and compute jacobian
+    #     pin.computeJointJacobians(mpc.pin_model, mpc.pin_data, q_pin)
+    #     pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,q_pin)
+        
+    #     # # find end-effector in contact
+    #     # ee_in_contact = []
+    #     # # Extract the contact plan
+    #     # #==========================================================================
+    #     # contact_plan = mpc.contact_planner.get_contacts(0, mpc.config_opt.n_nodes+1)
+    #     # contact_plan = contact_plan[:,:int(gait_period/mpc.solver.dt_nodes)]
+    #     # # print("Contact Plan:")
+    #     # # print(contact_plan)
+    #     # # print("shape of contact_plan is = ", np.shape(contact_plan))
+    #     # # print(mpc.solver.dt_nodes)
+    #     # # input()
+    #     # #====================================================================
+        
+    #     # # extract current contact condition
+    #     # phase_percentage = nominal_state[-1]
+    #     # phase_steps = contact_plan.shape[1]
+    #     # phase_index = int(phase_percentage*phase_steps) % phase_steps
+    #     # current_contact  = contact_plan[:,phase_index]
+    #     # # Display the current contact status
+    #     # print(f"Phase Percentage: {phase_percentage * 100:.1f}%")
+    #     # print(f"Phase Index: {phase_index}")
+    #     # print("Current Contact Condition (1 = Contact, 0 = Swing):")
+    #     # print(f"FL_foot: {current_contact[0]}, FR_foot: {current_contact[1]}, RL_foot: {current_contact[2]}, RR_foot: {current_contact[3]}")
+        
+    #     # for ee in range(len(feet_frame_names)):
+    #     #     if current_contact[ee] == 1:
+    #     #         ee_in_contact.append(feet_frame_names[ee])
+        
+    #     # print("current in contact ee is  = ", ee_in_contact)
+    #     # input()
+        
+    #     # initialize jacobian matrix
+    #     cnt_jac = np.zeros((3*len(ee_in_contact),len(v_pin)))
+    #     cnt_jac_dot = np.zeros((3*len(ee_in_contact),len(v_pin)))
+        
+    #     # compute jacobian of the end-effector in contact and its derivative
+    #     for ee in range(len(ee_in_contact)):
+    #         jac = pin.getFrameJacobian(mpc.pin_model,mpc.pin_data,mpc.pin_model.getFrameId(ee_in_contact[ee]), pin.ReferenceFrame.LOCAL)
+    #         jac_dot = pin.getFrameJacobianTimeVariation(mpc.pin_model,\
+    #                     mpc.pin_data,\
+    #                     mpc.pin_model.getFrameId(ee_in_contact[ee]),\
+    #                     pin.ReferenceFrame.LOCAL)
+    #         cnt_jac[3*ee:3*(ee+1),] = rotate_jacobian(mpc, jac,\
+    #                     mpc.pin_model.getFrameId(ee_in_contact[ee]))[0:3,]
+            
+    #         cnt_jac_dot[3*ee:3*(ee+1),] = rotate_jacobian(mpc, jac_dot,\
+    #                     mpc.pin_model.getFrameId(ee_in_contact[ee]))[0:3,]
+    #         # print("jac = ", jac)
+    #         # print("jac_dot = ", jac_dot)
+    #         # print("cnt_jac = ", cnt_jac)
+    #         # print("cnt_jac_dot = ", cnt_jac_dot)
+    #         # input()
+                    
+    #     # apply pertubation
+    #     min_ee_height = 0.0
+    #     # NOTE: apply pertubation until no foot is below the ground
+    #     while min_ee_height >= 0:
+    #         perturbation_pos = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
+    #                                             np.random.normal(mu_base_ori, sigma_base_ori, 3), \
+    #                                             np.random.normal(mu_joint_pos, sigma_joint_pos, len(v_pin)-6)))
+    #         perturbation_vel = np.random.normal(mu_vel, sigma_vel, len(v_pin))
+            
+    #         if ee_in_contact == []:
+    #             random_pos_vec = perturbation_pos
+    #             random_vel_vec = perturbation_vel
+    #         else:
+    #             random_pos_vec = (np.identity(len(v_pin)) - np.linalg.pinv(cnt_jac)@\
+    #                                     cnt_jac) @ perturbation_pos
+    #             jac_vel = cnt_jac_dot * perturbation_pos + cnt_jac * perturbation_vel
+    #             random_vel_vec = (np.identity(len(v_pin)) - np.linalg.pinv(jac_vel)@\
+    #                                     jac_vel) @ perturbation_pos
+            
+    #         # add pertubation to nominal position and velocity (pin data form)
+    #         new_v0 = v_pin + random_vel_vec
+    #         new_q0 = pin.integrate(mpc.pin_model, q_pin, random_pos_vec)
+            
+    #         # check if the swing foot is below the ground
+    #         pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,new_q0)
+    #         ee_below_ground = []
+    #         for e in range(len(feet_frame_names)):
+    #             frame_id = mpc.pin_model.getFrameId(feet_frame_names[e])
+    #             if mpc.pin_data.oMf[frame_id].translation[2] < 0.:
+    #                 ee_below_ground.append(feet_frame_names[e])
+    #         if ee_below_ground == []:
+    #             print("found a feasible initial condition for rollout")
+    #             min_ee_height = -1.
+            
+    #     # update pin model from perturbed state
+    #     pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
+    #     pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
+        
+    #     # convert new_q0, new_v0 from pin data to mj data
+    #     # ready to initialize mujoco model from perturbed state 
+    #     q_mj, v_mj = mpc.solver.dyn.convert_to_mujoco(new_q0,new_v0)
     
-    if randomize_on_given_state is not None: # if starting from replanning point
+    # else:
+    #     # starting from default state(q,v)
+    #     # get default position and velocity
+    #     # q_mj is in quatenion form 
+    #     # q_pin is in euler angle form
+        
+    #     q_mj = robot_desc.q0
+    #     v_mj = np.zeros(mpc.pin_model.nv)
+    #     q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+    #     # print("##### Setting initial condition #####")
+    #     # print("q_mj is = ", q_mj)
+    #     # print("v_mj is = ", v_mj)
+    #     # print("q_pin is = ",q_pin)
+    #     # print("v_pin is = ", v_pin)
+        
+    #     # set pin model to initial position
+    #     pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
+    #     pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
+    # ====================================================================================================================================
+    
+    # ======================================== External force randomization ==============================================================
+    # just set nominal initial conditions
+    if randomize_on_given_state is not None:
         # implement null space randomization
         nominal_state = randomize_on_given_state
         # get replanning mujoco state(q, v) from nominal state
@@ -328,113 +475,28 @@ def rollout_mpc(robot_name = "go2",
         # perform forward kinematics and compute jacobian
         pin.computeJointJacobians(mpc.pin_model, mpc.pin_data, q_pin)
         pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,q_pin)
-        
-        # find end-effector in contact
-        ee_in_contact = []
-        # Extract the contact plan
-        #==========================================================================
-        contact_plan = mpc.contact_planner.get_contacts(0, mpc.config_opt.n_nodes+1)
-        contact_plan = contact_plan[:,:int(gait_period/mpc.solver.dt_nodes)]
-        # print("Contact Plan:")
-        # print(contact_plan)
-        # print("shape of contact_plan is = ", np.shape(contact_plan))
-        # print(mpc.solver.dt_nodes)
-        # input()
-        #====================================================================
-        
-        # extract current contact condition
-        phase_percentage = nominal_state[-1]
-        phase_steps = contact_plan.shape[1]
-        phase_index = int(phase_percentage*phase_steps) % phase_steps
-        current_contact  = contact_plan[:,phase_index]
-        # Display the current contact status
-        print(f"Phase Percentage: {phase_percentage * 100:.1f}%")
-        print(f"Phase Index: {phase_index}")
-        print("Current Contact Condition (1 = Contact, 0 = Swing):")
-        print(f"FL_foot: {current_contact[0]}, FR_foot: {current_contact[1]}, RL_foot: {current_contact[2]}, RR_foot: {current_contact[3]}")
-        
-        for ee in range(len(feet_frame_names)):
-            if current_contact[ee] == 1:
-                ee_in_contact.append(feet_frame_names[ee])
-        
-        # print("current in contact ee is  = ", ee_in_contact)
-        # input()
-        
-        # initialize jacobian matrix
-        cnt_jac = np.zeros((3*len(ee_in_contact),len(v_pin)))
-        cnt_jac_dot = np.zeros((3*len(ee_in_contact),len(v_pin)))
-        
-        # compute jacobian of the end-effector in contact and its derivative
-        for ee in range(len(ee_in_contact)):
-            jac = pin.getFrameJacobian(mpc.pin_model,mpc.pin_data,mpc.pin_model.getFrameId(ee_in_contact[ee]), pin.ReferenceFrame.LOCAL)
-            jac_dot = pin.getFrameJacobianTimeVariation(mpc.pin_model,\
-                        mpc.pin_data,\
-                        mpc.pin_model.getFrameId(ee_in_contact[ee]),\
-                        pin.ReferenceFrame.LOCAL)
-            cnt_jac[3*ee:3*(ee+1),] = rotate_jacobian(mpc, jac,\
-                        mpc.pin_model.getFrameId(ee_in_contact[ee]))[0:3,]
-            
-            cnt_jac_dot[3*ee:3*(ee+1),] = rotate_jacobian(mpc, jac_dot,\
-                        mpc.pin_model.getFrameId(ee_in_contact[ee]))[0:3,]
-            # print("jac = ", jac)
-            # print("jac_dot = ", jac_dot)
-            # print("cnt_jac = ", cnt_jac)
-            # print("cnt_jac_dot = ", cnt_jac_dot)
-            # input()
-                    
-        # apply pertubation
-        min_ee_height = 0.0
-        # NOTE: apply pertubation until no foot is below the ground
-        while min_ee_height >= 0:
-            perturbation_pos = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
-                                                np.random.normal(mu_base_ori, sigma_base_ori, 3), \
-                                                np.random.normal(mu_joint_pos, sigma_joint_pos, len(v_pin)-6)))
-            perturbation_vel = np.random.normal(mu_vel, sigma_vel, len(v_pin))
-            
-            if ee_in_contact == []:
-                random_pos_vec = perturbation_pos
-                random_vel_vec = perturbation_vel
-            else:
-                random_pos_vec = (np.identity(len(v_pin)) - np.linalg.pinv(cnt_jac)@\
-                                        cnt_jac) @ perturbation_pos
-                jac_vel = cnt_jac_dot * perturbation_pos + cnt_jac * perturbation_vel
-                random_vel_vec = (np.identity(len(v_pin)) - np.linalg.pinv(jac_vel)@\
-                                        jac_vel) @ perturbation_pos
-            
-            # add pertubation to nominal position and velocity (pin data form)
-            new_v0 = v_pin + random_vel_vec
-            new_q0 = pin.integrate(mpc.pin_model, q_pin, random_pos_vec)
-            
-            # check if the swing foot is below the ground
-            pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,new_q0)
-            ee_below_ground = []
-            for e in range(len(feet_frame_names)):
-                frame_id = mpc.pin_model.getFrameId(feet_frame_names[e])
-                if mpc.pin_data.oMf[frame_id].translation[2] < 0.:
-                    ee_below_ground.append(feet_frame_names[e])
-            if ee_below_ground == []:
-                print("found a feasible initial condition for rollout")
-                min_ee_height = -1.
-            
-        # update pin model from perturbed state
-        pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
-        pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
-        
-        # convert new_q0, new_v0 from pin data to mj data
-        # ready to initialize mujoco model from perturbed state 
-        q_mj, v_mj = mpc.solver.dyn.convert_to_mujoco(new_q0,new_v0)
     
     else:
         # starting from default state(q,v)
         # get default position and velocity
+        # q_mj is in quatenion form 
+        # q_pin is in euler angle form
+        
         q_mj = robot_desc.q0
         v_mj = np.zeros(mpc.pin_model.nv)
         q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+        # print("##### Setting initial condition #####")
+        # print("q_mj is = ", q_mj)
+        # print("v_mj is = ", v_mj)
+        # print("q_pin is = ",q_pin)
+        # print("v_pin is = ", v_pin)
         
         # set pin model to initial position
         pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
         pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
-        
+    
+    # set external force perturbation is in simulator initialization
+    # ====================================================================================================================================
     
     # Set mujoco model from unperturbed/perturbed initial state
     sim.set_initial_state(q0=q_mj,v0=v_mj)
