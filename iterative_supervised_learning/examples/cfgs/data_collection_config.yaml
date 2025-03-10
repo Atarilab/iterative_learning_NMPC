@@ -67,10 +67,10 @@ sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
 # state with base_wrt_feet
-# n_state: 47 # state:44 + goal:3
+n_state: 47 # state:44 + goal:3
 # state without base_wrt_feet
-n_state: 39
-n_action: 12
+# n_state: 39
+# n_action: 12
 goal_horizon: 1
 kp: 40
 kd: 5

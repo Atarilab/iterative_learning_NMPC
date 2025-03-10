@@ -26,8 +26,8 @@ gait_period = 0.5 # trotting
 
 nq = 19
 nv = 17
-kp = 20.0
-kd = 1.5
+kp = 10.0
+kd = 1
 
 # initialize pertubation variables
 mu_base_pos = 0.0
