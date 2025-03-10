@@ -43,6 +43,12 @@ kd = 1.5
 # kp = 40.0
 # kd = 5.0
 
+# kp = 2.0
+# kd = 0.1
+
+# kp = 10.0
+# kd = 1.0
+
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
 
@@ -248,8 +254,10 @@ class PolicyController(Controller):
             # input()
         
         # for debugging purpose: load PD target from file and see if it replays
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
-        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp40_kd5.npz"
+        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp40_kd5.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp2_kd0.1.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp10_kd1.npz"
         
         data = np.load(data_path)
         self.action_history = data["action"]
@@ -257,6 +265,10 @@ class PolicyController(Controller):
         self.v_his = data["v"]
         self.feet_pos_his = data["feet_pos_w"]
         self.base_wrt_feet_his = data["base_wrt_feet"]
+        
+        # to reduce policy inference frequence
+        self.replanning_flag = True
+        self.current_PD_target = []
 
     def compute_torques_dof(self, mj_data) -> Dict[str, float]:
         # extract q and v from mujoco
@@ -328,8 +340,19 @@ class PolicyController(Controller):
         x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
         
         # get policy output
-        y_tensor = self.policy_net(x_tensor)
-        action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+        current_time_step = int(current_time/SIM_DT)
+        replanning_freq = 1
+        if current_time_step % replanning_freq == 0:
+            self.replanning_flag = True
+        else: 
+            self.replanning_flag = False
+            
+        if self.replanning_flag:
+            y_tensor = self.policy_net(x_tensor)
+            action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+            self.current_PD_target = action_policy
+        else:
+            action_policy = self.current_PD_target
         print()
         print("Policy generated PD target is = ", action_policy)
         #===================================================================================================
@@ -354,9 +377,9 @@ class PolicyController(Controller):
         print(action_MPC)
         #===================================================================
         # add noise to MPC generated PD target and mimic policy inference
-        error_magnitude = 0.1 + np.random.uniform(-2e-3, 2e-3, size=action_MPC.shape)  # Small variability
+        # error_magnitude = 0.00 + np.random.uniform(-2e-3, 2e-3, size=action_MPC.shape)  # Small variability
         # error_magnitude = 2e-5
-        # error_magnitude = 0.0
+        error_magnitude = 0.0
         
         # Generate random signs (+1 or -1) for each action component
         random_signs = np.random.choice([-1, 1], size=action_MPC.shape)
@@ -423,7 +446,7 @@ class PolicyController(Controller):
         
         print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
         print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
-        input()
+        # input()
 
     def get_torque_map(self) -> Dict[str, float]:
         # print(self.joint_name2act_id)
@@ -489,15 +512,16 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_final.pth'
+    # policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_final.pth'
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
     database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/database_0.hdf5"
     rollout_policy(policy_path, 
                    sim_time=3.0, 
                    v_des=[0.3, 0.0, 0.0], 
-                   record_video=True,
+                   record_video=False,
                    database_path=database_path,
                    norm_policy_input=True,
-                   save_data=False)
+                   save_data=True)
     
 
     

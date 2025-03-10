@@ -15,6 +15,6 @@ if __name__ == "__main__":
                                                  current_time = 0.0,
                                                  visualize=True,
                                                  save_data=True,
-                                                 apply_external_force = True)
+                                                 apply_external_force = False)
     print(record_path)
     print(early_termination)
