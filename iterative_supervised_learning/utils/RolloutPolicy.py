@@ -37,8 +37,8 @@ n_state += 3
 print("n_state = ",n_state)
 n_action = 12
 
-kp = 20.0
-kd = 1.5
+# kp = 20.0
+# kd = 1.5
 
 # kp = 40.0
 # kd = 5.0
@@ -46,8 +46,8 @@ kd = 1.5
 # kp = 2.0
 # kd = 0.1
 
-# kp = 10.0
-# kd = 1.0
+kp = 10.0
+kd = 1.0
 
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
@@ -283,8 +283,8 @@ class PolicyController(Controller):
         
         # print("current q from simulator is = ", q)
         # print("current v from simulator is = ", v)
-        print("current simulation time = ", current_time)
-        print("current phase_percentage is = ", phase_percentage)
+        # print("current simulation time = ", current_time)
+        # print("current phase_percentage is = ", phase_percentage)
         # input()
         
         # robot_state
@@ -292,7 +292,7 @@ class PolicyController(Controller):
         
         # base position
         base_position = q[:3]
-        print("current base_position is = ",base_position)
+        # print("current base_position is = ",base_position)
         
         # base with right to feet        
         feet_names = ["FL", "FR", "RL", "RR"]
@@ -306,9 +306,9 @@ class PolicyController(Controller):
             base_wrt_feet[2 * i:2 * i + 2] = (q[:3] - feet_pos)[:2]
         
         # NOTE: print out real-time feet position and those from a recorded MPC file    
-        print("real-time feet positions are = ",feet_pos_all)
-        print("MPC feet positions are = ",self.feet_pos_his[int(current_time/SIM_DT)])
-        print()
+        # print("real-time feet positions are = ",feet_pos_all)
+        # print("MPC feet positions are = ",self.feet_pos_his[int(current_time/SIM_DT)])
+        # print()
         
         # NOTE: print out base_wrt_feet
         # print("base_wrt_feet = ", base_wrt_feet)
@@ -353,8 +353,8 @@ class PolicyController(Controller):
             self.current_PD_target = action_policy
         else:
             action_policy = self.current_PD_target
-        print()
-        print("Policy generated PD target is = ", action_policy)
+        # print()
+        # print("Policy generated PD target is = ", action_policy)
         #===================================================================================================
         
         # for debugging purposes
@@ -372,9 +372,9 @@ class PolicyController(Controller):
         
         # read from MPC file and replay with the PD controller setup
         action_MPC = self.action_history[int(current_time/SIM_DT)] # action is in the order of [FL,FR,RL,RR]
-        print("###############################################")
-        print("PD target from MPC is  = ")
-        print(action_MPC)
+        # print("###############################################")
+        # print("PD target from MPC is  = ")
+        # print(action_MPC)
         #===================================================================
         # add noise to MPC generated PD target and mimic policy inference
         # error_magnitude = 0.00 + np.random.uniform(-2e-3, 2e-3, size=action_MPC.shape)  # Small variability
@@ -390,11 +390,11 @@ class PolicyController(Controller):
         
         # Apply noise
         action_MPC_with_noise = action_MPC + noise
-        print()
-        print("PD target from MPC with noise is = ")
-        print(action_MPC_with_noise)
-        print("#################################################")
-        print()
+        # print()
+        # print("PD target from MPC with noise is = ")
+        # print(action_MPC_with_noise)
+        # print("#################################################")
+        # print()
         #====================================================================
         
         # print("current action index = ", int(current_time/SIM_DT))
@@ -417,12 +417,12 @@ class PolicyController(Controller):
         RR_torque = tau_flfrrlrr[9:]
         tau_frflrrrl = np.concatenate([FR_torque,FL_torque,RR_torque,RL_torque])
         
-        print("joint position from simulator is = ", q[7:])
-        print("mpc joint position is = ",self.q_his[int(current_time/SIM_DT)][7:])
-        print()
-        print("joint velocity from simulator is = ", v[6:])
-        print("mpc joint velocity is = ",self.v_his[int(current_time/SIM_DT)][6:])
-        print()
+        # print("joint position from simulator is = ", q[7:])
+        # print("mpc joint position is = ",self.q_his[int(current_time/SIM_DT)][7:])
+        # print()
+        # print("joint velocity from simulator is = ", v[6:])
+        # print("mpc joint velocity is = ",self.v_his[int(current_time/SIM_DT)][6:])
+        # print()
         
         # print("tau_flfrrlrr is = ")
         # print(tau_flfrrlrr)
@@ -444,8 +444,8 @@ class PolicyController(Controller):
         # self.torques_dof[-12:] = tau_flfrrlrr
         self.torques_dof[-12:] = tau_flfrrlrr_policy
         
-        print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
-        print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
+        # print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
+        # print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
         # input()
 
     def get_torque_map(self) -> Dict[str, float]:
@@ -454,7 +454,7 @@ class PolicyController(Controller):
             j_name: self.torques_dof[dof_id]
             for j_name, dof_id in self.joint_name2act_id.items()
         }
-        print("current torque map is = ", torque_map)
+        # print("current torque map is = ", torque_map)
         return torque_map
 
 def rollout_policy(
@@ -513,15 +513,20 @@ def rollout_policy(
 
 if __name__ == '__main__':
     # policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_final.pth'
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/database_0.hdf5"
+    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
+    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/database_0.hdf5"
+    
+    # with phase percentage shift
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/network/policy_final.pth"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/database_0.hdf5"
+    
     rollout_policy(policy_path, 
                    sim_time=3.0, 
                    v_des=[0.3, 0.0, 0.0], 
                    record_video=False,
                    database_path=database_path,
                    norm_policy_input=True,
-                   save_data=True)
+                   save_data=False)
     
 
     
