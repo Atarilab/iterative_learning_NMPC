@@ -25,7 +25,7 @@ from mj_pin.utils import get_robot_description
 SIM_DT = 0.001
 nq = 19
 nv = 17
-replan_freq = 25
+replan_freq = 50
 t0 = 0.028
 
 # with base_wrt_feet

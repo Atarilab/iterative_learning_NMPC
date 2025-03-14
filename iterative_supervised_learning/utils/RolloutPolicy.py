@@ -380,7 +380,7 @@ class PolicyController(Controller):
         print("PD target from MPC is  = ")
         print(action_MPC)
         print("#################################################")
-        input()
+        # input()
         #===================================================================
         # add noise to MPC generated PD target and mimic policy inference
         # error_magnitude = 0.00 + np.random.uniform(-2e-3, 2e-3, size=action_MPC.shape)  # Small variability
@@ -446,9 +446,9 @@ class PolicyController(Controller):
         
         # store torque to self.torques_dof, and apply torque
         self.torques_dof = np.zeros(self.nu)
-        self.torques_dof[-12:] = tau_flfrrlrr_MPC
+        # self.torques_dof[-12:] = tau_flfrrlrr_MPC
         # self.torques_dof[-12:] = tau_flfrrlrr
-        # self.torques_dof[-12:] = tau_flfrrlrr_policy
+        self.torques_dof[-12:] = tau_flfrrlrr_policy
         
         # print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
         # print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
@@ -526,11 +526,8 @@ if __name__ == '__main__':
     # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/network/policy_final.pth"
     # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/database_0.hdf5"
     
-    # policy_path  = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_12_2025_08_58_52/network/policy_100.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_12_2025_08_58_52/dataset/database_0.hdf5"
-    
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/network/policy_final.pth"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/dataset/database_0.hdf5"
+    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/network/policy_final.pth"
+    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/dataset/database_0.hdf5"
     
     # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_11_45_47/network/policy_130.pth"
     # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_11_45_47/dataset/database_0.hdf5"
@@ -538,8 +535,12 @@ if __name__ == '__main__':
     # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_16_28_29/network/policy_100.pth"
     # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_16_28_29/dataset/database_0.hdf5"
     
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_14_2025_15_33_24/network/policy_final.pth"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_14_2025_15_33_24/dataset/database_0.hdf5"
+    
+    
     rollout_policy(policy_path, 
-                   sim_time=2.0, 
+                   sim_time=4.0, 
                    v_des=[0.3, 0.0, 0.0], 
                    record_video=False,
                    database_path=database_path,

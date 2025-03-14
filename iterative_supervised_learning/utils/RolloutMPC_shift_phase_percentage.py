@@ -31,7 +31,7 @@ kd = 1.5
 mu_base_pos = 0.0
 sigma_base_pos = 0.1
 mu_joint_pos = 0.0
-sigma_joint_pos = 0.2
+sigma_joint_pos = 0.3
 mu_base_ori = 0.0
 sigma_base_ori = 0.7
 mu_vel = 0.0
@@ -297,6 +297,10 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         
         # convert replanning state from mujoco data to pin data
         q_pin, v_pin = mpc.solver.dyn.convert_from_mujoco(q_mj,v_mj)
+        # print("nominal pin data of q is = ")
+        # print(q_pin)
+        # print("nominal pin data of v is = ")
+        # print(v_pin)
         
         # perform forward kinematics and compute jacobian
         pin.computeJointJacobians(mpc.pin_model, mpc.pin_data, q_pin)
@@ -359,10 +363,20 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         min_ee_height = 0.0
         # NOTE: apply pertubation until no foot is below the ground
         while min_ee_height >= 0:
-            perturbation_pos = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
-                                                np.random.normal(mu_base_ori, sigma_base_ori, 3), \
-                                                np.random.normal(mu_joint_pos, sigma_joint_pos, len(v_pin)-6)))
-            perturbation_vel = np.random.normal(mu_vel, sigma_vel, len(v_pin))
+            # perturbation_pos = np.concatenate(([0,0,np.random.uniform(-.2,.2)],\
+            #                                     np.random.uniform(-sigma_base_ori, sigma_base_ori, 3), \
+            #                                     np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin)-6)))
+            perturbation_pos = np.concatenate((
+                                            [0, 0, np.random.uniform(-0.2, 0.2)],  # Base position perturbation
+                                            np.where(np.random.rand(3) < 0.5, 
+                                                    np.random.uniform(-0.75, -0.65, 3), 
+                                                    np.random.uniform(0.65, 0.75, 3)),  # Base orientation perturbation
+                                            np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
+                                            ))
+            # perturbation_pos = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
+            #                                     np.random.normal(mu_base_ori, sigma_base_ori, 3), \
+            #                                     np.random.normal(mu_joint_pos, sigma_joint_pos, len(v_pin)-6)))
+            perturbation_vel = np.random.uniform(-sigma_vel, sigma_vel, len(v_pin))
             
             if ee_in_contact == []:
                 random_pos_vec = perturbation_pos
@@ -377,6 +391,11 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
             # add pertubation to nominal position and velocity (pin data form)
             new_v0 = v_pin + random_vel_vec
             new_q0 = pin.integrate(mpc.pin_model, q_pin, random_pos_vec)
+            # print("perturbed nominal position q is = ")
+            # print(new_q0)
+            # print("perturbed nominal velocity v is = ")
+            # print(new_v0)
+            
             
             # check if the swing foot is below the ground
             pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,new_q0)
@@ -396,6 +415,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         # convert new_q0, new_v0 from pin data to mj data
         # ready to initialize mujoco model from perturbed state 
         q_mj, v_mj = mpc.solver.dyn.convert_to_mujoco(new_q0,new_v0)
+        # input()
     
     else:
         # starting from default state(q,v)
