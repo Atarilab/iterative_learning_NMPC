@@ -499,5 +499,5 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
     return early_termination, record_path
 
 if __name__ == "__main__":
-    record_dir = rollout_mpc(show_plot=False)
+    record_dir = rollout_mpc_phase_percentage_shift(show_plot=False)
     print(record_dir)
