@@ -5,7 +5,7 @@ import os
 
 # Set directory path and number of trajectories to visualize
 data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/experiment"
-k = 6  # Number of trajectories to visualize
+k = 10  # Number of trajectories to visualize
 
 # Joint labels for visualization
 joint_labels = [
@@ -57,7 +57,7 @@ combined_velocity = np.vstack(combined_velocity) if combined_velocity else None
 combined_PD_target = np.vstack(combined_PD_target) if combined_PD_target else None
 
 
-# Function to plot KDE distribution
+# Function to plot KDE distribution with an optimized legend
 def plot_kde_distribution(data_dict, title, ylabel, combined_data=None):
     """
     Plots KDE of the state values to compare distributions across different trajectories.
@@ -83,15 +83,23 @@ def plot_kde_distribution(data_dict, title, ylabel, combined_data=None):
 
         ax.set_ylabel(ylabel)
         ax.set_title(f"{title} - {joint_labels[i]}")
-        ax.legend()
         ax.grid()
 
-    plt.tight_layout()
+        # Adjust legend to be outside the plot
+        if i == 0:  # Set legend for the first subplot only
+            ax.legend(
+                loc="upper left", bbox_to_anchor=(1.05, 1), borderaxespad=0.,
+                fontsize="small", ncol=2, title="Trajectories"
+            )
+
+    # Adjust layout so the legend does not squeeze the plot
+    fig.tight_layout(rect=[0, 0, 0.85, 1])  # Leaves space for the legend
+
     plt.show()
 
 
 # Plot KDE for joint PD target distribution
-plot_kde_distribution(PD_target_dict, "Joint PD target Distribution (KDE)", "Joint PD target", combined_PD_target)
+plot_kde_distribution(PD_target_dict, "Joint PD Target Distribution (KDE)", "Joint PD Target", combined_PD_target)
 
 # Plot KDE for joint position distribution
 plot_kde_distribution(position_dict, "Joint Position Distribution (KDE)", "Joint Position", combined_position)

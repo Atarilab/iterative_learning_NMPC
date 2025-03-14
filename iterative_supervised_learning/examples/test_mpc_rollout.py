@@ -26,7 +26,7 @@ if __name__ == "__main__":
     early_termination, record_path = rollout_mpc_phase_percentage_shift(show_plot=False,
                                                  sim_time = 3.0,
                                                  current_time = 0.0,
-                                                 visualize=True,
+                                                 visualize=False,
                                                  save_data=True,
                                                  apply_external_force = False)
     print(record_path)
