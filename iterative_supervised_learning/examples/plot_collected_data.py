@@ -1,34 +1,19 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Update this path to your correct file location
-# Mar_07_2025_15_50_55
-# data_paths = [
-#     # benchmark traj
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_51_14.npz",
-#     # starting from 0.05s
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_52_37.npz",
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_53_07.npz",
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_53_24.npz",
-#     # starting from 0.1s
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_53_41.npz",
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_53_57.npz",
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/experiment/simulation_data_03_07_2025_15_54_14.npz"
-# ]
-
-# Mar_05_2025_15_10_53
-data_paths = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_11_11.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_11_42.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_11_59.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_12_31.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_13_02.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_13_20.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_13_37.npz",
+# Function to load .npz files from a given directory
+def load_data_from_directory(directory, k=5):
+    """Loads the first k .npz files from the specified directory, sorted by creation time."""
+    all_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".npz")]
     
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_16_48.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/experiment/simulation_data_03_05_2025_15_18_38.npz"
-]
+    # Sort files by creation time
+    all_files.sort(key=os.path.getctime)
+    
+    # Select the first k files
+    selected_files = all_files[:k]
+    
+    return selected_files
 
 # Define joint labels in the specified order
 joint_labels = [
@@ -39,7 +24,14 @@ joint_labels = [
 ]
 
 # Global variables
-visualize_length = 2000
+visualize_length = 1500
+
+# Directory containing data
+directory_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/experiment"
+
+# Load the first k files from the directory
+k = 1  # Number of files to visualize
+data_paths = load_data_from_directory(directory_path, k)
 
 # Initialize lists to store multiple trajectories
 time_his_list = []

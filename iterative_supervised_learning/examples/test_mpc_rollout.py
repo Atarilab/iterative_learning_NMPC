@@ -23,11 +23,12 @@ from iterative_supervised_learning.utils.RolloutMPC_shift_phase_percentage impor
 
 if __name__ == "__main__":
     # rollout_mpc
-    early_termination, record_path = rollout_mpc_phase_percentage_shift(show_plot=False,
+    early_termination, record_path = rollout_mpc_phase_percentage_shift(show_plot=True,
                                                  sim_time = 3.0,
                                                  current_time = 0.0,
                                                  visualize=False,
                                                  save_data=True,
+                                                 record_video = True,
                                                  apply_external_force = False)
     print(record_path)
     print(early_termination)
