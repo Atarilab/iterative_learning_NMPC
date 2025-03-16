@@ -87,8 +87,9 @@ class DataCollection():
         os.makedirs(experiment_dir, exist_ok=True)
         
         # rollout nominal trajectory
-        _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=False,
+        _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=True,
                                         visualize= False,
+                                        record_video= True,
                                         v_des = [0.3,0.0,0.0],
                                         sim_time=2.0,
                                         save_data=True,
@@ -168,6 +169,7 @@ class DataCollection():
                                                                             current_time = current_time,
                                                                             show_plot=False,
                                                                             visualize=False,
+                                                                            record_video=True,
                                                                             save_data=True,
                                                                             record_dir=experiment_dir,
                                                                             ee_in_contact=ee_in_contact)
