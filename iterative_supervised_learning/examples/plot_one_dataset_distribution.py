@@ -4,9 +4,9 @@ import seaborn as sns
 import os
 
 # Set directory path and number of trajectories to visualize
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/experiment"
-k = 10  # Number of trajectories to visualize
-
+data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment"
+k_start = 10  # Number of trajectories to visualize
+k_end = 15
 # Joint labels for visualization
 joint_labels = [
     "FL_hip", "FL_thigh", "FL_calf",
@@ -19,7 +19,7 @@ joint_labels = [
 trajectory_files = sorted(
     [f for f in os.listdir(data_dir) if f.endswith(".npz")],
     key=lambda f: os.path.getmtime(os.path.join(data_dir, f))
-)[:k]
+)[k_start:k_end]
 
 # Initialize dictionaries for storing trajectory-wise data
 position_dict = {}

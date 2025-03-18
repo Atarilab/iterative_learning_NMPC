@@ -103,18 +103,18 @@ class BehavioralCloning:
             
             valid_losses = []
             network.eval()
-            # with torch.no_grad():
-            #     for z, w in test_loader:
-            #         z, w = z.to(self.device).float(), w.to(self.device).float()
-            #         w_pred = network(z)
-            #         test_loss = self.criterion(w_pred, w)
-            #         valid_losses.append(test_loss.item())
+            with torch.no_grad():
+                for z, w in test_loader:
+                    z, w = z.to(self.device).float(), w.to(self.device).float()
+                    w_pred = network(z)
+                    test_loss = self.criterion(w_pred, w)
+                    valid_losses.append(test_loss.item())
             
-            for z, w in test_loader:
-                z, w = z.to(self.device).float(), w.to(self.device).float()
-                w_pred = network(z)
-                test_loss = self.criterion(w_pred, w)
-                valid_losses.append(test_loss.item())
+            # for z, w in test_loader:
+            #     z, w = z.to(self.device).float(), w.to(self.device).float()
+            #     w_pred = network(z)
+            #     test_loss = self.criterion(w_pred, w)
+            #     valid_losses.append(test_loss.item())
             
             train_loss_avg = np.mean(train_losses)
             valid_loss_avg = np.mean(valid_losses)
