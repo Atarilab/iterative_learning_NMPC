@@ -2,46 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # global variables
-visualize_length = 4000
+visualize_length = 2000
 
-# NOTE: read policy data from file
-# kp = 40 kd = 5.0
-# dummy (manual defined PD targets)
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_07_2025_10_21_10.npz"
-# MPC (use mpc generated PD targets)
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/mpc_replay_kp40kd5_with_noise.npz"
-
-# kp = 100 kd = 5.0
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_07_2025_10_22_54.npz"
-
-# kp = 20 kd = 1.5
-# MPC
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/mpc_replay_kp20kd1.5_with_noise.npz"
-# policy
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/policy_rollout_kp20kd1.5.npz"
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/policy_rollout_kp20kd1.5_reduced_frequency.npz"
-
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/policy_100_rollout_kp20_kd1.5.npz"
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/policy_150_with_phase_percentage_shift.npz"
-data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_14_2025_09_28_23.npz"
-
-# kp = 10 kd = 1
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_11_2025_17_04_05.npz"
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_12_2025_09_11_15.npz"
-
-# policy rollout with realtime MPC data
-#============================================
-# kp = 2.0 kd = 0.1
-# MPC
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/mpc_replay_kp2.0kd0.1_without_noise.npz"
-
-# kp = 10.0 kd = 1.0
-# MPC
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/mpc_replay_kp10kd1_without_noise.npz"
-
-# policy
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_11_2025_16_41_39.npz"
-# data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_11_2025_16_55_45.npz"
+# NOTE: read realized data from file
+data_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_18_2025_14_04_58.npz"
 
 data = np.load(data_path)
 
@@ -54,7 +18,7 @@ joint_labels = [
 ]
 
 # extract different variables from data
-time_his = data["time"][:visualize_length]
+time_his_policy = data["time"][:visualize_length]
 joint_pos_his = data["q"][:,7:][:visualize_length]
 joint_vel_his = data["v"][:,6:][:visualize_length]
 realized_PD_target = data["action"][:visualize_length]
@@ -77,15 +41,16 @@ phase_percentage_his = data["state"][:,0][:visualize_length]
 
 # NOTE: read MPC PD target as reference
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp40_kd5.npz"
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
-# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_11_2025_13_21_59.npz"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_14_2025_15_33_24/dataset/experiment/simulation_data_03_14_2025_15_33_37.npz"
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp2_kd0.1.npz"
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp10_kd1.npz"
 
 # with phase-percentage shift
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/experiment/simulation_data_03_11_2025_15_59_49.npz"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz" # kp = 20 kd = 1.5
 
 data_MPC = np.load(data_MPC_path)
+time_his_MPC = data_MPC["time"][:visualize_length]
 reference_PD_target = data_MPC["action"][:visualize_length,:]
 reference_joint_pos = data_MPC["q"][:visualize_length,7:]
 reference_joint_vel = data_MPC["v"][:visualize_length,6:]
@@ -95,8 +60,8 @@ reference_joint_vel = data_MPC["v"][:visualize_length,6:]
 def plot_joint_tracking(data_real, data_ref, title, ylabel):
     fig, axes = plt.subplots(4, 3, figsize=(15, 12))  # 4 rows, 3 columns for 12 joints
     for i, ax in enumerate(axes.flat):
-        ax.plot(time_his, data_real[:, i], label="Realized", color="blue")
-        ax.plot(time_his, data_ref[:, i], linestyle="--", label="Reference", color="red")
+        ax.plot(time_his_policy, data_real[:, i], label="Realized", color="blue")
+        ax.plot(time_his_MPC, data_ref[:, i], linestyle="--", label="Reference", color="red")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel(ylabel)
         ax.set_title(f"{title} - {joint_labels[i]}")
@@ -108,10 +73,10 @@ def plot_joint_tracking(data_real, data_ref, title, ylabel):
 def plot_joint_tracking_with_policy(data_real, data_ref, data_policy, phase_percentage, title, ylabel):
     fig, axes = plt.subplots(4, 3, figsize=(15, 12))  # 4 rows, 3 columns for 12 joints
     for i, ax in enumerate(axes.flat):
-        ax.plot(time_his, data_real[:, i], label="Realized", color="blue")
-        ax.plot(time_his, data_ref[:, i], linestyle="--", label="Reference", color="red")
-        # ax.plot(time_his, data_policy[:, i], linestyle=":", label="Policy Output", color="green")
-        ax.plot(time_his, phase_percentage, label='Phase Percentage', color='black')
+        ax.plot(time_his_policy, data_real[:, i], label="Realized", color="blue")
+        ax.plot(time_his_MPC, data_ref[:, i], linestyle="--", label="Reference", color="red")
+        # ax.plot(time_his_MPC, data_policy[:, i], linestyle=":", label="Policy Output", color="green")
+        ax.plot(time_his_policy, phase_percentage, label='Phase Percentage', color='black')
         ax.set_xlabel("Time (s)")
         ax.set_ylabel(ylabel)
         ax.set_title(f"{title} - {joint_labels[i]}")

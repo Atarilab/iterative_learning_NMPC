@@ -23,12 +23,17 @@ v_des = [0.3,0.0,0.0]
 action_policy_his = []
 
 # read data from mpc file
-data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
+data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/experiment/simulation_data_03_16_2025_15_56_31.npz"
 data = np.load(data_path)
 state_his = data["state"]
 
 # initialize policy network
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
+# this is a partially working network
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
+
+# enhanced perturbation network
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/network/policy_final.pth"
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=3,
                                             hidden_dim=512, batch_norm=True)
@@ -39,8 +44,7 @@ print(policy_net)
 
 # initialize input normalization parameters
 norm_policy_input = True
-mean_std = None
-database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/database_0.hdf5"
+database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/database_0.hdf5"
 if norm_policy_input and database_path:
     db = Database(limit=10000000, norm_input=True)
     db.load_saved_database(database_path)

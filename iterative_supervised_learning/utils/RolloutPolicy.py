@@ -41,15 +41,6 @@ n_action = 12
 kp = 20.0
 kd = 1.5
 
-# kp = 40.0
-# kd = 5.0
-
-# kp = 2.0
-# kd = 0.1
-
-# kp = 10.0
-# kd = 1.0
-
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
 
@@ -62,7 +53,7 @@ def get_phase_percentage(t:int):
        
     # for trot
     gait_period = 0.5
-    if t<t0:
+    if t < t0:
         return 0
     else:
         phi = ((t-t0) % gait_period)/gait_period
@@ -221,7 +212,8 @@ class PolicyController(Controller):
                  norm_policy_input: bool = False,
                  database_path: str = "", 
                  device: str = "cpu",
-                 mj_model = None):
+                 mj_model = None,
+                 start_time: float = 0.0):
         super().__init__()
         
         # initialize policy network
@@ -238,6 +230,7 @@ class PolicyController(Controller):
         self.v_des = v_des
         self.n_state = n_state
         self.nu = 18 # base joint: 6 + 4* each leg:3
+        self.start_time = start_time
         
         # initialize robot description
         self.robot_name = "go2"
@@ -258,13 +251,18 @@ class PolicyController(Controller):
             # input()
         
         # for debugging purpose: load PD target from file and see if it replays
-        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
         # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp40_kd5.npz"
         # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp2_kd0.1.npz"
         # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp10_kd1.npz"
         
+        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment/simulation_data_03_18_2025_10_13_21.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_31.npz"
+        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_58.npz"
+        
         data = np.load(data_path)
         self.action_history = data["action"]
+        self.ctrl_history = data["ctrl"]
         self.q_his = data["q"]
         self.v_his = data["v"]
         self.feet_pos_his = data["feet_pos_w"]
@@ -278,17 +276,18 @@ class PolicyController(Controller):
         # extract q and v from mujoco
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
-        # print("current q is = ", q)
-        # print("current v is = ", v)
+        print("current q from simulator is = ", q)
+        print("current v from simulator is = ", v)
         
         # calculate phase_percentage
-        current_time = np.round(mj_data.time,4)
+        current_time = np.round(mj_data.time + self.start_time,4)
         phase_percentage = get_phase_percentage(current_time)
         
         # print("current q from simulator is = ", q)
         # print("current v from simulator is = ", v)
-        # print("current simulation time = ", current_time)
-        # print("current phase_percentage is = ", phase_percentage)
+        print("current simulator time = ", mj_data.time)
+        print("current time for phase_percentage calculation = ", current_time)
+        print("current phase_percentage is = ", phase_percentage)
         # input()
         
         # robot_state
@@ -334,8 +333,6 @@ class PolicyController(Controller):
             state[1:] = (state[1:] - state_mean[1:]) / state_std[1:]
 
         # print("current state is  = ", state)
-        # input()
-        
         #==============================================================================================
         # NOTE: policy network inference
         # form policy input
@@ -343,20 +340,30 @@ class PolicyController(Controller):
         print("current policy input is = ", x)
         x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
         
+        #=====================================================
         # get policy output
-        current_time_step = int(current_time/SIM_DT)
-        replanning_freq = 1
-        if current_time_step % replanning_freq == 0:
-            self.replanning_flag = True
-        else: 
-            self.replanning_flag = False
-            
-        if self.replanning_flag:
+        # current_time_step = int(mj_data.time/SIM_DT)
+        # replanning_freq = 1
+        # if current_time_step % replanning_freq == 0:
+        #     self.replanning_flag = True
+        # else: 
+        #     self.replanning_flag = False
+     
+        # if self.replanning_flag:
+        #     y_tensor = self.policy_net(x_tensor)
+        #     action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+        #     self.current_PD_target = action_policy
+        # else:
+        #     action_policy = self.current_PD_target
+        #===========================================================
+        # y_tensor = self.policy_net(x_tensor)
+        # action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+        #============================================================
+        with torch.no_grad():  # Disable gradient tracking
             y_tensor = self.policy_net(x_tensor)
-            action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
-            self.current_PD_target = action_policy
-        else:
-            action_policy = self.current_PD_target
+
+        action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+
         print()
         print("Policy generated PD target is = ", action_policy)
         #===================================================================================================
@@ -406,6 +413,15 @@ class PolicyController(Controller):
         # print("current action index = ", int(current_time/SIM_DT))
         # print("MPC PD target = ",action_MPC)
         
+        #====================================================================
+        # read torque from MPC recordings and replay directly the torques
+        tau_frflrrrl_MPC = self.ctrl_history[int(current_time/SIM_DT)]
+        FR_torque = tau_frflrrrl_MPC[0:3]
+        FL_torque = tau_frflrrrl_MPC[3:6]
+        RR_torque = tau_frflrrrl_MPC[6:9]
+        RL_torque = tau_frflrrrl_MPC[9:]
+        tau_flfrrlrr_MPC_direct = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
+        
         # calculate torque based on PD target
         # use PD targets generated by the policy
         tau_flfrrlrr_policy = kp * (action_policy - q[7:]) - kd * v[6:]
@@ -448,10 +464,12 @@ class PolicyController(Controller):
         self.torques_dof = np.zeros(self.nu)
         # self.torques_dof[-12:] = tau_flfrrlrr_MPC
         # self.torques_dof[-12:] = tau_flfrrlrr
-        self.torques_dof[-12:] = tau_flfrrlrr_policy
+        # self.torques_dof[-12:] = tau_flfrrlrr_policy
+        self.torques_dof[-12:] = tau_flfrrlrr_MPC_direct
         
         # print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
         # print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
+        # print()
         # input()
 
     def get_torque_map(self) -> Dict[str, float]:
@@ -473,15 +491,21 @@ def rollout_policy(
     record_dir: str = "./data/",
     visualize: bool = True,
     norm_policy_input: bool = True,
-    database_path: str = ""
+    database_path: str = "",
+    initial_state = [],
+    start_time: float = 0.0
 ):  
     # set up robot description
     robot_desc = get_robot_description(robot_name)
     
     # set up simulator
+    q0 = initial_state[0]
+    v0 = initial_state[1]
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
     sim.setup()
+    sim.set_initial_state(q0,v0)
+    
     # joint_name2act_id= mj_joint_name2act_id(sim.mj_model)
     joint_name2act_id= mj_joint_name2dof(sim.mj_model)
     print("Joint to Actuator ID Mapping:", joint_name2act_id)
@@ -496,12 +520,13 @@ def rollout_policy(
         norm_policy_input=norm_policy_input,
         database_path=database_path,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        mj_model=sim.mj_model
+        mj_model=sim.mj_model,
+        start_time = start_time
     )
     
     # initialize data recorder
     if save_data:
-        data_recorder = StateDataRecorder(record_dir,v_des=v_des)
+        data_recorder = StateDataRecorder(record_dir,v_des=v_des,current_time=start_time)
     else:
         data_recorder = None
 
@@ -518,34 +543,42 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    # policy_path = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_final.pth'
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/dataset/database_0.hdf5"
     
-    # with phase percentage shift
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/network/policy_final.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/database_0.hdf5"
+    # v_des = [0.15,0,0]
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/network/policy_final.pth"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/database_0.hdf5"
+    data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment/simulation_data_03_18_2025_10_13_21.npz"
     
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/network/policy_final.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/dataset/database_0.hdf5"
+    data_MPC = np.load(data_MPC_path)
+    # start_time = 0.036
+    # start_time = 0.029
+    start_time = 0.0
+    q_MPC = data_MPC["q"]
+    v_MPC = data_MPC["v"]
+    # print("first 3 entries of q_MPC = ")
+    # print(q_MPC[:3])
     
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_11_45_47/network/policy_130.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_11_45_47/dataset/database_0.hdf5"
-    
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_16_28_29/network/policy_100.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_16_28_29/dataset/database_0.hdf5"
-    
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_14_2025_15_33_24/network/policy_final.pth"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_14_2025_15_33_24/dataset/database_0.hdf5"
-    
+    q0 = q_MPC[int(start_time / SIM_DT)]
+    v0 = v_MPC[int(start_time / SIM_DT)]
+    initial_state = [q0,v0]
+    print("initial position from MPC recording is  = ")
+    print(q0)
+    print("initial velocity from MPC recording is  = ")
+    print(v0)
+    # input()
     
     rollout_policy(policy_path, 
-                   sim_time=4.0, 
-                   v_des=[0.3, 0.0, 0.0], 
-                   record_video=False,
+                   sim_time=1.5, 
+                   v_des=[0.15, 0.0, 0.0], 
+                   record_video=True,
                    database_path=database_path,
                    norm_policy_input=True,
-                   save_data=False)
+                   save_data=True,
+                   initial_state = initial_state,
+                   start_time = start_time)
+    
+
+    
     
 
     
