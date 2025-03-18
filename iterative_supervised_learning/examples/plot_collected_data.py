@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 # Function to load .npz files from a given directory
 def load_data_from_directory(directory, k1=0, k2 =5):
@@ -27,11 +29,11 @@ joint_labels = [
 visualize_length = 1500
 
 # Directory containing data
-directory_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment"
+directory_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/to_be_visualized"
 
 # Load the first k files from the directory
-k1 = 15  # Number of files to visualize
-k2 = 20
+k1 = 0  # Number of files to visualize
+k2 = 2
 data_paths = load_data_from_directory(directory_path, k1 = k1, k2 = k2)
 
 # Initialize lists to store multiple trajectories
@@ -55,20 +57,18 @@ for data_path in data_paths:
     start_times.append(f"Start Time: {time_his[0]:.2f}s")
 
 def plot_joint_data(time_list, joint_data_list, title):
-    """
-    Function to plot multiple joint-related data over time in a 4x3 grid layout.
-    
-    Parameters:
-        time_list (list of numpy arrays): List of time history arrays for multiple trajectories.
-        joint_data_list (list of numpy arrays): List of joint data (12 joint values) for multiple trajectories.
-        title (str): Title for the figure.
-    """
     fig, axes = plt.subplots(4, 3, figsize=(12, 8), sharex=True)
     fig.suptitle(title, fontsize=14)
 
+    cmap = cm.get_cmap("viridis", len(joint_data_list))  # Color map
+    line_styles = ["-", "--", ":", "-."]  # Different line styles
+
     for i, ax in enumerate(axes.flat):
         for j in range(len(joint_data_list)):  # Iterate over trajectories
-            ax.plot(time_list[j], joint_data_list[j][:, i], label=start_times[j], alpha=0.7)
+            color = cmap(j / len(joint_data_list))
+            style = line_styles[j % len(line_styles)]
+            ax.plot(time_list[j], joint_data_list[j][:, i], 
+                    label=start_times[j], alpha=0.8, linestyle=style, color=color)
         ax.set_title(joint_labels[i])
         ax.set_ylabel("Value")
         ax.grid(True)

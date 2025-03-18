@@ -35,7 +35,7 @@ sigma_joint_pos = 0.3
 mu_base_ori = 0.0
 sigma_base_ori = 0.7
 mu_vel = 0.0
-sigma_vel = 0.2
+sigma_vel = 0.4
 
 # VisualCallback
 class ReferenceVisualCallback(VisualCallback):
@@ -251,6 +251,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
                 current_time = 0.0,
                 visualize = True,
                 show_plot = True,
+                record_video = False,
                 randomize_on_given_state = None,
                 ee_in_contact = [],
                 apply_external_force = False):
@@ -484,6 +485,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         visual_callback=vis_feet_pos,
         data_recorder=data_recorder,
         use_viewer=visualize,
+        record_video=record_video,
         allowed_collision=["FL", "FR", "RL", "RR","floor"]
     )
     
