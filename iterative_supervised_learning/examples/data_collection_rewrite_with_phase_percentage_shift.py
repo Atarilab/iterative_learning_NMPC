@@ -88,9 +88,9 @@ class DataCollection():
         
         # rollout nominal trajectory
         _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=True,
-                                        visualize= False,
-                                        record_video= True,
-                                        v_des = [0.3,0.0,0.0],
+                                        visualize= True,
+                                        record_video = False,
+                                        v_des = [0.15,0.0,0.0],
                                         sim_time=2.0,
                                         save_data=True,
                                         record_dir=experiment_dir)
@@ -164,15 +164,15 @@ class DataCollection():
                 # run MPC from replanning state until the simulation finishes
                 while True:
                     early_termination, record_path_replanning = rollout_mpc_phase_percentage_shift(randomize_on_given_state=randomize_on_given_state, 
-                                                                            v_des=[0.3,0.0,0.0],
+                                                                            v_des=[0.15,0.0,0.0],
                                                                             sim_time=1.5,
                                                                             current_time = current_time,
-                                                                            show_plot=False,
-                                                                            visualize=False,
-                                                                            record_video=True,
-                                                                            save_data=True,
-                                                                            record_dir=experiment_dir,
-                                                                            ee_in_contact=ee_in_contact)
+                                                                            show_plot = False,
+                                                                            visualize = False,
+                                                                            record_video = True,
+                                                                            save_data = True,
+                                                                            record_dir = experiment_dir,
+                                                                            ee_in_contact = ee_in_contact)
                     if not early_termination:
                         break
                     

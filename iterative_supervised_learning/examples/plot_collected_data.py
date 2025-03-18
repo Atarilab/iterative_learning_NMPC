@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Function to load .npz files from a given directory
-def load_data_from_directory(directory, k=5):
+def load_data_from_directory(directory, k1=0, k2 =5):
     """Loads the first k .npz files from the specified directory, sorted by creation time."""
     all_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".npz")]
     
@@ -11,7 +11,7 @@ def load_data_from_directory(directory, k=5):
     all_files.sort(key=os.path.getctime)
     
     # Select the first k files
-    selected_files = all_files[:k]
+    selected_files = all_files[k1:k2]
     
     return selected_files
 
@@ -27,11 +27,12 @@ joint_labels = [
 visualize_length = 1500
 
 # Directory containing data
-directory_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/experiment"
+directory_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment"
 
 # Load the first k files from the directory
-k = 1  # Number of files to visualize
-data_paths = load_data_from_directory(directory_path, k)
+k1 = 15  # Number of files to visualize
+k2 = 20
+data_paths = load_data_from_directory(directory_path, k1 = k1, k2 = k2)
 
 # Initialize lists to store multiple trajectories
 time_his_list = []
