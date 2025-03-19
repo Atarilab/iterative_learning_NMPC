@@ -72,13 +72,12 @@ n_state: 47 # state:44 + goal:3
 # n_state: 39
 # n_action: 12
 goal_horizon: 1
-kp: 40
-kd: 5
+kp: 20
+kd: 1.5
 
 #---------- Data Collection Variables --------------------------
 n_iteration: 1
-num_pertubations_per_replanning: 2
-
+num_pertubations_per_replanning: 10
 #---------- Data buffer variables --------------------------
 database_size: 10000000
 
