@@ -225,12 +225,13 @@ class PolicyController(Controller):
         self.policy_net.eval()
         print("policy network is = ", self.policy_net)
         
-        # initialization 
+        # initialization global variables
         self.joint_name2act_id = joint_name2act_id
         self.v_des = v_des
         self.n_state = n_state
         self.nu = 18 # base joint: 6 + 4* each leg:3
         self.start_time = start_time
+        self.ctrl_index = int(self.start_time * 1000)
         
         # initialize robot description
         self.robot_name = "go2"
@@ -243,22 +244,10 @@ class PolicyController(Controller):
         if self.norm_policy_input and database_path:
             db = Database(limit=10000000, norm_input=True)
             db.load_saved_database(database_path)
-            # db.calc_input_mean_std()
             self.mean_std = db.get_database_mean_std()
-            
-            # print("self.mean_std = ", self.mean_std)
-            # print("shape of self.mean_std = ", np.shape(self.mean_std))
-            # input()
         
         # for debugging purpose: load PD target from file and see if it replays
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp40_kd5.npz"
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp2_kd0.1.npz"
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp10_kd1.npz"
-        
-        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment/simulation_data_03_18_2025_10_13_21.npz"
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_31.npz"
-        # data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_58.npz"
+        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
         
         data = np.load(data_path)
         self.action_history = data["action"]
@@ -367,68 +356,43 @@ class PolicyController(Controller):
         print()
         print("Policy generated PD target is = ", action_policy)
         #===================================================================================================
-        
-        # for debugging purposes
+        # for debugging purposes, manually set PD target
         # hold original position
         action = [0,0.9,-1.8,
                   0,0.9,-1.8,
                   0,0.9,-1.8,
                   0,0.9,-1.8,]
-
         # # hold given position
         # action = [0.3,1.0,-1.8,
         #           -0.3,1.0,-1.8,
         #           0.3,1.0,-1.8,
         #           -0.3,1.0,-1.8,]
-        
+        #===================================================================================================
         # read from MPC file and replay with the PD controller setup
-        action_MPC = self.action_history[int(current_time/SIM_DT)] # action is in the order of [FL,FR,RL,RR]
+        action_MPC = self.action_history[self.ctrl_index] # action is in the order of [FL,FR,RL,RR]
         print("###############################################")
+        # print("current action index = ", self.ctrl_index)
         print("PD target from MPC is  = ")
         print(action_MPC)
         print("#################################################")
         # input()
-        #===================================================================
-        # add noise to MPC generated PD target and mimic policy inference
-        # error_magnitude = 0.00 + np.random.uniform(-2e-3, 2e-3, size=action_MPC.shape)  # Small variability
-        # error_magnitude = 2e-5
-        error_magnitude = 0.0
-        
-        # Generate random signs (+1 or -1) for each action component
-        random_signs = np.random.choice([-1, 1], size=action_MPC.shape)
-        # random_signs = -1
-        
-        # Create noise with fixed magnitude
-        noise = random_signs * error_magnitude
-        
-        # Apply noise
-        action_MPC_with_noise = action_MPC + noise
-        # print()
-        # print("PD target from MPC with noise is = ")
-        # print(action_MPC_with_noise)
-        # print("#################################################")
-        # print()
-        #====================================================================
-        
-        # print("current action index = ", int(current_time/SIM_DT))
-        # print("MPC PD target = ",action_MPC)
-        
         #====================================================================
         # read torque from MPC recordings and replay directly the torques
-        tau_frflrrrl_MPC = self.ctrl_history[int(current_time/SIM_DT)]
+        tau_frflrrrl_MPC = self.ctrl_history[self.ctrl_index]
         FR_torque = tau_frflrrrl_MPC[0:3]
         FL_torque = tau_frflrrrl_MPC[3:6]
         RR_torque = tau_frflrrrl_MPC[6:9]
         RL_torque = tau_frflrrrl_MPC[9:]
         tau_flfrrlrr_MPC_direct = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
+        self.ctrl_index += 1
         
+        #====================================================================
         # calculate torque based on PD target
         # use PD targets generated by the policy
         tau_flfrrlrr_policy = kp * (action_policy - q[7:]) - kd * v[6:]
         
         # use PD targets read from a MPC file
         tau_flfrrlrr_MPC = kp * (action_MPC- q[7:]) - kd * v[6:]
-        tau_flfrrlrr_MPC_with_noise = kp * (action_MPC_with_noise- q[7:]) - kd * v[6:]
         
         # use dummy PD targets
         tau_flfrrlrr = kp * (action- q[7:]) - kd * v[6:]
@@ -460,12 +424,12 @@ class PolicyController(Controller):
         # print(tau_frflrrrl)
         # input()
         
-        # store torque to self.torques_dof, and apply torque
+        # pick the right torque to self.torques_dof, and apply torque
         self.torques_dof = np.zeros(self.nu)
         # self.torques_dof[-12:] = tau_flfrrlrr_MPC
+        # self.torques_dof[-12:] = tau_flfrrlrr_MPC_direct
         # self.torques_dof[-12:] = tau_flfrrlrr
-        # self.torques_dof[-12:] = tau_flfrrlrr_policy
-        self.torques_dof[-12:] = tau_flfrrlrr_MPC_direct
+        self.torques_dof[-12:] = tau_flfrrlrr_policy
         
         # print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
         # print("torque calculated from MPC PD targets is = ", tau_flfrrlrr_MPC)
@@ -498,7 +462,7 @@ def rollout_policy(
     # set up robot description
     robot_desc = get_robot_description(robot_name)
     
-    # set up simulator
+    # set up simulator from arbitrary initial condition
     q0 = initial_state[0]
     v0 = initial_state[1]
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
@@ -509,8 +473,8 @@ def rollout_policy(
     # joint_name2act_id= mj_joint_name2act_id(sim.mj_model)
     joint_name2act_id= mj_joint_name2dof(sim.mj_model)
     print("Joint to Actuator ID Mapping:", joint_name2act_id)
-    # input()
 
+    # setup controller
     controller = PolicyController(
         policy_path=policy_path,
         n_state=n_state,
@@ -545,21 +509,21 @@ def rollout_policy(
 if __name__ == '__main__':
     
     # v_des = [0.15,0,0]
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/network/policy_final.pth"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/database_0.hdf5"
-    data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment/simulation_data_03_18_2025_10_13_21.npz"
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/network/policy_200.pth"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/database_0.hdf5"
+    data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
     
     data_MPC = np.load(data_MPC_path)
-    # start_time = 0.036
-    # start_time = 0.029
     start_time = 0.0
+    # start_time = 0.005
+    # start_time = 0.0
     q_MPC = data_MPC["q"]
     v_MPC = data_MPC["v"]
     # print("first 3 entries of q_MPC = ")
     # print(q_MPC[:3])
     
-    q0 = q_MPC[int(start_time / SIM_DT)]
-    v0 = v_MPC[int(start_time / SIM_DT)]
+    q0 = q_MPC[int(start_time * 1000)]
+    v0 = v_MPC[int(start_time * 1000)]
     initial_state = [q0,v0]
     print("initial position from MPC recording is  = ")
     print(q0)
@@ -568,7 +532,7 @@ if __name__ == '__main__':
     # input()
     
     rollout_policy(policy_path, 
-                   sim_time=1.5, 
+                   sim_time=5, 
                    v_des=[0.15, 0.0, 0.0], 
                    record_video=True,
                    database_path=database_path,
