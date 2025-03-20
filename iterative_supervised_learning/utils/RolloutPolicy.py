@@ -31,9 +31,6 @@ t0 = 0.028
 # with base_wrt_feet
 n_state = 44 # state:44 + vc_goal:3
 
-# without base_wrt_feet
-# n_state = 36
-
 n_state += 3
 print("n_state = ",n_state)
 n_action = 12
@@ -139,19 +136,6 @@ class StateDataRecorder(DataRecorder):
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]
         
-        # print("current ee_in_contact is = ")
-        # print(ee_in_contact)
-        # input()
-        
-        
-        # print("base_pos = ",q[:3])
-        # print("feet positions are = ",feet_pos_all)
-        
-        # print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
-        # input()
-        
-        # print("base_wrt_feet = ", base_wrt_feet)
-        # input()
         self.data["feet_pos_w"].append(np.array(feet_pos_all))
         
         # base with right to feet in world frame
@@ -165,10 +149,6 @@ class StateDataRecorder(DataRecorder):
         #==========================================================================================
         # state with base_wrt_feet
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
-        
-        # # state without base_wrt_feet
-        # state = np.concatenate([phase_percentage, v, q[2:]])
-        
         self.data["state"].append(np.array(state)) # here is unnormalized state
         #=========================================================================================
         # transform action from torque to PD target and store
@@ -178,22 +158,9 @@ class StateDataRecorder(DataRecorder):
         RR_torque = tau_frflrrrl[6:9]
         RL_torque = tau_frflrrrl[9:]
         tau_flfrrlrr = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
-        # print("tau is = ", tau_frflrrrl)
-        # print("FR torque is ")
-        # print(FR_torque)
-        # print("FL torque is ")
-        # print(FL_torque)
-        # print("RR torque is ")
-        # print(RR_torque)
-        # print("RL torque is ")
-        # print(RL_torque)
-        # print("transformed tau is = ")
-        # print(tau_flfrrlrr)
-        # input()
         
         # calculate realized PD target and store
         action = (tau_flfrrlrr + kd * v[6:])/kp + q[7:] # in the order of [FL,FR,RL,RR]
-        # print("current action is = ",action)
         self.data["action"].append(np.array(action))
         
         # record the velocity conditioned goals
@@ -235,7 +202,6 @@ class PolicyController(Controller):
         
         # initialize robot description
         self.robot_name = "go2"
-        # xml_path = get_robot_description(self.robot_name).xml_path
         self.mj_model = mj_model
 
         # load data base and get mean & std
@@ -245,35 +211,18 @@ class PolicyController(Controller):
             db = Database(limit=10000000, norm_input=True)
             db.load_saved_database(database_path)
             self.mean_std = db.get_database_mean_std()
-        
-        # for debugging purpose: load PD target from file and see if it replays
-        data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
-        
-        data = np.load(data_path)
-        self.action_history = data["action"]
-        self.ctrl_history = data["ctrl"]
-        self.q_his = data["q"]
-        self.v_his = data["v"]
-        self.feet_pos_his = data["feet_pos_w"]
-        self.base_wrt_feet_his = data["base_wrt_feet"]
-        
-        # to reduce policy inference frequence
-        self.replanning_flag = True
-        self.current_PD_target = []
 
     def compute_torques_dof(self, mj_data) -> Dict[str, float]:
         # extract q and v from mujoco
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
-        print("current q from simulator is = ", q)
-        print("current v from simulator is = ", v)
         
         # calculate phase_percentage
         current_time = np.round(mj_data.time + self.start_time,4)
         phase_percentage = get_phase_percentage(current_time)
         
-        # print("current q from simulator is = ", q)
-        # print("current v from simulator is = ", v)
+        print("current q from simulator is = ", q)
+        print("current v from simulator is = ", v)
         print("current simulator time = ", mj_data.time)
         print("current time for phase_percentage calculation = ", current_time)
         print("current phase_percentage is = ", phase_percentage)
@@ -286,7 +235,7 @@ class PolicyController(Controller):
         base_position = q[:3]
         # print("current base_position is = ",base_position)
         
-        # base with right to feet        
+        # calculate base with right to feet        
         feet_names = ["FL", "FR", "RL", "RR"]
         
         base_wrt_feet = np.zeros(2 * len(feet_names))
@@ -297,31 +246,14 @@ class PolicyController(Controller):
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2 * i:2 * i + 2] = (q[:3] - feet_pos)[:2]
         
-        # NOTE: print out real-time feet position and those from a recorded MPC file    
-        # print("real-time feet positions are = ",feet_pos_all)
-        # print("MPC feet positions are = ",self.feet_pos_his[int(current_time/SIM_DT)])
-        # print()
-        
-        # NOTE: print out base_wrt_feet
-        # print("base_wrt_feet = ", base_wrt_feet)
-        # print()
-        
         # NOTE: form state variable for policy inference
         # state with base_wrt_feet
         state = np.concatenate(([phase_percentage], v, robot_state, base_wrt_feet))[:self.n_state-3]
         
-        # state without base_wrt_feet
-        # state = state = np.concatenate(([phase_percentage], v, robot_state))[:self.n_state-3]
-        
         # normalize state without phase percentage
         if self.norm_policy_input and self.mean_std is not None:
             state_mean, state_std = self.mean_std[0],self.mean_std[1]
-            # print("state_mean = ", state_mean)
-            # print("state_std = ",state_std)
-            # input()
             state[1:] = (state[1:] - state_mean[1:]) / state_std[1:]
-
-        # print("current state is  = ", state)
         #==============================================================================================
         # NOTE: policy network inference
         # form policy input
@@ -329,25 +261,7 @@ class PolicyController(Controller):
         print("current policy input is = ", x)
         x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
         
-        #=====================================================
         # get policy output
-        # current_time_step = int(mj_data.time/SIM_DT)
-        # replanning_freq = 1
-        # if current_time_step % replanning_freq == 0:
-        #     self.replanning_flag = True
-        # else: 
-        #     self.replanning_flag = False
-     
-        # if self.replanning_flag:
-        #     y_tensor = self.policy_net(x_tensor)
-        #     action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
-        #     self.current_PD_target = action_policy
-        # else:
-        #     action_policy = self.current_PD_target
-        #===========================================================
-        # y_tensor = self.policy_net(x_tensor)
-        # action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
-        #============================================================
         with torch.no_grad():  # Disable gradient tracking
             y_tensor = self.policy_net(x_tensor)
 
@@ -355,54 +269,12 @@ class PolicyController(Controller):
 
         print()
         print("Policy generated PD target is = ", action_policy)
-        #===================================================================================================
-        # for debugging purposes, manually set PD target
-        # hold original position
-        action = [0,0.9,-1.8,
-                  0,0.9,-1.8,
-                  0,0.9,-1.8,
-                  0,0.9,-1.8,]
-        # # hold given position
-        # action = [0.3,1.0,-1.8,
-        #           -0.3,1.0,-1.8,
-        #           0.3,1.0,-1.8,
-        #           -0.3,1.0,-1.8,]
-        #===================================================================================================
-        # read from MPC file and replay with the PD controller setup
-        action_MPC = self.action_history[self.ctrl_index] # action is in the order of [FL,FR,RL,RR]
-        print("###############################################")
-        # print("current action index = ", self.ctrl_index)
-        print("PD target from MPC is  = ")
-        print(action_MPC)
-        print("#################################################")
-        # input()
-        #====================================================================
-        # read torque from MPC recordings and replay directly the torques
-        tau_frflrrrl_MPC = self.ctrl_history[self.ctrl_index]
-        FR_torque = tau_frflrrrl_MPC[0:3]
-        FL_torque = tau_frflrrrl_MPC[3:6]
-        RR_torque = tau_frflrrrl_MPC[6:9]
-        RL_torque = tau_frflrrrl_MPC[9:]
-        tau_flfrrlrr_MPC_direct = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
-        self.ctrl_index += 1
         
-        #====================================================================
         # calculate torque based on PD target
         # use PD targets generated by the policy
         tau_flfrrlrr_policy = kp * (action_policy - q[7:]) - kd * v[6:]
         
-        # use PD targets read from a MPC file
-        tau_flfrrlrr_MPC = kp * (action_MPC- q[7:]) - kd * v[6:]
-        
-        # use dummy PD targets
-        tau_flfrrlrr = kp * (action- q[7:]) - kd * v[6:]
-        
-        FL_torque = tau_flfrrlrr[0:3]
-        FR_torque = tau_flfrrlrr[3:6]
-        RL_torque = tau_flfrrlrr[6:9]
-        RR_torque = tau_flfrrlrr[9:]
-        tau_frflrrrl = np.concatenate([FR_torque,FL_torque,RR_torque,RL_torque])
-        
+        #==============================================================================================
         # print("joint position from simulator is = ", q[7:])
         # print("mpc joint position is = ",self.q_his[int(current_time/SIM_DT)][7:])
         # print()
@@ -424,11 +296,8 @@ class PolicyController(Controller):
         # print(tau_frflrrrl)
         # input()
         
-        # pick the right torque to self.torques_dof, and apply torque
+        # apply torque calculated from policy output to self.torques_dof
         self.torques_dof = np.zeros(self.nu)
-        # self.torques_dof[-12:] = tau_flfrrlrr_MPC
-        # self.torques_dof[-12:] = tau_flfrrlrr_MPC_direct
-        # self.torques_dof[-12:] = tau_flfrrlrr
         self.torques_dof[-12:] = tau_flfrrlrr_policy
         
         # print(f"current time {current_time}: Applied control torques (high precision): {self.torques_dof}")
@@ -470,7 +339,7 @@ def rollout_policy(
     sim.setup()
     sim.set_initial_state(q0,v0)
     
-    # joint_name2act_id= mj_joint_name2act_id(sim.mj_model)
+    # get action order to joint name mapping
     joint_name2act_id= mj_joint_name2dof(sim.mj_model)
     print("Joint to Actuator ID Mapping:", joint_name2act_id)
 
@@ -507,33 +376,28 @@ def rollout_policy(
     
 
 if __name__ == '__main__':
-    
+    # define policy, database path for policy rollout, and data_MPC_path for setting initial conditions
     # v_des = [0.15,0,0]
+    # TODO: maybe I can store the path in a config file so that I don't need to change everytime I want to do a test
     policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/network/policy_200.pth"
     database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/database_0.hdf5"
     data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
     
+    # extract initial states from start time
     data_MPC = np.load(data_MPC_path)
-    start_time = 0.0
-    # start_time = 0.005
-    # start_time = 0.0
+    # start_time = 0.025
+    start_time = 0.005
     q_MPC = data_MPC["q"]
     v_MPC = data_MPC["v"]
-    # print("first 3 entries of q_MPC = ")
-    # print(q_MPC[:3])
     
     q0 = q_MPC[int(start_time * 1000)]
     v0 = v_MPC[int(start_time * 1000)]
     initial_state = [q0,v0]
-    print("initial position from MPC recording is  = ")
-    print(q0)
-    print("initial velocity from MPC recording is  = ")
-    print(v0)
-    # input()
     
+    # rollout policy
     rollout_policy(policy_path, 
-                   sim_time=5, 
-                   v_des=[0.15, 0.0, 0.0], 
+                   sim_time=3.0, 
+                   v_des = [0.16, 0.0, 0.0], 
                    record_video=True,
                    database_path=database_path,
                    norm_policy_input=True,

@@ -10,8 +10,6 @@ import os
 import numpy as np
 from datetime import datetime
 
-# from iterative_supervised_learning.utils.RolloutMPC import RolloutMPC
-from iterative_supervised_learning.utils.RolloutMPC_rewrite import rollout_mpc
 from iterative_supervised_learning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
 from iterative_supervised_learning.utils.database import Database
 import random
