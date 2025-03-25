@@ -20,10 +20,10 @@ from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
 from iterative_supervised_learning.utils.database import Database
 
 # Set random seed for reproducibility
-# seed = 42
-# random.seed(seed)
-# np.random.seed(seed)
-# torch.manual_seed(seed)
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 # Login to wandb
 wandb.login()
