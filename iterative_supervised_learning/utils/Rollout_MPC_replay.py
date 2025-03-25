@@ -1,4 +1,4 @@
-# This script is to check if MPC replays in Mujoco
+# This script is to check if recorded MPC data replays in Mujoco
 
 import sys
 import os

@@ -86,9 +86,9 @@ batch_norm: True
 goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint
 
 #---------- Training parameters-------------
-batch_size: 512
-learning_rate: 0.002
-n_epoch: 200 # default=150
+batch_size: 2048
+learning_rate: 0.001
+n_epoch: 500 # default=150
 n_train_frac: 0.9 # fraction of the data used for training
 
 

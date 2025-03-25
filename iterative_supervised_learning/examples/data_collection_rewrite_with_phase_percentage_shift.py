@@ -29,10 +29,6 @@ t0 = 0.028
 # with base_wrt_feet
 n_state = 44
 
-# # without base_wrt_feet
-# n_state = 36
-
-
 class DataCollection():
     def __init__(self, cfg):
         # initialize parameters from configuration
@@ -88,8 +84,8 @@ class DataCollection():
         _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=True,
                                         visualize= True,
                                         record_video = False,
-                                        v_des = [0.15,0.0,0.0],
-                                        sim_time=2.0,
+                                        v_des = [0.30,0.0,0.0],
+                                        sim_time=4.0,
                                         save_data=True,
                                         record_dir=experiment_dir)
         
@@ -108,8 +104,6 @@ class DataCollection():
         data = np.load(record_path_nominal)
         state = data["state"]
         feet_pos = data["feet_pos_w"]
-        # print(state[:2])
-        # input()
         
         nominal_v = data["v"]
         nominal_q = data["q"]
@@ -162,7 +156,7 @@ class DataCollection():
                 # run MPC from replanning state until the simulation finishes
                 while True:
                     early_termination, record_path_replanning = rollout_mpc_phase_percentage_shift(randomize_on_given_state=randomize_on_given_state, 
-                                                                            v_des=[0.15,0.0,0.0],
+                                                                            v_des=[0.30,0.0,0.0],
                                                                             sim_time=1.5,
                                                                             current_time = current_time,
                                                                             show_plot = False,
