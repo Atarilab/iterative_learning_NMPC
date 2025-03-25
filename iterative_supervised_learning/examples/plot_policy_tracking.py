@@ -2,12 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Global variables
-visualize_length = 1000
+visualize_length = 3000
 
 # Define realized trajectory file paths
 realized_traj_files = [
     "/home/atari/workspace/iterative_supervised_learning/utils/data/working_policy_traj.npz",
-    "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_25_2025_10_13_09.npz"
+    "/home/atari/workspace/iterative_supervised_learning/utils/data/simulation_data_03_25_2025_15_32_27.npz"
 ]
 
 # Load realized data from selected files (choose range a to b)

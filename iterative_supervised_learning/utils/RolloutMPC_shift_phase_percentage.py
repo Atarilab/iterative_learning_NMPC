@@ -17,7 +17,8 @@ import time
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 gait_period = 0.5 # trotting
-t0 = 0.028
+# t0 = 0.028
+t0 = 0.0
 
 # with base_wrt_feet
 n_state = 44
