@@ -399,20 +399,22 @@ if __name__ == '__main__':
     # v_des = [0.15,0,0]
     # TODO: maybe I can store the path in a config file so that I don't need to change everytime I want to do a test
     # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/working_policy/policy_200.pth"
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/network/policy_final.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/database_0.hdf5"
-    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
     
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/network/policy_final.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/dataset/database_0.hdf5"
-    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/dataset/experiment/simulation_data_03_25_2025_14_20_42.npz"
+    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/network/policy_final.pth"
+    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/dataset/database_0.hdf5"
+    data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/dataset/experiment/simulation_data_03_25_2025_14_20_42.npz"
     
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_16_17_23/network/policy_final.pth"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_16_17_23/dataset/database_0.hdf5"
-    data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_16_17_23/dataset/experiment/simulation_data_03_25_2025_16_17_41.npz"
+    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_26_2025_14_15_32/network/policy_100.pth"
+    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_26_2025_14_15_32/dataset/database_0.hdf5"
+    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_26_2025_14_15_32/dataset/experiment/simulation_data_03_26_2025_14_15_39.npz"
+    
+    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_26_2025_15_31_45/network/policy_300.pth"
+    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_26_2025_15_31_45/dataset/database_0.hdf5"
+    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_26_2025_15_31_45/dataset/experiment/simulation_data_03_26_2025_15_31_52.npz"
+    
     # extract initial states from start time
     data_MPC = np.load(data_MPC_path)
-    # start_time = 0.05
+    # start_time = 0.16
     start_time = 0.0
     q_MPC = data_MPC["q"]
     v_MPC = data_MPC["v"]
@@ -426,7 +428,7 @@ if __name__ == '__main__':
     # rollout policy
     rollout_policy(policy_path, 
                    sim_time=3.0, 
-                   v_des = [0.30, 0.0, 0.0], 
+                   v_des = [0.15, 0.0, 0.0], 
                    record_video=False,
                    database_path=database_path,
                    norm_policy_input=True,
