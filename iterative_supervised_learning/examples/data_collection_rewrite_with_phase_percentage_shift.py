@@ -24,7 +24,8 @@ SIM_DT = 0.001
 nq = 19
 nv = 17
 replan_freq = 50
-t0 = 0.028
+t0 = 0.0
+v_des = [0.30,0.0,0.0]
 
 # with base_wrt_feet
 n_state = 44
@@ -84,34 +85,35 @@ class DataCollection():
         _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=True,
                                         visualize= True,
                                         record_video = False,
-                                        v_des = [0.30,0.0,0.0],
-                                        sim_time=5.0,
+                                        v_des = v_des,
+                                        sim_time=3.0,
                                         save_data=True,
-                                        record_dir=experiment_dir)
+                                        record_dir=experiment_dir,
+                                        nominal_flag = True)
         
         # calculate replanning points
-        # # sample replanning points in one gait cycle
-        # replanning_points = []
-        # gait_period = 0.5
-        # num_replanning = int(gait_period*1000/replan_freq)
-        # start_timestep = t0*1000
-        # for i in range(num_replanning):
-        #     next_replanning_point = int(i*replan_freq + start_timestep)
-        #     replanning_points.append(next_replanning_point)
-        # print("Replanning points:", replanning_points)
-        # input()
-        
-        # sample replanning points in n gait cycles
+        # sample replanning points in one gait cycle
         replanning_points = []
         gait_period = 0.5
-        n_gait_cycles = 2 
-        num_replanning = int(n_gait_cycles * gait_period * 1000 / replan_freq)
-        start_timestep = int(t0 * 1000)
+        num_replanning = int(gait_period*1000/replan_freq)
+        start_timestep = t0*1000
         for i in range(num_replanning):
-            next_replanning_point = int(i * replan_freq + start_timestep)
+            next_replanning_point = int(i*replan_freq + start_timestep)
             replanning_points.append(next_replanning_point)
         print("Replanning points:", replanning_points)
-        input() 
+        input()
+        
+        # # sample replanning points in n gait cycles
+        # replanning_points = []
+        # gait_period = 0.5
+        # n_gait_cycles = 2 
+        # num_replanning = int(n_gait_cycles * gait_period * 1000 / replan_freq)
+        # start_timestep = int(t0 * 1000)
+        # for i in range(num_replanning):
+        #     next_replanning_point = int(i * replan_freq + start_timestep)
+        #     replanning_points.append(next_replanning_point)
+        # print("Replanning points:", replanning_points)
+        # input() 
         
         # extract nominal state on replanning points
         data = np.load(record_path_nominal)
@@ -169,7 +171,7 @@ class DataCollection():
                 # run MPC from replanning state until the simulation finishes
                 while True:
                     early_termination, record_path_replanning = rollout_mpc_phase_percentage_shift(randomize_on_given_state=randomize_on_given_state, 
-                                                                            v_des=[0.30,0.0,0.0],
+                                                                            v_des=v_des,
                                                                             sim_time=1.5,
                                                                             current_time = current_time,
                                                                             show_plot = False,
@@ -177,7 +179,10 @@ class DataCollection():
                                                                             record_video = True,
                                                                             save_data = True,
                                                                             record_dir = experiment_dir,
-                                                                            ee_in_contact = ee_in_contact)
+                                                                            ee_in_contact = ee_in_contact,
+                                                                            nominal_flag=False,
+                                                                            replanning_point=i_replanning,
+                                                                            nth_traj_per_replanning=j+1)
                     if not early_termination:
                         break
                     
