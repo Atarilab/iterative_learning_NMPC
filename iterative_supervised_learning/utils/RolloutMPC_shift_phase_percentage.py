@@ -17,6 +17,8 @@ import time
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 gait_period = 0.5 # trotting
+
+# for phase percentage shift
 # t0 = 0.028
 t0 = 0.0
 
@@ -70,7 +72,10 @@ class StateDataRecorder(DataRecorder):
         record_dir: str = "",
         record_step: int = 1,
         v_des: np.ndarray = np.array([0,0,0]),
-        current_time: float = 0.0) -> None:
+        current_time: float = 0.0,
+        nominal_flag = True,
+        replanning_point = 0,
+        nth_traj_per_replanning = 0) -> None:
         """
         A simple data recorder that saves simulation data to a .npz file.
         """
@@ -79,6 +84,9 @@ class StateDataRecorder(DataRecorder):
         self.vc_goals = v_des
         self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
         self.current_time = current_time
+        self.nominal_flag = nominal_flag
+        self.replanning_point = replanning_point
+        self.nth_traj_per_replanning_point = nth_traj_per_replanning
         
         # initialization of robot model
         self.feet_names = ["FL", "FR", "RL", "RR"]
@@ -105,9 +113,12 @@ class StateDataRecorder(DataRecorder):
         if not self.record_dir:
             self.record_dir = os.getcwd()
         os.makedirs(self.record_dir, exist_ok=True)
-
         timestamp = self.get_date_time_str()
-        file_path = os.path.join(self.record_dir, f"simulation_data_{timestamp}.npz")
+
+        if self.nominal_flag:
+            file_path = os.path.join(self.record_dir, f"traj_nominal_{timestamp}.npz")
+        else:
+            file_path = os.path.join(self.record_dir, f"traj_{self.replanning_point}_{self.nth_traj_per_replanning_point}.npz")
 
         try:
             # Uncomment to save data
@@ -255,7 +266,10 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
                 record_video = False,
                 randomize_on_given_state = None,
                 ee_in_contact = [],
-                apply_external_force = False):
+                apply_external_force = False,
+                nominal_flag = True,
+                replanning_point = 0,
+                nth_traj_per_replanning = 0):
     # init robot description
     robot_desc = get_robot_description(robot_name)
     feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
@@ -280,7 +294,12 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
     vis_feet_pos = ReferenceVisualCallback(mpc)
     
     #initialize data recorder
-    data_recorder = StateDataRecorder(record_dir,v_des=v_des,current_time = current_time) if save_data else None
+    data_recorder = StateDataRecorder(record_dir,
+                                      v_des=v_des,
+                                      current_time = current_time,
+                                      nominal_flag=nominal_flag,
+                                      replanning_point=replanning_point,
+                                      nth_traj_per_replanning = nth_traj_per_replanning) if save_data else None
     
     # initialize simulator
     sim = Simulator(robot_desc.xml_scene_path,
