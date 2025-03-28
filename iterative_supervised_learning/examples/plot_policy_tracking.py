@@ -2,15 +2,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Global variables
-visualize_length = 3000
+visualize_length = 5000
 
 # Define realized trajectory file paths
 realized_traj_files = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_28_2025_10_11_25.npz"
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_28_2025_15_23_23.npz"
 ]
 
 # Load realized data from selected files (choose range a to b)
-a, b = 0, 2  # Define your range here
+a, b = 0, 3  # Define your range here
 realized_data = [np.load(file) for file in realized_traj_files[a:b]]
 
 # Define joint labels
@@ -29,7 +29,7 @@ realized_PD_targets = [data["action"][:visualize_length] for data in realized_da
 phase_percentage_his_list = [data["state"][:,0][:visualize_length] for data in realized_data]
 
 # Load MPC reference data
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
 data_MPC = np.load(data_MPC_path)
 
 time_his_MPC = data_MPC["time"][:visualize_length]

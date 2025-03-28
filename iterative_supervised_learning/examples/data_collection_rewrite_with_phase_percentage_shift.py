@@ -24,7 +24,7 @@ SIM_DT = 0.001
 nq = 19
 nv = 17
 replan_freq = 50
-t0 = 0.0
+t0 = 0.1
 v_des = [0.30,0.0,0.0]
 
 # with base_wrt_feet
@@ -86,7 +86,7 @@ class DataCollection():
                                         visualize= True,
                                         record_video = False,
                                         v_des = v_des,
-                                        sim_time=3.0,
+                                        sim_time=2.0,
                                         save_data=True,
                                         record_dir=experiment_dir,
                                         nominal_flag = True)
@@ -128,7 +128,7 @@ class DataCollection():
         vc_goals = data["vc_goals"][0]
         cc_goals = None
         actions = data["ctrl"]
-        input()
+        # input()
         
         # rollout MPC at each replanning point
         for i_replanning in replanning_points:

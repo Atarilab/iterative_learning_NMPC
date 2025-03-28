@@ -5,14 +5,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import numpy as np
 from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/network/policy_final.pth"
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_09_23_50/dataset/experiment/traj_nominal_03_28_2025_09_23_54.npz"
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/network/policy_final.pth"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
 v_des = [0.15,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
-# start_time = 0.16
-start_time = 0.00
+# start_time = 0.1
+start_time = 0.0
 q_MPC = data_MPC["q"]
 v_MPC = data_MPC["v"]
 
@@ -24,7 +24,7 @@ initial_state = [q0,v0]
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=3.0, 
+                sim_time=5.0, 
                 v_des = v_des, 
                 record_video=False,
                 norm_policy_input=True,
