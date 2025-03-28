@@ -19,8 +19,8 @@ VIEWER_DT = 1/30.
 gait_period = 0.5 # trotting
 
 # for phase percentage shift
-# t0 = 0.028
-t0 = 0.0
+t0 = 0.028
+# t0 = 0.0
 
 # with base_wrt_feet
 n_state = 44
@@ -231,6 +231,8 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
+    # get rid of phase percentage
+    return 0
        
     # for trot
     gait_period = 0.5
@@ -266,7 +268,6 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
                 record_video = False,
                 randomize_on_given_state = None,
                 ee_in_contact = [],
-                apply_external_force = False,
                 nominal_flag = True,
                 replanning_point = 0,
                 nth_traj_per_replanning = 0):
@@ -279,7 +280,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
     mpc = LocomotionMPC(
             path_urdf=robot_desc.urdf_path,
             feet_frame_names=feet_frame_names,
-            robot_name=robot_name,
+            robot_name = robot_name,
             joint_ref=robot_desc.q0,
             interactive_goal=interactive,
             sim_dt=SIM_DT,
@@ -304,8 +305,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
     # initialize simulator
     sim = Simulator(robot_desc.xml_scene_path,
                     sim_dt=SIM_DT,
-                    viewer_dt=VIEWER_DT,
-                    apply_external_force=apply_external_force)
+                    viewer_dt=VIEWER_DT)
     
     sim.vs.track_obj = "base"
     # ======================================== Nullspace Randomization (have some bugs) ==================================================

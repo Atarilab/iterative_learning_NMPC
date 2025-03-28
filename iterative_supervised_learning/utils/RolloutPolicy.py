@@ -55,7 +55,9 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
-       
+    # get rid of phase percentage
+    return 0
+
     # for trot
     gait_period = 0.5
     if t < t0:

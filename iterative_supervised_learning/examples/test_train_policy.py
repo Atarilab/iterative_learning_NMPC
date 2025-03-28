@@ -119,17 +119,11 @@ class BehavioralCloning:
             #     test_loss = self.criterion(w_pred, w)
             #     valid_losses.append(test_loss.item())
             
-            train_loss_avg = np.mean(train_losses)
-            valid_loss_avg = np.mean(valid_losses)
-            
             # wandb log    
-            # wandb.log({
-            #     'Training Loss': np.mean(train_losses),
-            #     'Validation Loss': np.mean(valid_losses)
-            # })
-            
-            wandb.log({'Training Loss': train_loss_avg,
-                       'Validation Loss': valid_loss_avg})
+            wandb.log({
+                'Training Loss': np.mean(train_losses),
+                'Validation Loss': np.mean(valid_losses)
+            })
             
             if epoch % 10 == 0:
                 self.save_network(network, f"policy_{epoch}")
