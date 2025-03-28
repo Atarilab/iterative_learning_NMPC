@@ -116,19 +116,19 @@ class DataCollection():
         # input() 
         
         # extract nominal state on replanning points
+        print("loading nominal traj data from path = ")
+        print(record_path_nominal)
         data = np.load(record_path_nominal)
         state = data["state"]
         feet_pos = data["feet_pos_w"]
         
         nominal_v = data["v"]
         nominal_q = data["q"]
-        # print("shape of v is = ",np.shape(nominal_v))
-        # print("shape of q is = ",np.shape(nominal_q))
-        # print("shape of phase_percentage is = ", np.shape(phase_percentage) )
-        # input()
+        
         vc_goals = data["vc_goals"][0]
         cc_goals = None
         actions = data["ctrl"]
+        input()
         
         # rollout MPC at each replanning point
         for i_replanning in replanning_points:
