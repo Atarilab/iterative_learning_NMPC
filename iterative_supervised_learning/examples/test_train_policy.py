@@ -6,6 +6,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.serialization import add_safe_globals
 from omegaconf import OmegaConf
 
 import os
@@ -24,6 +25,7 @@ seed = 42
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
+# add_safe_globals([GoalConditionedPolicyNet])
 
 # Login to wandb
 wandb.login()
@@ -68,6 +70,7 @@ class BehavioralCloning:
         dataset_size = len(self.database)
         train_size = int(self.n_train_frac * dataset_size)
         test_size = dataset_size - train_size
+        print("whole dataset size = ", dataset_size)
         print("training dataset size = ",train_size)
         print("validation dataset size = ", test_size)
         print("learning rate = ", self.learning_rate)
@@ -136,9 +139,16 @@ class BehavioralCloning:
     
     def save_network(self, network, name):
         save_path = os.path.join(self.network_savepath, f"{name}.pth")
-        torch.save({'network': network.state_dict()}, save_path)
+        payload = {
+            'network_state_dict': network.state_dict(),
+            'norm_policy_input': None
+        }
+        if self.normalize_policy_input:
+            payload["norm_policy_input"] = self.mean_std
+            
+        torch.save(payload, save_path)
         print(f"Network saved at {save_path}")
-    
+
     def run(self):
         self.input_size = self.n_state
         self.output_size = self.n_action
@@ -157,10 +167,15 @@ class BehavioralCloning:
         #==================================================================================
         input()
         
+        # Load database
         self.database = Database(limit=self.cfg.database_size, norm_input=self.normalize_policy_input)
         filename = self.cfg.database_path
         self.database.load_saved_database(filename)
+        self.mean_std = self.database.get_database_mean_std()
+        # print(self.mean_std)
+        # input()
         
+        # Network saving
         self.network_savepath = os.path.join(os.path.dirname(filename), '../network')
         os.makedirs(self.network_savepath, exist_ok=True)
                 

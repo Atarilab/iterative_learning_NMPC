@@ -185,7 +185,6 @@ class PolicyController(Controller):
                  joint_name2act_id: Dict[str, int],
                  v_des: np.ndarray = np.array([0.3, 0.0, 0.0]), 
                  norm_policy_input: bool = False,
-                 database_path: str = "", 
                  device: str = "cpu",
                  mj_model = None,
                  start_time: float = 0.0,
@@ -196,11 +195,25 @@ class PolicyController(Controller):
         self.device = device
         self.policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=3,
                                                    hidden_dim=HIDDEN_DIM, batch_norm=True)
-        self.policy_net.load_state_dict(torch.load(policy_path, map_location=device)['network'])
+        
+        # Load saved state dict and normalization info
+        payload = torch.load(policy_path, map_location=device, weights_only = False)
+
+        # Reconstruct network architecture
+        self.policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action,
+                                                num_hidden_layer=3, hidden_dim=HIDDEN_DIM,
+                                                batch_norm=True)
+
+        self.policy_net.load_state_dict(payload['network_state_dict'])
         self.policy_net.to(device)
         self.policy_net.eval()
-        print("policy network is = ", self.policy_net)
-        
+
+        # Load normalization info
+        self.norm_policy_input = norm_policy_input
+        self.mean_std = None
+        if self.norm_policy_input:
+            self.mean_std = payload["norm_policy_input"]
+
         # initialization global variables
         self.joint_name2act_id = joint_name2act_id
         self.v_des = v_des
@@ -213,14 +226,6 @@ class PolicyController(Controller):
         # initialize robot description
         self.robot_name = "go2"
         self.mj_model = mj_model
-
-        # load data base and get mean & std
-        self.norm_policy_input = norm_policy_input
-        self.mean_std = None
-        if self.norm_policy_input and database_path:
-            db = Database(limit=10000000, norm_input=True)
-            db.load_saved_database(database_path)
-            self.mean_std = db.get_database_mean_std()
             
         # load reference data for comparing
         self.data_mpc = np.load(self.reference_path)
@@ -341,7 +346,6 @@ def rollout_policy(
     record_dir: str = "./data/",
     visualize: bool = True,
     norm_policy_input: bool = True,
-    database_path: str = "",
     initial_state = [],
     start_time: float = 0.0,
     data_MPC_path : str = ""
@@ -369,7 +373,6 @@ def rollout_policy(
         joint_name2act_id=joint_name2act_id,
         v_des=v_des,
         norm_policy_input=norm_policy_input,
-        database_path=database_path,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         mj_model=sim.mj_model,
         start_time = start_time,
@@ -400,22 +403,7 @@ if __name__ == '__main__':
     # TODO: maybe I can store the path in a config file so that I don't need to change everytime I want to do a test
     # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/working_policy/policy_200.pth"
     
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/network/policy_final.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/dataset/database_0.hdf5"
-    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_25_2025_14_20_24/dataset/experiment/simulation_data_03_25_2025_14_20_42.npz"
-    
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_10_07_47/network/policy_final.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_10_07_47/dataset/database_0.hdf5"
-    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_10_07_47/dataset/experiment/simulation_data_03_27_2025_10_07_54.npz"
-    # v_des = [0.3,0.0,0.0]
-    
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_13_14_23/network/policy_270.pth"
-    # database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_13_14_23/dataset/database_0.hdf5"
-    # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_13_14_23/dataset/experiment/traj_nominal_03_27_2025_13_14_28.npz"
-    # v_des = [0.15,0.0,0.0]
-    
     policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/network/policy_final.pth"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/dataset/database_0.hdf5"
     data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/dataset/experiment/traj_nominal_03_27_2025_14_12_25.npz"
     v_des = [0.3,0.0,0.0]
     
@@ -437,7 +425,6 @@ if __name__ == '__main__':
                    sim_time=5.0, 
                    v_des = v_des, 
                    record_video=False,
-                   database_path=database_path,
                    norm_policy_input=True,
                    save_data=False,
                    initial_state = initial_state,
