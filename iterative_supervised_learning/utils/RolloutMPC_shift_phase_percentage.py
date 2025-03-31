@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 import pinocchio as pin
 import numpy as np
 from mj_pin.abstract import VisualCallback, DataRecorder
@@ -107,7 +107,8 @@ class StateDataRecorder(DataRecorder):
                      "state":[],
                      "action":[],
                      "vc_goals":[],
-                     "cc_goals":[]}
+                     "cc_goals":[],
+                     "contact_vec":[]}
 
     def save(self) -> None:
         if not self.record_dir:
@@ -150,29 +151,30 @@ class StateDataRecorder(DataRecorder):
         
         for i, f_name in enumerate(self.feet_names):
             feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)
-            # print(f"{f_name} feet_pos = {feet_pos}")
-            if feet_pos[-1] <= 0.005:
-                ee_in_contact.append(f_name)
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]
         
-        # print("current ee_in_contact is = ")
-        # print(ee_in_contact)
-        # input()
-        
-        
-        # print("base_pos = ",q[:3])
-        # print("feet positions are = ",feet_pos_all)
-        
-        # print("shape of feet_pos_all is  = ", np.shape(feet_pos_all))
-        # input()
-        
-        # print("base_wrt_feet = ", base_wrt_feet)
-        # input()
         self.data["feet_pos_w"].append(np.array(feet_pos_all))
         
         # base with right to feet in world frame
         self.data["base_wrt_feet"].append(np.array(base_wrt_feet))
+        
+        geom_to_frame_name = {
+            20: "FL_foot",
+            32: "FR_foot",
+            44: "RL_foot",
+            56: "RR_foot"
+        }
+
+        ee_in_contact = get_feet_in_contact_by_id(mj_data, geom_to_frame_name)
+        
+        contact_vec = np.array([
+            int("FL_foot" in ee_in_contact),
+            int("FR_foot" in ee_in_contact),
+            int("RL_foot" in ee_in_contact),
+            int("RR_foot" in ee_in_contact)
+        ])
+        self.data["contact_vec"].append(contact_vec)
         
         ## form state variable
         # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
@@ -256,6 +258,31 @@ def rotate_jacobian(controller, jac, index):
     world_R_joint = pin.SE3(controller.pin_data.oMf[index].rotation, pin.utils.zero(3))
     return world_R_joint.action @ jac
 
+def get_feet_in_contact_by_id(mj_data, geom_to_frame_name: Dict[int, str], ground_geom_id: int = 0) -> List[str]:
+    """
+    Get the list of feet in contact, returning Pinocchio frame names (e.g., 'FL_foot').
+
+    Args:
+        mj_data: MuJoCo mjData.
+        geom_to_frame_name: Dictionary mapping geom_id (int) to Pinocchio frame name (str).
+        ground_geom_id (int): The geom ID of the ground.
+
+    Returns:
+        List[str]: Frame names of feet in contact (e.g., ['FL_foot', 'RR_foot']).
+    """
+    contact_feet = []
+
+    for i in range(mj_data.ncon):
+        contact = mj_data.contact[i]
+        g1, g2 = contact.geom1, contact.geom2
+
+        if g1 == ground_geom_id and g2 in geom_to_frame_name:
+            contact_feet.append(geom_to_frame_name[g2])
+        elif g2 == ground_geom_id and g1 in geom_to_frame_name:
+            contact_feet.append(geom_to_frame_name[g1])
+
+    return contact_feet
+
 def rollout_mpc_phase_percentage_shift(robot_name = "go2",
                 interactive = False,
                 v_des = [0.3,0,0],
@@ -327,36 +354,41 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         pin.computeJointJacobians(mpc.pin_model, mpc.pin_data, q_pin)
         pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,q_pin)
         
-        # find end-effector in contact from MPC contact planner
-        ee_in_contact = []
-        # Extract the contact plan
-        #==========================================================================
-        contact_plan = mpc.contact_planner.get_contacts(0, mpc.config_opt.n_nodes+1)
-        contact_plan = contact_plan[:,:int(gait_period/mpc.solver.dt_nodes)]
-        # print("Contact Plan:")
-        # print(contact_plan)
-        # print("shape of contact_plan is = ", np.shape(contact_plan))
-        # print(mpc.solver.dt_nodes)
-        # input()
-        #====================================================================
+        #=========================================================================
+        # # find end-effector in contact from MPC contact planner
+        # ee_in_contact = []
+        # # Extract the contact plan
+        # #==========================================================================
+        # contact_plan = mpc.contact_planner.get_contacts(0, mpc.config_opt.n_nodes+1)
+        # contact_plan = contact_plan[:,:int(gait_period/mpc.solver.dt_nodes)]
+        # # print("Contact Plan:")
+        # # print(contact_plan)
+        # # print("shape of contact_plan is = ", np.shape(contact_plan))
+        # # print(mpc.solver.dt_nodes)
+        # # input()
+        # #====================================================================
         
-        # extract current contact condition 
-        phase_percentage = nominal_state[-1]
-        phase_steps = contact_plan.shape[1]
-        phase_index = int(phase_percentage*phase_steps) % phase_steps
-        current_contact  = contact_plan[:,phase_index]
-        # Display the current contact status
-        print(f"Phase Percentage: {phase_percentage * 100:.1f}%")
-        print(f"Phase Index: {phase_index}")
-        print("Current Contact Condition (1 = Contact, 0 = Swing):")
-        print(f"FL_foot: {current_contact[0]}, FR_foot: {current_contact[1]}, RL_foot: {current_contact[2]}, RR_foot: {current_contact[3]}")
+        # # extract current contact condition 
+        # phase_percentage = nominal_state[-1]
+        # phase_steps = contact_plan.shape[1]
+        # phase_index = int(phase_percentage*phase_steps) % phase_steps
+        # current_contact  = contact_plan[:,phase_index]
+        # # Display the current contact status
+        # print(f"Phase Percentage: {phase_percentage * 100:.1f}%")
+        # print(f"Phase Index: {phase_index}")
+        # print("Current Contact Condition (1 = Contact, 0 = Swing):")
+        # print(f"FL_foot: {current_contact[0]}, FR_foot: {current_contact[1]}, RL_foot: {current_contact[2]}, RR_foot: {current_contact[3]}")
         
-        for ee in range(len(feet_frame_names)):
-            if current_contact[ee] == 1:
-                ee_in_contact.append(feet_frame_names[ee])
+        # for ee in range(len(feet_frame_names)):
+        #     if current_contact[ee] == 1:
+        #         ee_in_contact.append(feet_frame_names[ee])
         
-        print("current in contact ee FROM CONTACT PLANNER is  = ", ee_in_contact)
-        # input()
+        # print("current in contact ee FROM CONTACT PLANNER is  = ", ee_in_contact)
+        # # input()
+        
+        #=================================================================================
+        # get ee_contact from recordings
+        print(ee_in_contact)
         
         # initialize jacobian matrix
         cnt_jac = np.zeros((3*len(ee_in_contact),len(v_pin)))
