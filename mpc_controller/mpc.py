@@ -71,7 +71,9 @@ class LocomotionMPC(PinController):
         self.solver.dyn.update_pin(q0, v0)
 
         self.n_foot = len(feet_frame_names)
-        self._contact_planner_str = contact_planner 
+        self._contact_planner_str = contact_planner
+        # print("current contact planner in use is = ", contact_planner)
+        # input() 
 
         if contact_planner.lower() == "raibert":
             offset_hip_b = self.solver.dyn.get_feet_position_w()

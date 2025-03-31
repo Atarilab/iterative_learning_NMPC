@@ -5,7 +5,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import numpy as np
 from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/network/policy_final.pth"
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/network/policy_450.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
+# v_des = [0.15,0.0,0.0]
+
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
 v_des = [0.15,0.0,0.0]
 
@@ -24,9 +28,9 @@ initial_state = [q0,v0]
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=5.0, 
+                sim_time=6.0, 
                 v_des = v_des, 
-                record_video=False,
+                record_video=True,
                 norm_policy_input=True,
                 save_data=True,
                 initial_state = initial_state,

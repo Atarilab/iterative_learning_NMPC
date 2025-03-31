@@ -30,6 +30,10 @@ v_des = [0.30,0.0,0.0]
 # with base_wrt_feet
 n_state = 44
 
+def contact_vec_to_frame_names(contact_vec: np.ndarray) -> List[str]:
+    frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
+    return [frame_names[i] for i in range(len(frame_names)) if contact_vec[i] == 1]
+
 class DataCollection():
     def __init__(self, cfg):
         # initialize parameters from configuration
@@ -82,7 +86,7 @@ class DataCollection():
         os.makedirs(experiment_dir, exist_ok=True)
         
         # rollout nominal trajectory
-        _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=True,
+        _, record_path_nominal = rollout_mpc_phase_percentage_shift(show_plot=False,
                                         visualize= True,
                                         record_video = False,
                                         v_des = v_des,
@@ -128,6 +132,7 @@ class DataCollection():
         vc_goals = data["vc_goals"][0]
         cc_goals = None
         actions = data["ctrl"]
+        contact_vec = data["contact_vec"]
         # input()
         
         # rollout MPC at each replanning point
@@ -136,17 +141,22 @@ class DataCollection():
             
             q0 = nominal_q[i_replanning]
             v0 = nominal_v[i_replanning]
-            feet_pos_all = feet_pos[i_replanning]
-            print("four feet positions = ")
-            print(feet_pos_all)
             
-            ee_in_contact = []
-            for i,f_name in enumerate(self.feet_names):
-                feet_pos_current = feet_pos_all[3*i:3*i+3]
-                print("current feet name is = ", f_name)
-                print(feet_pos_current)
-                if feet_pos_current[-1] <= 0.005:
-                    ee_in_contact.append(f_name)
+            # # find ee_in_contact with feet position threshold
+            # feet_pos_all = feet_pos[i_replanning]
+            # print("four feet positions = ")
+            # print(feet_pos_all)
+            # ee_in_contact = []
+            # for i,f_name in enumerate(self.feet_names):
+            #     feet_pos_current = feet_pos_all[3*i:3*i+3]
+            #     print("current feet name is = ", f_name)
+            #     print(feet_pos_current)
+            #     if feet_pos_current[-1] <= 0.005:
+            #         ee_in_contact.append(f_name)
+            
+            # find ee_in_contact from recorded contact vec
+            current_contact_vec = contact_vec[i_replanning]
+            ee_in_contact = contact_vec_to_frame_names(current_contact_vec)
             
             print("print out replanning points")
             print("nominal q0 is = ", q0)

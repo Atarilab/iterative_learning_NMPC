@@ -6,7 +6,9 @@ visualize_length = 5000
 
 # Define realized trajectory file paths
 realized_traj_files = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_28_2025_15_23_23.npz"
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_31_2025_09_35_15.npz",
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/dataset/experiment/traj_200_4.npz",
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/dataset/experiment/traj_300_9.npz"
 ]
 
 # Load realized data from selected files (choose range a to b)
