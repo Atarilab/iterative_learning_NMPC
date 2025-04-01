@@ -388,6 +388,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         
         #=================================================================================
         # get ee_contact from recordings
+        print("ee in contact from MPC recordings")
         print(ee_in_contact)
         
         # initialize jacobian matrix
@@ -416,16 +417,18 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         min_ee_height = 0.0
         # NOTE: apply pertubation until no foot is below the ground
         while min_ee_height >= 0:
-            # perturbation_pos = np.concatenate(([0,0,np.random.uniform(-.2,.2)],\
-            #                                     np.random.uniform(-sigma_base_ori, sigma_base_ori, 3), \
-            #                                     np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin)-6)))
             perturbation_pos = np.concatenate((
                                             [0, 0, np.random.uniform(-0.2, 0.2)],  # Base position perturbation
-                                            np.where(np.random.rand(3) < 0.5, 
-                                                    np.random.uniform(-0.75, -0.65, 3), 
-                                                    np.random.uniform(0.65, 0.75, 3)),  # Base orientation perturbation
+                                            np.random.uniform(-0.25, 0.25, 3),  # Base orientation perturbation
                                             np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
                                             ))
+            # perturbation_pos = np.concatenate((
+            #                                 [0, 0, np.random.uniform(-0.2, 0.2)],  # Base position perturbation
+            #                                 np.where(np.random.rand(3) < 0.5, 
+            #                                         np.random.uniform(-0.75, -0.65, 3), 
+            #                                         np.random.uniform(0.65, 0.75, 3)),  # Base orientation perturbation
+            #                                 np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
+            #                                 ))
             # perturbation_pos = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
             #                                     np.random.normal(mu_base_ori, sigma_base_ori, 3), \
             #                                     np.random.normal(mu_joint_pos, sigma_joint_pos, len(v_pin)-6)))
@@ -437,9 +440,11 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
             else:
                 random_pos_vec = (np.identity(len(v_pin)) - np.linalg.pinv(cnt_jac)@\
                                         cnt_jac) @ perturbation_pos
-                jac_vel = cnt_jac_dot * perturbation_pos + cnt_jac * perturbation_vel
-                random_vel_vec = (np.identity(len(v_pin)) - np.linalg.pinv(jac_vel)@\
-                                        jac_vel) @ perturbation_pos
+                # jac_vel = cnt_jac_dot * perturbation_pos + cnt_jac * perturbation_vel
+                # random_vel_vec = (np.identity(len(v_pin)) - np.linalg.pinv(jac_vel)@\
+                #                         jac_vel) @ perturbation_pos
+                random_vel_vec = (np.identity(len(v_pin))  - np.linalg.pinv(cnt_jac) @ cnt_jac) @ perturbation_vel
+
             
             # add pertubation to nominal position and velocity (pin data form)
             new_v0 = v_pin + random_vel_vec

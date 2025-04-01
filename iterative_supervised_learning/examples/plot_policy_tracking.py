@@ -2,13 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Global variables
-visualize_length = 5000
+visualize_length = 8000
 
 # Define realized trajectory file paths
 realized_traj_files = [
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_31_2025_09_35_15.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/dataset/experiment/traj_200_4.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/dataset/experiment/traj_300_9.npz"
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_01_2025_18_07_59.npz"
 ]
 
 # Load realized data from selected files (choose range a to b)
@@ -31,7 +29,7 @@ realized_PD_targets = [data["action"][:visualize_length] for data in realized_da
 phase_percentage_his_list = [data["state"][:,0][:visualize_length] for data in realized_data]
 
 # Load MPC reference data
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
 data_MPC = np.load(data_MPC_path)
 
 time_his_MPC = data_MPC["time"][:visualize_length]
