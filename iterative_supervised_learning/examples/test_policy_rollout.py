@@ -9,14 +9,25 @@ from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
 # v_des = [0.15,0.0,0.0]
 
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/network/policy_final.pth"
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/network/policy_final.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
+# v_des = [0.15,0.0,0.0]
+
+# this works ok, config: no phase percentage, improved nullspace perturbation, 150000 data points
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_16_00_31/network/policy_400.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_16_00_31/dataset/experiment/traj_nominal_04_01_2025_16_00_34.npz"
+# v_des = [0.15,0.0,0.0]
+
+# survive for 8 seconds
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/network/policy_450.pth"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
 v_des = [0.15,0.0,0.0]
+
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
-# start_time = 0.1
 start_time = 0.0
+# start_time = 0.0
 q_MPC = data_MPC["q"]
 v_MPC = data_MPC["v"]
 
@@ -28,7 +39,7 @@ initial_state = [q0,v0]
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=6.0, 
+                sim_time=8.0, 
                 v_des = v_des, 
                 record_video=True,
                 norm_policy_input=True,

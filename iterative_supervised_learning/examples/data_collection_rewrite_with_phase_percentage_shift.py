@@ -24,8 +24,8 @@ SIM_DT = 0.001
 nq = 19
 nv = 17
 replan_freq = 50
-t0 = 0.1
-v_des = [0.30,0.0,0.0]
+t0 = 0.0
+v_des = [0.15,0.0,0.0]
 
 # with base_wrt_feet
 n_state = 44
@@ -90,7 +90,7 @@ class DataCollection():
                                         visualize= True,
                                         record_video = False,
                                         v_des = v_des,
-                                        sim_time=2.0,
+                                        sim_time=4.0,
                                         save_data=True,
                                         record_dir=experiment_dir,
                                         nominal_flag = True)
@@ -182,7 +182,7 @@ class DataCollection():
                 while True:
                     early_termination, record_path_replanning = rollout_mpc_phase_percentage_shift(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=v_des,
-                                                                            sim_time=1.5,
+                                                                            sim_time=2.0,
                                                                             current_time = current_time,
                                                                             show_plot = False,
                                                                             visualize = False,
