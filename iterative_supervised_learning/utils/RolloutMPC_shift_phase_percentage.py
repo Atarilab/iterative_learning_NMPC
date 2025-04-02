@@ -34,11 +34,11 @@ kd = 1.5
 mu_base_pos = 0.0
 sigma_base_pos = 0.1
 mu_joint_pos = 0.0
-sigma_joint_pos = 0.3
+sigma_joint_pos = 0.4
 mu_base_ori = 0.0
 sigma_base_ori = 0.7
 mu_vel = 0.0
-sigma_vel = 0.4
+sigma_vel = 2.5
 
 # VisualCallback
 class ReferenceVisualCallback(VisualCallback):
@@ -419,7 +419,7 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         while min_ee_height >= 0:
             perturbation_pos = np.concatenate((
                                             [0, 0, np.random.uniform(-0.2, 0.2)],  # Base position perturbation
-                                            np.random.uniform(-0.25, 0.25, 3),  # Base orientation perturbation
+                                            np.random.uniform(-0.3, 0.3, 3),  # Base orientation perturbation
                                             np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
                                             ))
             # perturbation_pos = np.concatenate((

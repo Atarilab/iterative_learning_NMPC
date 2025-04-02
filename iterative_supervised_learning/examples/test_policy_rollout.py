@@ -19,10 +19,19 @@ from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 # v_des = [0.15,0.0,0.0]
 
 # survive for 8 seconds
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/network/policy_450.pth"
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/network/policy_450.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
+# v_des = [0.15,0.0,0.0]
+
+# much smaller dataset can also train a working policy that survives 3s
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_13_34_41/network/policy_450.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_13_34_41/dataset/experiment/traj_nominal_04_02_2025_13_34_50.npz"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_14_35_45/dataset/experiment/traj_100_2.npz"
 v_des = [0.15,0.0,0.0]
 
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_14_52_53/network/policy_final.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_14_52_53/dataset/experiment/traj_nominal_04_02_2025_14_53_00.npz"
+# v_des = [0.15,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
@@ -39,11 +48,11 @@ initial_state = [q0,v0]
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=8.0, 
+                sim_time=10.0, 
                 v_des = v_des, 
                 record_video=True,
                 norm_policy_input=True,
-                save_data=True,
+                save_data=False,
                 initial_state = initial_state,
                 start_time = start_time,
                 data_MPC_path=data_MPC_path)
