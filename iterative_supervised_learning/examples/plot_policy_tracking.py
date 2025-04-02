@@ -2,13 +2,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Global variables
-visualize_length = 8000
+visualize_length = 5000
 
 # Define realized trajectory file paths
-realized_traj_files = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_01_2025_18_07_59.npz"
-]
+# realized_traj_files = [
+#     # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_01_2025_18_07_59.npz",
+#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_50_1.npz",
+#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_100_4.npz",
+#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_150_6.npz"
+    
+# ]
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
 
+realized_traj_files = [
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_10_39_28/dataset/experiment/traj_0_4.npz",
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_10_39_28/dataset/experiment/traj_50_6.npz",
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_10_39_28/dataset/experiment/traj_100_7.npz"
+]
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_10_39_28/dataset/experiment/traj_nominal_04_02_2025_10_39_33.npz"
 # Load realized data from selected files (choose range a to b)
 a, b = 0, 3  # Define your range here
 realized_data = [np.load(file) for file in realized_traj_files[a:b]]
@@ -29,7 +40,6 @@ realized_PD_targets = [data["action"][:visualize_length] for data in realized_da
 phase_percentage_his_list = [data["state"][:,0][:visualize_length] for data in realized_data]
 
 # Load MPC reference data
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
 data_MPC = np.load(data_MPC_path)
 
 time_his_MPC = data_MPC["time"][:visualize_length]
@@ -47,7 +57,7 @@ def plot_joint_tracking_multiple(realized_data_list, data_ref, phase_percentage_
     fig, axes = plt.subplots(4, 3, figsize=(15, 12))
     for i, ax in enumerate(axes.flat):
         for idx, data_real in enumerate(realized_data_list):
-            ax.plot(time_his_policies[idx], data_real[:, i], label=f"Realized {idx+1}", color=["blue", "black"][idx])
+            ax.plot(time_his_policies[idx], data_real[:, i], label=f"Realized {idx+1}", color=["blue", "black","green"][idx])
         ax.plot(time_his_MPC, data_ref[:, i], linestyle="--", label="Reference", color="red")
         for idx, phase in enumerate(phase_percentage_list):
             ax.plot(time_his_policies[idx], phase, linestyle="-", label=f'Phase {idx+1}', color="gray")
@@ -63,7 +73,7 @@ def plot_joint_tracking_multiple(realized_data_list, data_ref, phase_percentage_
     fig, axes = plt.subplots(4, 3, figsize=(15, 12))
     for i, ax in enumerate(axes.flat):
         for idx, data_real in enumerate(realized_data_list):
-            ax.plot(time_his_policies[idx], data_real[:, i], label=f"Realized {idx+1}", color=["blue", "black"][idx])
+            ax.plot(time_his_policies[idx], data_real[:, i], label=f"Realized {idx+1}", color=["blue", "black","green"][idx])
         ax.plot(time_his_MPC, data_ref[:, i], linestyle="--", label="Reference", color="red")
         
         if phase_percentage_list is not None:
