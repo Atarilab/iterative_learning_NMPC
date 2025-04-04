@@ -24,6 +24,7 @@ SIM_DT = 0.001
 nq = 19
 nv = 17
 replan_freq = 50
+# replan_freq = 100
 t0 = 0.0
 v_des = [0.15,0.0,0.0]
 
@@ -97,26 +98,26 @@ class DataCollection():
         
         # calculate replanning points
         # sample replanning points in one gait cycle
-        replanning_points = []
-        gait_period = 0.5
-        num_replanning = int(gait_period*1000/replan_freq)
-        start_timestep = t0*1000
-        for i in range(num_replanning):
-            next_replanning_point = int(i*replan_freq + start_timestep)
-            replanning_points.append(next_replanning_point)
-        print("Replanning points:", replanning_points)
-        # input()
-        
-        # # sample replanning points in n gait cycles
         # replanning_points = []
         # gait_period = 0.5
-        # n_gait_cycles = 4
-        # num_replanning = int(n_gait_cycles * gait_period * 1000 / replan_freq)
-        # start_timestep = int(t0 * 1000)
+        # num_replanning = int(gait_period*1000/replan_freq)
+        # start_timestep = t0*1000
         # for i in range(num_replanning):
-        #     next_replanning_point = int(i * replan_freq + start_timestep)
+        #     next_replanning_point = int(i*replan_freq + start_timestep)
         #     replanning_points.append(next_replanning_point)
         # print("Replanning points:", replanning_points)
+        # input()
+        
+        # sample replanning points in n gait cycles
+        replanning_points = []
+        gait_period = 0.5
+        n_gait_cycles = 2
+        num_replanning = int(n_gait_cycles * gait_period * 1000 / replan_freq)
+        start_timestep = int(t0 * 1000)
+        for i in range(num_replanning):
+            next_replanning_point = int(i * replan_freq + start_timestep)
+            replanning_points.append(next_replanning_point)
+        print("Replanning points:", replanning_points)
         # # input() 
         
         # extract nominal state on replanning points
@@ -182,7 +183,7 @@ class DataCollection():
                 while True:
                     early_termination, record_path_replanning = rollout_mpc_phase_percentage_shift(randomize_on_given_state=randomize_on_given_state, 
                                                                             v_des=v_des,
-                                                                            sim_time=5.0,
+                                                                            sim_time=2.0,
                                                                             current_time = current_time,
                                                                             show_plot = False,
                                                                             visualize = False,
