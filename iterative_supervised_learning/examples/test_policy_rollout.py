@@ -24,14 +24,22 @@ from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 # v_des = [0.15,0.0,0.0]
 
 # much smaller dataset can also train a working policy that survives 3s
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_13_34_41/network/policy_450.pth"
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_13_34_41/network/policy_450.pth"
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_13_34_41/dataset/experiment/traj_nominal_04_02_2025_13_34_50.npz"
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_14_35_45/dataset/experiment/traj_100_2.npz"
-v_des = [0.15,0.0,0.0]
+# v_des = [0.15,0.0,0.0]
 
 # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_14_52_53/network/policy_final.pth"
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_02_2025_14_52_53/dataset/experiment/traj_nominal_04_02_2025_14_53_00.npz"
 # v_des = [0.15,0.0,0.0]
+
+# replanning across 5 gait cycles
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_03_2025_10_51_25/network/policy_final.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_03_2025_10_51_25/dataset/experiment/traj_nominal_04_03_2025_10_51_31.npz"
+# v_des = [0.15,0.0,0.0]
+
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/network/policy_final.pth"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+v_des = [0.15,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
@@ -52,7 +60,7 @@ rollout_policy(policy_path,
                 v_des = v_des, 
                 record_video=True,
                 norm_policy_input=True,
-                save_data=False,
+                save_data=True,
                 initial_state = initial_state,
                 start_time = start_time,
                 data_MPC_path=data_MPC_path)

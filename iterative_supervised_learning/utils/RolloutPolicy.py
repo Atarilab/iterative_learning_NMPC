@@ -34,7 +34,8 @@ torch.manual_seed(seed)
 SIM_DT = 1.0e-3
 VIEWER_DT = 1/30.
 HIDDEN_DIM = 512
-t0 = 0.028
+# t0 = 0.028
+t0 = 0.0
 
 # with base_wrt_feet
 n_state = 44 # state:44 + vc_goal:3
@@ -55,8 +56,8 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
-    # get rid of phase percentage
-    return 0
+    # # get rid of phase percentage
+    # return 0
 
     # for trot
     gait_period = 0.5

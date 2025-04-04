@@ -19,8 +19,8 @@ VIEWER_DT = 1/30.
 gait_period = 0.5 # trotting
 
 # for phase percentage shift
-t0 = 0.028
-# t0 = 0.0
+# t0 = 0.028
+t0 = 0.0
 
 # with base_wrt_feet
 n_state = 44
@@ -34,11 +34,11 @@ kd = 1.5
 mu_base_pos = 0.0
 sigma_base_pos = 0.1
 mu_joint_pos = 0.0
-sigma_joint_pos = 0.4
+sigma_joint_pos = 0.5
 mu_base_ori = 0.0
 sigma_base_ori = 0.7
 mu_vel = 0.0
-sigma_vel = 2.5
+sigma_vel = 1.5
 
 # VisualCallback
 class ReferenceVisualCallback(VisualCallback):
@@ -180,7 +180,7 @@ class StateDataRecorder(DataRecorder):
         # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
         # if in replanning step, phase percentage is not starting from 0
         phase_percentage = np.round([get_phase_percentage(mj_data.time + self.current_time)], 4)
-        
+        # phase_percentage = np.round([get_phase_percentage(mj_data.time)], 4)
         #==========================================================================================
         # state with base_wrt_feet
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
@@ -236,13 +236,13 @@ def get_phase_percentage(t:int):
     # get rid of phase percentage
     return 0
        
-    # for trot
-    gait_period = 0.5
-    if t<t0:
-        return 0
-    else:
-        phi = ((t-t0) % gait_period)/gait_period
-        return phi
+    # # for trot
+    # gait_period = 0.5
+    # if t<t0:
+    #     return 0
+    # else:
+    #     phi = ((t-t0) % gait_period)/gait_period
+    #     return phi
 
 def rotate_jacobian(controller, jac, index):
     """change jacobian frame
