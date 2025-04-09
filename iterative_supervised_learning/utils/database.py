@@ -17,7 +17,9 @@ class Database():
         self.start = 0
         self.file = None
         self.mode = None
-        
+        self.traj_ids = [None for _ in range(self.limit)]      # e.g., "nominal", "perturbed_001"
+        self.traj_times = [None for _ in range(self.limit)]    # timestep within trajectory
+
         # database variables
         self.groups = ['states', 'vc_goals', 'cc_goals', 'actions']  # vc: velocity conditioned, cc: contact conditioned
         self.states = [None for _ in range(self.limit)]
@@ -101,7 +103,7 @@ class Database():
         print('goal type of database set to: ' + str(value))
         self.goal_type = value
 
-    def append(self, states, actions, vc_goals=None, cc_goals=None):
+    def append(self, states, actions, vc_goals=None, cc_goals=None,traj_id=None, times=None):
         """Append data to database
 
         Args:
@@ -141,6 +143,12 @@ class Database():
                 
             if cc_goals is not None:
                 self.cc_goals[data_index] = cc_goals[idx]
+                
+            # Store metadata
+            if traj_id is not None:
+                self.traj_ids[data_index] = traj_id[idx] 
+            if times is not None:
+                self.traj_times[data_index] = times[idx]
         
         # update mean and std
         self.calc_input_mean_std(vc_goal=vc_goals, cc_goal=cc_goals)
@@ -178,8 +186,21 @@ class Database():
                 print('Contact Constained goal not found in database') 
                 cc_goals = None   
             
-            # append data into database
-            self.append(states, actions, vc_goals=vc_goals, cc_goals=cc_goals)
+            try:
+                traj_ids = hf['traj_ids'][:]
+                traj_ids = traj_ids.astype(int).tolist()
+            except KeyError:
+                traj_ids = None
+
+            try:
+                traj_times = hf['traj_times'][:]
+            except KeyError:
+                traj_times = None
+
+            self.append(
+                states, actions, vc_goals=vc_goals, cc_goals=cc_goals,
+                traj_id=traj_ids, times=traj_times
+            )
         
         # calculate normalization parameters
         self.calc_input_mean_std(vc_goal=vc_goals, cc_goal=cc_goals)
@@ -249,3 +270,46 @@ class Database():
                 return None
         else:
             return None
+    
+    def save_as_npz(self, filename: str):
+        """Save the in-memory database to a compressed .npz file."""
+        np.savez(
+            filename,
+            states=np.array(self.states[:self.length]),
+            vc_goals=np.array(self.vc_goals[:self.length]),
+            cc_goals=np.array(self.cc_goals[:self.length]),
+            actions=np.array(self.actions[:self.length])
+        )
+        print(f"Saved OOD dataset to: {filename}")
+    
+    def load_from_npz(self, filename: str):
+        """
+        Load database contents from a compressed .npz file.
+        This method assigns the data, sets the length, and computes normalization.
+        """
+        data = np.load(filename)
+
+        # Check required fields
+        required_fields = ["states", "vc_goals", "cc_goals", "actions"]
+        for field in required_fields:
+            if field not in data:
+                raise ValueError(f"Missing field '{field}' in NPZ file.")
+
+        # Assign data
+        self.states = data["states"]
+        self.vc_goals = data["vc_goals"]
+        self.cc_goals = data["cc_goals"]
+        self.actions = data["actions"]
+        self.length = len(self.states)
+
+        # Ensure fields are truncated to length if needed (e.g., if stored as longer buffers)
+        self.states = self.states[:self.length]
+        self.vc_goals = self.vc_goals[:self.length]
+        self.cc_goals = self.cc_goals[:self.length]
+        self.actions = self.actions[:self.length]
+
+        # Compute normalization
+        self.calc_input_mean_std(vc_goal=self.vc_goals, cc_goal=self.cc_goals)
+
+        print(f"Successfully loaded {self.length} samples from {filename}")
+

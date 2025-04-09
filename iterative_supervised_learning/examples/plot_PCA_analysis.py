@@ -136,8 +136,9 @@ def plot_pca_with_policy_overlay_all(train_data_dict, policy_npz_path, title_pre
 
 ## Example usage
 # Set directory path and number of trajectories to visualize
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/to_be_visualized"
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment"
+# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment"
+data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_03_2025_12_20_02/dataset/experiment"
+# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_15_09_58/dataset/experiment"
 k_start = 0  # Number of trajectories to visualize
 k_end = None
 # Joint labels for visualization
@@ -201,8 +202,8 @@ combined_PD_target = np.vstack(combined_PD_target) if combined_PD_target else No
 
 # policy data overlay
 # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_04_2025_11_12_32.npz"
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_03_2025_11_12_31.npz"
-# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_03_2025_11_17_57.npz"
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_03_2025_11_12_31.npz"
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_03_2025_11_17_57.npz"
 train_data_dict = {
     'position': combined_position,
     'velocity': combined_velocity,
