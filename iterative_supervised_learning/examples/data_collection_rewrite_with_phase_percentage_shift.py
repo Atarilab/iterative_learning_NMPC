@@ -56,6 +56,10 @@ class DataCollection():
         self.database = Database(limit=cfg.database_size,norm_input=True)
         self.data_save_path = self._prepare_save_path()
         
+        # initialize ood database
+        self.ood_database = Database(limit=cfg.database_size, norm_input=True)
+
+        
     
     def _prepare_save_path(self):
         current_time = datetime.now().strftime("%b_%d_%Y_%H_%M_%S")
@@ -75,6 +79,15 @@ class DataCollection():
             hf.create_dataset('cc_goals', data=self.database.cc_goals[:data_len])
             hf.create_dataset('actions', data=self.database.actions[:data_len]) 
             
+            # Save metadata if it exists
+            if self.database.traj_ids[0] is not None:
+                traj_ids_array = np.array(self.database.traj_ids[:data_len], dtype='S')  # Store as fixed-length strings
+                hf.create_dataset('traj_ids', data=traj_ids_array)
+
+            if self.database.traj_times[0] is not None:
+                traj_times_array = np.array(self.database.traj_times[:data_len])
+                hf.create_dataset('traj_times', data=traj_times_array)
+        
         config_path = f"{self.data_save_path}/config.pkl"
         if not os.path.exists(config_path):
             with open(config_path, "wb") as f:
@@ -202,15 +215,49 @@ class DataCollection():
             file_path = os.path.join(experiment_dir, file_name)
             if file_name.endswith(".npz") and os.path.isfile(file_path):
                 print(f"Loading data from: {file_path}")
-            data = np.load(file_path)
-            self.database.append(
-                states = data["state"],
-                vc_goals = data["vc_goals"],
-                cc_goals = data["cc_goals"],
+                data = np.load(file_path)
+               
+                states = data["state"]
                 actions = data["action"]
-            )
-        
+                vc_goals = data["vc_goals"]
+                cc_goals = data["cc_goals"]
+                times = np.arange(len(states))  # time index within this trajectory
+
+                # Determine if it's nominal or perturbed
+                is_nominal = "nominal" in file_name.lower()
+                traj_id = 0 if is_nominal else 1
+                traj_ids = [traj_id] * len(states) # time index within this trajectory
+
+                self.database.append(
+                    states=states,
+                    actions=actions,
+                    vc_goals=vc_goals,
+                    cc_goals=cc_goals,
+                    traj_id=traj_ids,
+                    times=times
+                )
+
+                # If this is a *perturbed* trajectory (not nominal), store first 1000 steps to OOD db
+                if "nominal" not in file_name.lower():
+                    states = data["state"][:1000]
+                    vc_goals = data["vc_goals"][:1000]
+                    cc_goals = data["cc_goals"][:1000]
+                    actions = data["action"][:1000]
+
+                    self.ood_database.append(
+                        states=states,
+                        vc_goals=vc_goals,
+                        cc_goals=cc_goals,
+                        actions=actions
+                    )
+
+        # save training database
         self.save_dataset(iteration=0)
+        # save ood database
+        ood_save_path = os.path.join(self.data_save_path, "ood_val_data.npz")
+        self.ood_database.save_as_npz(ood_save_path)
+        print(f"OOD validation dataset saved to {ood_save_path}")
+
                 
 # Example usage with database
 @hydra.main(config_path='cfgs', config_name='data_collection_config.yaml',version_base="1.1")

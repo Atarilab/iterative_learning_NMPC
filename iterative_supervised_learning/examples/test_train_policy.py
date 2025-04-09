@@ -8,6 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.serialization import add_safe_globals
 from omegaconf import OmegaConf
+from torch.utils.data import WeightedRandomSampler
 
 import os
 import numpy as np
@@ -29,6 +30,15 @@ torch.manual_seed(seed)
 
 # Login to wandb
 wandb.login()
+
+def is_ood_index(database, i):
+    traj_id = database.traj_ids[i]
+    t = database.traj_times[i]
+    
+    # Consider it OOD if it's from a perturbed file and early in time
+    if traj_id==1 and t < 1000:
+        return True
+    return False
 
 
 class BehavioralCloning:
@@ -75,11 +85,30 @@ class BehavioralCloning:
         print("validation dataset size = ", test_size)
         print("learning rate = ", self.learning_rate)
         print("number of epochs = ", self.n_epoch)
-                
-        train_data, test_data = torch.utils.data.random_split(self.database, [train_size, test_size])
-        train_loader = DataLoader(train_data, self.batch_size, shuffle=True, drop_last=True)
-        test_loader = DataLoader(test_data, self.batch_size, shuffle=True, drop_last=True)
+        # implement weighted sample
+        weights = np.ones(len(self.database))
+        for i in range(len(weights)):
+            if is_ood_index(self.database, i):
+                weights[i] *= 5.0  # increase weight for OOD samples
+
+        # define ood validation dataset
+        ood_val_data = np.load(self.cfg.non_nominal_val_path)
+        print("Loaded keys from OOD .npz:", ood_val_data.files)
+        print("Shapes:")
+        for k in ['states', 'vc_goals', 'cc_goals', 'actions']:
+            print(f"{k}: {ood_val_data[k].shape}")
+
+        val_db = Database(limit=self.cfg.database_size, norm_input=self.normalize_policy_input)
+        val_db.load_from_npz(self.cfg.non_nominal_val_path)
+        val_db.set_goal_type('vc')
+
+
+        # train_data, test_data = torch.utils.data.random_split(self.database, [train_size, test_size])
+        # train_loader = DataLoader(train_data, self.batch_size, shuffle=True, drop_last=True)
+        # test_loader = DataLoader(test_data, self.batch_size, shuffle=True, drop_last=True)
         
+        train_loader = DataLoader(self.database, self.batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(val_db, self.batch_size, shuffle=True, drop_last=True)        
         optimizer = torch.optim.Adam(network.parameters(), lr=self.learning_rate)
         
         for epoch in tqdm(range(self.n_epoch)):

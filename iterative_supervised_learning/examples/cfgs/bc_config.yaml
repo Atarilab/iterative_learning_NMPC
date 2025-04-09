@@ -77,8 +77,8 @@ kd: 1.5
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/database_0.hdf5"
-
+database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_09_2025_14_55_40/dataset/database_0.hdf5"
+non_nominal_val_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_09_2025_14_55_40/dataset/ood_val_data.npz"
 #---------- Network parameters-------------
 num_hidden_layer: 3
 hidden_dim: 512
@@ -86,7 +86,7 @@ batch_norm: True
 goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint
 
 #---------- Training parameters-------------
-batch_size: 512
+batch_size: 1024
 learning_rate: 0.002
 n_epoch: 500 # default=150
 n_train_frac: 0.9 # fraction of the data used for training
