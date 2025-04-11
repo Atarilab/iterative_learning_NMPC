@@ -90,6 +90,8 @@ class BehavioralCloning:
         for i in range(len(weights)):
             if is_ood_index(self.database, i):
                 weights[i] *= 5.0  # increase weight for OOD samples
+        weights_tensor = torch.DoubleTensor(weights)
+        sampler = WeightedRandomSampler(weights_tensor, num_samples=len(weights), replacement=True)
 
         # define ood validation dataset
         ood_val_data = np.load(self.cfg.non_nominal_val_path)
@@ -107,7 +109,12 @@ class BehavioralCloning:
         # train_loader = DataLoader(train_data, self.batch_size, shuffle=True, drop_last=True)
         # test_loader = DataLoader(test_data, self.batch_size, shuffle=True, drop_last=True)
         
-        train_loader = DataLoader(self.database, self.batch_size, shuffle=True, drop_last=True)
+        train_loader = DataLoader(
+            self.database,
+            batch_size=self.batch_size,
+            sampler=sampler,
+            drop_last=True
+        )
         test_loader = DataLoader(val_db, self.batch_size, shuffle=True, drop_last=True)        
         optimizer = torch.optim.Adam(network.parameters(), lr=self.learning_rate)
         
