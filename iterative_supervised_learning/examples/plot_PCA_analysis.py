@@ -173,7 +173,7 @@ def plot_pca_state_action_overlay(train_state_action, policy_npz_path, title="PC
 # data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_10_2025_09_33_49/dataset/experiment"
 
 # dataset that gives me the best policy
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_11_2025_13_46_49/dataset/experiment"
+data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_14_2025_19_20_40/dataset/experiment"
 k_start = 0  # Number of trajectories to visualize
 k_end = None
 # Joint labels for visualization
@@ -244,7 +244,7 @@ combined_state_action = np.vstack(combined_state_action)
 
 # policy data overlay
 # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_11_2025_12_48_57.npz"
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_11_2025_14_31_38.npz"
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_14_2025_19_49_27.npz"
 train_data_dict = {
     'position': combined_position,
     'velocity': combined_velocity,

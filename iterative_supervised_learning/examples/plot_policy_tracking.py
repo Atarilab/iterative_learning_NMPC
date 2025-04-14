@@ -6,10 +6,7 @@ visualize_length = 5000
 
 # Define realized trajectory file paths
 realized_traj_files = [
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_01_2025_18_07_59.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_50_1.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_100_4.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_150_6.npz"
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_14_2025_20_17_56.npz"
     
 ]
 data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_nominal_04_01_2025_17_30_58.npz"
