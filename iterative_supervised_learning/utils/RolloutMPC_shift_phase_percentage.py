@@ -412,60 +412,136 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
             # print("cnt_jac = ", cnt_jac)
             # print("cnt_jac_dot = ", cnt_jac_dot)
             # input()
-                    
-        # apply pertubation
-        min_ee_height = 0.0
-        # NOTE: apply pertubation until no foot is below the ground
-        while min_ee_height >= 0:
-            perturbation_pos = np.concatenate((
-                                            [0, 0, np.random.uniform(-0.2, 0.2)],  # Base position perturbation
-                                            np.random.uniform(-0.3, 0.3, 3),  # Base orientation perturbation
-                                            np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
-                                            ))
-            # perturbation_pos = np.concatenate((
-            #                                 [0, 0, np.random.uniform(-0.2, 0.2)],  # Base position perturbation
-            #                                 np.where(np.random.rand(3) < 0.5, 
-            #                                         np.random.uniform(-0.75, -0.65, 3), 
-            #                                         np.random.uniform(0.65, 0.75, 3)),  # Base orientation perturbation
-            #                                 np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
-            #                                 ))
-            # perturbation_pos = np.concatenate((np.random.normal(mu_base_pos, sigma_base_pos, 3),\
-            #                                     np.random.normal(mu_base_ori, sigma_base_ori, 3), \
-            #                                     np.random.normal(mu_joint_pos, sigma_joint_pos, len(v_pin)-6)))
-            perturbation_vel = np.random.uniform(-sigma_vel, sigma_vel, len(v_pin))
+#================================================================================================================================================================                  
+        # # apply pertubation
+        # min_ee_height = 0.0
+        # # NOTE: apply pertubation until no foot is below the ground
+        # while min_ee_height >= 0:
+        #     perturbation_pos = np.concatenate((
+        #                                     [0, 0, np.random.uniform(-0.1, 0.1)],  # Base position perturbation
+        #                                     np.random.uniform(-0.15, 0.15, 3),  # Base orientation perturbation
+        #                                     np.random.uniform(-sigma_joint_pos, sigma_joint_pos, len(v_pin) - 6)  # Joint position perturbation
+        #                                     ))
+        #     perturbation_vel = np.random.uniform(-sigma_vel, sigma_vel, len(v_pin))
             
-            if ee_in_contact == []:
-                random_pos_vec = perturbation_pos
-                random_vel_vec = perturbation_vel
-            else:
-                random_pos_vec = (np.identity(len(v_pin)) - np.linalg.pinv(cnt_jac)@\
-                                        cnt_jac) @ perturbation_pos
-                # jac_vel = cnt_jac_dot * perturbation_pos + cnt_jac * perturbation_vel
-                # random_vel_vec = (np.identity(len(v_pin)) - np.linalg.pinv(jac_vel)@\
-                #                         jac_vel) @ perturbation_pos
-                random_vel_vec = (np.identity(len(v_pin))  - np.linalg.pinv(cnt_jac) @ cnt_jac) @ perturbation_vel
+        #     if ee_in_contact == []:
+        #         random_pos_vec = perturbation_pos
+        #         random_vel_vec = perturbation_vel
+        #     else:
+        #         random_pos_vec = (np.identity(len(v_pin)) - np.linalg.pinv(cnt_jac)@\
+        #                                 cnt_jac) @ perturbation_pos
+        #         # jac_vel = cnt_jac_dot * perturbation_pos + cnt_jac * perturbation_vel
+        #         # random_vel_vec = (np.identity(len(v_pin)) - np.linalg.pinv(jac_vel)@\
+        #         #                         jac_vel) @ perturbation_pos
+        #         random_vel_vec = (np.identity(len(v_pin))  - np.linalg.pinv(cnt_jac) @ cnt_jac) @ perturbation_vel
 
             
-            # add pertubation to nominal position and velocity (pin data form)
-            new_v0 = v_pin + random_vel_vec
-            new_q0 = pin.integrate(mpc.pin_model, q_pin, random_pos_vec)
-            # print("perturbed nominal position q is = ")
-            # print(new_q0)
-            # print("perturbed nominal velocity v is = ")
-            # print(new_v0)
+        #     # add pertubation to nominal position and velocity (pin data form)
+        #     new_v0 = v_pin + random_vel_vec
+        #     new_q0 = pin.integrate(mpc.pin_model, q_pin, random_pos_vec)
+        #     # print("perturbed nominal position q is = ")
+        #     # print(new_q0)
+        #     # print("perturbed nominal velocity v is = ")
+        #     # print(new_v0)
             
             
-            # check if the swing foot is below the ground
-            pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,new_q0)
-            ee_below_ground = []
+        #     # check if the swing foot is below the ground
+        #     pin.framesForwardKinematics(mpc.pin_model,mpc.pin_data,new_q0)
+        #     ee_below_ground = []
+        #     for e in range(len(feet_frame_names)):
+        #         frame_id = mpc.pin_model.getFrameId(feet_frame_names[e])
+        #         if mpc.pin_data.oMf[frame_id].translation[2] < 0.:
+        #             ee_below_ground.append(feet_frame_names[e])
+        #     if ee_below_ground == []:
+        #         print("found a feasible initial condition for rollout")
+        #         min_ee_height = -1.
+ #=================================================================================================================================           
+        # ==== Proper nullspace projection perturbation sampler ====
+        MAX_ATTEMPTS = 100
+        attempts = 0
+        found_feasible = False
+
+        z_base_range = 0.15
+        ori_range = np.array([0.1, 0.1, 0.25])  # roll, pitch, yaw (rad)
+        joint_pos_range = 0.3
+        joint_vel_range = 2.0
+        min_swing_clearance = 0.02  # 2cm above ground
+
+        n = len(v_pin)
+
+        while not found_feasible and attempts < MAX_ATTEMPTS:
+            attempts += 1
+
+            # Sample unconstrained perturbations (δq, δv)
+            delta_q = np.concatenate((
+                [0, 0, np.random.uniform(-z_base_range, z_base_range)],
+                np.random.uniform(-ori_range, ori_range),
+                np.random.uniform(-joint_pos_range, joint_pos_range, n - 6)
+            ))
+
+            delta_v = np.random.uniform(-joint_vel_range, joint_vel_range, n)
+
+            if ee_in_contact == []:
+                # No contact constraints — use as-is
+                delta_qc = delta_q
+                delta_vc = delta_v
+            else:
+                # Build nullspace projection: full state constraint [δq; δv]
+                Jc = cnt_jac  # shape: (3*num_contacts, n)
+                Ac = np.block([
+                    [Jc, np.zeros_like(Jc)],
+                    [cnt_jac_dot, Jc]
+                ])  # shape: (6*num_contacts, 2n)
+
+                delta = np.concatenate([delta_q, delta_v])  # shape: (2n,)
+                I = np.eye(2 * n)
+                nullspace_projector = I - np.linalg.pinv(Ac) @ Ac
+                delta_proj = nullspace_projector @ delta
+
+                # Extract projected δq and δv
+                delta_qc = delta_proj[:n]
+                delta_vc = delta_proj[n:]
+
+            # Apply to nominal state
+            new_q0 = pin.integrate(mpc.pin_model, q_pin, delta_qc)
+            new_v0 = v_pin + delta_vc
+
+            # Check swing foot clearance AND stance foot contact
+            pin.framesForwardKinematics(mpc.pin_model, mpc.pin_data, new_q0)
+
+            swing_feet_clear = True
+            contact_feet_valid = True
+            contact_tolerance = 0.03  # 1 cm tolerance for contact feet
+
             for e in range(len(feet_frame_names)):
                 frame_id = mpc.pin_model.getFrameId(feet_frame_names[e])
-                if mpc.pin_data.oMf[frame_id].translation[2] < 0.:
-                    ee_below_ground.append(feet_frame_names[e])
-            if ee_below_ground == []:
-                print("found a feasible initial condition for rollout")
-                min_ee_height = -1.
-            
+                z = mpc.pin_data.oMf[frame_id].translation[2]
+
+                if feet_frame_names[e] not in ee_in_contact:
+                    # Swing foot must be above ground
+                    if z < min_swing_clearance:
+                        swing_feet_clear = False
+                        break
+                else:
+                    # Contact foot must be close to ground
+                    if abs(z) > contact_tolerance:
+                        contact_feet_valid = False
+                        break
+
+            if swing_feet_clear and contact_feet_valid:
+                print(f"✅ Feasible perturbation found after {attempts} tries.")
+                found_feasible = True
+            else:
+                reason = "swing too low" if not swing_feet_clear else "contact foot off ground"
+                print(f"⚠️  Rejecting sample #{attempts} — {reason}.")
+
+
+        if not found_feasible:
+            print("❌ Could not find feasible perturbation after max attempts.")
+            new_q0 = q_pin
+            new_v0 = v_pin
+
+        
         # update pin model from perturbed state
         pin.forwardKinematics(mpc.pin_model,mpc.pin_data,q_pin,v_pin)
         pin.updateFramePlacements(mpc.pin_model,mpc.pin_data)
@@ -474,7 +550,6 @@ def rollout_mpc_phase_percentage_shift(robot_name = "go2",
         # ready to initialize mujoco model from perturbed state 
         q_mj, v_mj = mpc.solver.dyn.convert_to_mujoco(new_q0,new_v0)
         # input()
-    
     else:
         # starting from default state(q,v)
         # get default position and velocity

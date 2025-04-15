@@ -47,6 +47,24 @@ n_action = 12
 kp = 20.0
 kd = 1.5
 
+# Define joint limits (same as training bounds)
+ACTION_LOWER_BOUND = np.array([
+    -0.3525,  0.7601, -2.6448,
+    -0.1028,  0.7304, -2.6479,
+    -0.3680,  0.4636, -2.6051,
+    -0.0686,  0.4897, -2.5900
+])
+
+ACTION_UPPER_BOUND = np.array([
+     0.1015,  1.3639, -0.8029,
+     0.3631,  1.3506, -0.7623,
+     0.0669,  1.2999, -0.4892,
+     0.3810,  1.3099, -0.5059
+])
+ACTION_LOWER_BOUND -= 0.05
+ACTION_UPPER_BOUND += 0.05
+
+
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
 
@@ -288,6 +306,8 @@ class PolicyController(Controller):
             y_tensor = self.policy_net(x_tensor)
 
         action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+        # Clamp the action to joint limits
+        # action_policy = np.clip(action_policy, ACTION_LOWER_BOUND, ACTION_UPPER_BOUND)
 
         print()
         print("Policy generated PD target is = ", action_policy)

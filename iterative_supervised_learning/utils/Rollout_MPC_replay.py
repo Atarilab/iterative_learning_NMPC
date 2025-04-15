@@ -204,7 +204,6 @@ class ReplayController(Controller):
         
         # direct apply torque from file
         tau_frflrrrl_MPC = self.ctrl_history[self.ctrl_index]
-        self.ctrl_index += 1
         FR_torque = tau_frflrrrl_MPC[0:3]
         FL_torque = tau_frflrrrl_MPC[3:6]
         RR_torque = tau_frflrrrl_MPC[6:9]
@@ -212,10 +211,15 @@ class ReplayController(Controller):
         tau_flfrrlrr_direct = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
         
         # apply PD target from file and calculate torque to replay
-        
+        pd_target = self.action_history[self.ctrl_index]
+        q = mj_data.qpos.copy()
+        v = mj_data.qvel.copy()
+        tau_from_PD_target = kp * (pd_target - q[7:]) - kd * v[6:]  # PD control
+        self.ctrl_index += 1
         # copy torque to mj_data
         self.torques_dof = np.zeros(self.nu)
-        self.torques_dof[-12:] = tau_flfrrlrr_direct
+        # self.torques_dof[-12:] = tau_flfrrlrr_direct
+        self.torques_dof[-12:] = tau_from_PD_target
         
         # for debugging
         print(f"current time {self.ctrl_index * SIM_DT}: Applied control torques (high precision): {self.torques_dof}")
@@ -282,10 +286,10 @@ def rollout_replay(
 
 if __name__ == '__main__':
     # define the MPC recording you want to replay
-    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
+    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/example_traj_smoothed.npz"
     rollout_replay(
         data_path = data_path,
-        sim_time = 1.5,
+        sim_time = 4.0,
         v_des = [0.15,0.0,0.0],
         save_data=True,
         start_time=0.0)

@@ -77,8 +77,8 @@ kd: 1.5
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_09_2025_14_55_40/dataset/database_0.hdf5"
-non_nominal_val_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_09_2025_14_55_40/dataset/ood_val_data.npz"
+database_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_15_2025_10_21_38/dataset/database_0.hdf5"
+non_nominal_val_path: "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_15_2025_10_21_38/dataset/ood_val_data.npz"
 #---------- Network parameters-------------
 num_hidden_layer: 3
 hidden_dim: 512

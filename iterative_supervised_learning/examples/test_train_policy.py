@@ -89,7 +89,7 @@ class BehavioralCloning:
         weights = np.ones(len(self.database))
         for i in range(len(weights)):
             if is_ood_index(self.database, i):
-                weights[i] *= 5.0  # increase weight for OOD samples
+                weights[i] *= 2.0  # increase weight for OOD samples
         weights_tensor = torch.DoubleTensor(weights)
         sampler = WeightedRandomSampler(weights_tensor, num_samples=len(weights), replacement=True)
 
