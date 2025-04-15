@@ -162,6 +162,10 @@ class LocomotionMPC(PinController):
         if reset_solver:
             self.solver.reset()
         
+        q0, v0 = np.zeros(self.nq), np.zeros(self.nv)
+        q0[-self.nu:] = self.joint_ref
+        self.solver.dyn.update_pin(q0, v0)
+
         # Counter variables and flags
         self.first_solve : bool = True
         self.diverged : bool = False
@@ -721,5 +725,9 @@ class LocomotionMPC(PinController):
         print_timings(self.solver.timings)
 
     def __del__(self):
-        if self.executor: self.executor.shutdown(wait=False, cancel_futures=self.optimize_future.running())
+        if self.executor:
+            self.executor.shutdown(wait=True, cancel_futures=True)
+            self.executor.shutdown(wait=True, cancel_futures=True)
+            time.sleep(0.1)
+            self.executor.shutdown(wait=False, cancel_futures=self.optimize_future.running())
         if self.velocity_goal: self.velocity_goal._stop_update_thread()

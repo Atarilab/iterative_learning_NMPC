@@ -64,7 +64,10 @@ class MPCOptConfig():
     hpipm_mode : HPIPM_MODE = HPIPM_MODE.speed
     # use_cython in the solver solver
     use_cython: bool = False
-
+    # Torque limit
+    torque_limit: bool = True
+    # Friction coefficient
+    mu: float = 0.7
     # Outer loop SQP tolerance
     nlp_tol: float = 1.e-1
     # Inner loop interior point method tolerance
@@ -72,6 +75,7 @@ class MPCOptConfig():
 
     def __post_init__(self):
         assert len(self.opt_dt_scale) == 2, "opt_dt_scale must be of shape 2"
+        assert self.mu > 0, "Friction coefficient must be positive"
 
     def get_dt_bounds(self) -> Tuple[float, float]:
         """
