@@ -45,13 +45,18 @@ from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_10_2025_09_33_49/dataset/experiment/traj_nominal_04_10_2025_09_33_56.npz"
 # v_des = [0.15,0.0,0.0]
 
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_15_2025_10_21_38/network/policy_300.pth"
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_15_2025_10_21_38/dataset/experiment/traj_nominal_04_15_2025_10_21_45.npz"
+# force perturbation
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/network/policy_400.pth"
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 v_des = [0.15,0.0,0.0]
+
+# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/network/policy_400.pth"
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment/traj_nominal_04_16_2025_15_57_09.npz"
+# v_des = [0.15,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
-start_time = 0.6
+start_time = 2.0
 # start_time = 0.0
 q_MPC = data_MPC["q"]
 v_MPC = data_MPC["v"]

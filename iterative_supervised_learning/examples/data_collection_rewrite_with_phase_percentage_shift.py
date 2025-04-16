@@ -104,22 +104,22 @@ class DataCollection():
                                         visualize= True,
                                         record_video = False,
                                         v_des = v_des,
-                                        sim_time=4.0,
+                                        sim_time=8.0,
                                         save_data=True,
                                         record_dir=experiment_dir,
                                         nominal_flag = True)
         
         # calculate replanning points
-        # sample replanning points in one gait cycle
-        replanning_points = []
-        gait_period = 0.5
-        num_replanning = int(gait_period*1000/replan_freq)
-        start_timestep = t0*1000
-        for i in range(num_replanning):
-            next_replanning_point = int(i*replan_freq + start_timestep)
-            replanning_points.append(next_replanning_point)
-        print("Replanning points:", replanning_points)
-        input()
+        # # sample replanning points in one gait cycle
+        # replanning_points = []
+        # gait_period = 0.5
+        # num_replanning = int(gait_period*1000/replan_freq)
+        # start_timestep = t0*1000
+        # for i in range(num_replanning):
+        #     next_replanning_point = int(i*replan_freq + start_timestep)
+        #     replanning_points.append(next_replanning_point)
+        # print("Replanning points:", replanning_points)
+        # input()
         
         # sample replanning points in n gait cycles
         # replanning_points = []
@@ -133,30 +133,31 @@ class DataCollection():
         # print("Replanning points:", replanning_points)
         # input() 
         
-        # # sample replanning points at [1:1+n1] and [k:k+n2] gait cycles
-        # replanning_points = []
-        # gait_period = 0.5  # in seconds
-        # k = 6              # start of second interval (in gait cycles)
-        # n1 = 1             # number of gait cycles in first interval
-        # n2 = 1             # number of gait cycles in second interval
-        # replan_freq = 50   # replanning frequency (Hz)
-        # SIM_DT = 0.001     # simulation timestep
+        # sample replanning points at [1:1+n1] and [k:k+n2] gait cycles
+        replanning_points = []
+        gait_period = 0.5  # in seconds
+        k1 = 6             # start of first interval  
+        k2 = 10            # start of second interval (in gait cycles)
+        n1 = 1             # number of gait cycles in first interval
+        n2 = 1             # number of gait cycles in second interval
+        replan_freq = 50   # replanning frequency (Hz)
+        SIM_DT = 0.001     # simulation timestep
 
-        # # Convert gait cycle to time and then to steps
-        # # Interval 1: [1 : 1 + n1]
-        # # start_1 = int((1 * gait_period) * 1000)
-        # start_1 = 0
-        # end_1 = int(n1 * gait_period * 1000)
-        # for t in range(start_1, end_1, replan_freq):
-        #     replanning_points.append(t)
+        # Convert gait cycle to time and then to steps
+        # Interval 1: [1 : 1 + n1]
+        # start_1 = int((1 * gait_period) * 1000)
+        start_1 = int((k1 * gait_period) * 1000)
+        end_1 = int((k1 + n2) * gait_period * 1000)
+        for t in range(start_1, end_1, replan_freq):
+            replanning_points.append(t)
 
-        # # Interval 2: [k : k + n2]
-        # start_2 = int((k * gait_period) * 1000)
-        # end_2 = int((k + n2) * gait_period * 1000)
-        # for t in range(start_2, end_2, replan_freq):
-        #     replanning_points.append(t)
+        # Interval 2: [k : k + n2]
+        start_2 = int((k2 * gait_period) * 1000)
+        end_2 = int((k2 + n2) * gait_period * 1000)
+        for t in range(start_2, end_2, replan_freq):
+            replanning_points.append(t)
 
-        # print("Replanning points:", replanning_points)
+        print("Replanning points:", replanning_points)
 
         
         # extract nominal state on replanning points
@@ -225,7 +226,7 @@ class DataCollection():
                                                                             sim_time=2.0,
                                                                             current_time = current_time,
                                                                             show_plot = False,
-                                                                            visualize = True,
+                                                                            visualize = False,
                                                                             record_video = True,
                                                                             save_data = True,
                                                                             record_dir = experiment_dir,
