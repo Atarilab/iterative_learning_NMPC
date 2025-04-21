@@ -31,7 +31,46 @@ torch.manual_seed(seed)
 # Login to wandb
 wandb.login()
 
-def is_ood_index(database, i):
+def is_ood_index_l2_distance(database, i, distance_threshold=4.0, state_mask=None):
+    """
+    Determine if a sample is OOD based on L2 distance from nominal trajectory at the same timestep.
+    
+    Args:
+        database: your custom Database object
+        i: index of the sample in the database
+        distance_threshold: L2 distance threshold for being considered OOD
+        state_mask: optional mask over state dimensions (e.g., exclude phase %, use only q/v)
+
+    Returns:
+        bool: True if OOD, False otherwise
+    """
+    traj_id = database.traj_ids[i]
+    t = database.traj_times[i]
+
+    if traj_id != 1:
+        return False  # Only check perturbed samples
+
+    # Get perturbed sample
+    s_pert = database.states[i]
+
+    # Find corresponding nominal sample (assumed at same timestep)
+    try:
+        j = database.traj_ids.index(0, t)  # nominal sample with same timestep
+        s_nom = database.states[j]
+    except ValueError:
+        return False  # fallback if nominal sample not found at that time
+
+    # Apply optional state mask
+    if state_mask is not None:
+        s_pert = s_pert[state_mask]
+        s_nom = s_nom[state_mask]
+
+    # Compute distance
+    dist = np.linalg.norm(s_nom - s_pert)
+    return dist > distance_threshold
+
+
+def is_ood_index_dummy(database, i):
     traj_id = database.traj_ids[i]
     t = database.traj_times[i]
     
@@ -88,8 +127,9 @@ class BehavioralCloning:
         # implement weighted sample
         weights = np.ones(len(self.database))
         for i in range(len(weights)):
-            if is_ood_index(self.database, i):
-                weights[i] *= 2.0  # increase weight for OOD samples
+            # if is_ood_index_dummy(self.database, i):
+            if is_ood_index_l2_distance(self.database, i):
+                weights[i] *= 5.0  # increase weight for OOD samples
         weights_tensor = torch.DoubleTensor(weights)
         sampler = WeightedRandomSampler(weights_tensor, num_samples=len(weights), replacement=True)
 

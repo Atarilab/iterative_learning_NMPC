@@ -292,7 +292,7 @@ combined_state_action = np.vstack(combined_state_action)
 
 # policy data overlay
 # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_11_2025_12_48_57.npz"
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment/traj_nominal_04_16_2025_15_57_09.npz"
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_31_42.npz"
 train_data_dict = {
     'position': combined_position,
     'velocity': combined_velocity,

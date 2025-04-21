@@ -27,6 +27,51 @@ t0 = 0.0
 v_des = [0.15, 0.0, 0.0]
 n_state = 44
 
+def save_ood_val_set_dummy(self, experiment_dir, states, vc_goals, cc_goals, actions, data):
+    if "nominal" not in data.filename.lower():
+        self.ood_database.append(
+            states=states[:1000],
+            vc_goals=vc_goals[:1000],
+            cc_goals=cc_goals[:1000],
+            actions=actions[:1000]
+        )
+
+def save_ood_val_set_l2_distance(self, experiment_dir, states, vc_goals, cc_goals, actions, data, distance_threshold=4.0):
+    if "nominal" in data.filename.lower():
+        return
+
+    # Load nominal trajectory once
+    nominal_file = [f for f in os.listdir(experiment_dir) if "nominal" in f.lower()][0]
+    nominal_path = os.path.join(experiment_dir, nominal_file)
+    nominal_data = np.load(nominal_path)
+
+    # Build nominal state dict by time
+    nominal_states_by_time = {
+        round(t, 4): s for t, s in zip(nominal_data["time"], nominal_data["state"])
+    }
+
+    # Filter and save OOD samples by distance
+    for idx in range(len(states)):
+        t = round(data["time"][idx], 4)
+        s_pert = states[idx]
+
+        if t in nominal_states_by_time:
+            s_nom = nominal_states_by_time[t]
+
+            # Optional: ignore phase percentage (index 0)
+            s_pert_vec = s_pert[1:]
+            s_nom_vec = s_nom[1:]
+            dist = np.linalg.norm(s_pert_vec - s_nom_vec)
+
+            if dist > distance_threshold:
+                self.ood_database.append(
+                    states=[s_pert],
+                    vc_goals=[vc_goals[idx]],
+                    cc_goals=[cc_goals[idx]],
+                    actions=[actions[idx]]
+                )
+
+
 def contact_vec_to_frame_names(contact_vec: np.ndarray) -> List[str]:
     frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
     return [frame_names[i] for i in range(len(frame_names)) if contact_vec[i] == 1]
@@ -186,12 +231,8 @@ class DataCollection():
                 )
 
                 if "nominal" not in file_name.lower():
-                    self.ood_database.append(
-                        states=states[:1000],
-                        vc_goals=vc_goals[:1000],
-                        cc_goals=cc_goals[:1000],
-                        actions=actions[:1000]
-                    )
+                    save_ood_val_set_dummy(experiment_dir, states, vc_goals, cc_goals, actions, data)
+                    # save_ood_val_set_l2_distance(experiment_dir, states, vc_goals, cc_goals, actions, data, distance_threshold=4.0)
 
         self.save_dataset(iteration=0)
         ood_save_path = os.path.join(self.data_save_path, "ood_val_data.npz")

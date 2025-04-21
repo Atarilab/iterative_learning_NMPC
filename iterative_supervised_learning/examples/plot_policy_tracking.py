@@ -2,11 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Global variables
-visualize_length = 8000
+visualize_length = 10000
 
 # Define realized trajectory file paths
 realized_traj_files = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_16_2025_13_29_56.npz"
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_47_10.npz",
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_35_51.npz",
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_49_35.npz",
+    
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment/traj_0_5.npz",
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment/traj_50_2.npz",
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment/traj_100_6.npz",
 ]
 data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 
