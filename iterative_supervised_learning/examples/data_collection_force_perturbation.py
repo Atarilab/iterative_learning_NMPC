@@ -27,51 +27,6 @@ t0 = 0.0
 v_des = [0.15, 0.0, 0.0]
 n_state = 44
 
-def save_ood_val_set_dummy(self, experiment_dir, states, vc_goals, cc_goals, actions, data):
-    if "nominal" not in data.filename.lower():
-        self.ood_database.append(
-            states=states[:1000],
-            vc_goals=vc_goals[:1000],
-            cc_goals=cc_goals[:1000],
-            actions=actions[:1000]
-        )
-
-def save_ood_val_set_l2_distance(self, experiment_dir, states, vc_goals, cc_goals, actions, data, distance_threshold=4.0):
-    if "nominal" in data.filename.lower():
-        return
-
-    # Load nominal trajectory once
-    nominal_file = [f for f in os.listdir(experiment_dir) if "nominal" in f.lower()][0]
-    nominal_path = os.path.join(experiment_dir, nominal_file)
-    nominal_data = np.load(nominal_path)
-
-    # Build nominal state dict by time
-    nominal_states_by_time = {
-        round(t, 4): s for t, s in zip(nominal_data["time"], nominal_data["state"])
-    }
-
-    # Filter and save OOD samples by distance
-    for idx in range(len(states)):
-        t = round(data["time"][idx], 4)
-        s_pert = states[idx]
-
-        if t in nominal_states_by_time:
-            s_nom = nominal_states_by_time[t]
-
-            # Optional: ignore phase percentage (index 0)
-            s_pert_vec = s_pert[1:]
-            s_nom_vec = s_nom[1:]
-            dist = np.linalg.norm(s_pert_vec - s_nom_vec)
-
-            if dist > distance_threshold:
-                self.ood_database.append(
-                    states=[s_pert],
-                    vc_goals=[vc_goals[idx]],
-                    cc_goals=[cc_goals[idx]],
-                    actions=[actions[idx]]
-                )
-
-
 def contact_vec_to_frame_names(contact_vec: np.ndarray) -> List[str]:
     frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
     return [frame_names[i] for i in range(len(frame_names)) if contact_vec[i] == 1]
@@ -124,6 +79,53 @@ class DataCollection():
             with open(config_path, "wb") as f:
                 pickle.dump(self.cfg, f)
         print(f"Dataset saved at iteration {iteration+1}")
+    
+    def save_ood_val_set_dummy(self, experiment_dir, states, vc_goals, cc_goals, actions,file_name):
+        if "nominal" not in file_name.lower():
+            self.ood_database.append(
+                states=states[:1000],
+                vc_goals=vc_goals[:1000],
+                cc_goals=cc_goals[:1000],
+                actions=actions[:1000]
+            )
+
+    def save_ood_val_set_l2_distance(self, experiment_dir, states, vc_goals, cc_goals, actions, times, file_name, distance_threshold=4.0):
+        if "nominal" in file_name.lower():
+            return
+
+        # Load nominal trajectory
+        nominal_file = [f for f in os.listdir(experiment_dir) if "nominal" in f.lower()][0]
+        nominal_path = os.path.join(experiment_dir, nominal_file)
+        nominal_data = np.load(nominal_path)
+
+        # Build time-indexed nominal dictionary
+        nominal_states_by_time = {
+            round(t, 4): s for t, s in zip(nominal_data["time"], nominal_data["state"])
+        }
+
+        num_added = 0
+        for idx in range(len(states)):
+            t = round(times[idx], 4)
+            s_pert = states[idx]
+
+            if t in nominal_states_by_time:
+                s_nom = nominal_states_by_time[t]
+
+                s_pert_vec = s_pert[1:]
+                s_nom_vec = s_nom[1:]
+                dist = np.linalg.norm(s_pert_vec - s_nom_vec)
+
+                if dist > distance_threshold:
+                    self.ood_database.append(
+                        states=[s_pert],
+                        vc_goals=[vc_goals[idx]],
+                        cc_goals=[cc_goals[idx]],
+                        actions=[actions[idx]],
+                    )
+                    num_added += 1
+
+        print(f"Added {num_added} OOD samples from {file_name}")
+
 
     def run(self):        
         experiment_dir = os.path.join(self.data_save_path, "experiment")
@@ -140,15 +142,6 @@ class DataCollection():
             nominal_flag=True
         )
         
-        replanning_points = []
-        gait_period = 0.5
-        num_replanning = int(gait_period * 1000 / replan_freq)
-        start_timestep = t0 * 1000
-        for i in range(num_replanning):
-            next_replanning_point = int(i * replan_freq + start_timestep)
-            replanning_points.append(next_replanning_point)
-        print("Replanning points:", replanning_points)
-
         print("loading nominal traj data from path = ")
         print(record_path_nominal)
         data = np.load(record_path_nominal)
@@ -160,10 +153,32 @@ class DataCollection():
         cc_goals = None
         actions = data["ctrl"]
         contact_vec = data["contact_vec"]
+        
+        # # sample replanning points
+        # replanning_points = []
+        # gait_period = 0.5
+        # num_replanning = int(gait_period * 1000 / replan_freq)
+        # start_timestep = t0 * 1000
+        # for i in range(num_replanning):
+        #     next_replanning_point = int(i * replan_freq + start_timestep)
+        #     replanning_points.append(next_replanning_point)
+        # print("Replanning points:", replanning_points)
+        
+        # sample 20 replanning points evenly across the reference trajectory
+        replanning_points = []
+        gait_period = 0.5
+        num_replanning = 10
+        start_timestep = t0 * 1000
+        # traj_length = len(state)
+        traj_length = 3500
+        replanning_points = np.linspace(0, traj_length - 1, num_replanning, dtype=int).tolist()
+        print(f"Evenly spaced replanning points (total {num_replanning}):", replanning_points)
 
         for i_replanning in replanning_points:
             print(f"Replanning at step {i_replanning}")
             q0 = nominal_q[i_replanning]
+            # fix mpc base ref starts from 0 problem
+            q0[0] = 0
             v0 = nominal_v[i_replanning]
             current_contact_vec = contact_vec[i_replanning]
             ee_in_contact = contact_vec_to_frame_names(current_contact_vec)
@@ -175,13 +190,15 @@ class DataCollection():
 
                 early_termination = False
                 while True:
-                    force_start_offset = np.random.uniform(0.0, 0.05)
-                    force_start_time = current_time + force_start_offset
+                    # force_start_offset = np.random.uniform(0.0, 0.05)
+                    force_start_offset = 0.0
+                    force_start_time = force_start_offset
                     force_duration = np.random.uniform(0.2, 0.4)
 
                     force_direction = np.random.uniform(-1.0, 1.0, size=3)
                     force_direction /= np.linalg.norm(force_direction) + 1e-6
                     magnitude = np.random.uniform(50.0, 70.0)
+                    # magnitude = 0
                     force_vec = np.concatenate([magnitude * force_direction, np.zeros(3)])
 
                     print(f"Random push: start={force_start_time:.2f}s, duration={force_duration:.2f}s, vec={force_vec[:3]}")
@@ -231,8 +248,8 @@ class DataCollection():
                 )
 
                 if "nominal" not in file_name.lower():
-                    save_ood_val_set_dummy(experiment_dir, states, vc_goals, cc_goals, actions, data)
-                    # save_ood_val_set_l2_distance(experiment_dir, states, vc_goals, cc_goals, actions, data, distance_threshold=4.0)
+                    # self.save_ood_val_set_dummy(experiment_dir, states, vc_goals, cc_goals, actions, file_name)
+                    self.save_ood_val_set_l2_distance(experiment_dir, states, vc_goals, cc_goals, actions, times, file_name, distance_threshold=4.0)
 
         self.save_dataset(iteration=0)
         ood_save_path = os.path.join(self.data_save_path, "ood_val_data.npz")

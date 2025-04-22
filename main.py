@@ -175,7 +175,7 @@ if __name__ == "__main__":
     parser.add_argument('--sim_time', type=float, default=50, help='Simulation time.')
     parser.add_argument('--robot_name', type=str, default='go2', help='Name of the robot.')
     parser.add_argument('--record_dir', type=str, default='./data/', help='Directory to save recorded data.')
-    parser.add_argument('--v_des', type=float, nargs=3, default=[0.3, 0.0, 0.0], help='Desired velocity.')
+    parser.add_argument('--v_des', type=float, nargs=3, default=[0.3, 0.1, 0.0], help='Desired velocity.')
     parser.add_argument('--save_data', action='store_true', default=True, help='Flag to save data.')
     parser.add_argument('--interactive', action='store_true', help='Use keyboard to set the velocity goal (zqsd).')
     parser.add_argument('--record_video', action='store_true', help='Record a video of the viewer.')

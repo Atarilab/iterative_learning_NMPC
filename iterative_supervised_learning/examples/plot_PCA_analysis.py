@@ -221,7 +221,10 @@ def plot_pca_state_action_with_pc3_overlay(train_state_action, policy_npz_path, 
 # dataset that gives me the best policy
 # data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_09_42_07/dataset/experiment"
 # data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment"
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment"
+# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment"
+
+data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_14_22_27/dataset/experiment"
+# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_13_56_55/dataset/experiment"
 k_start = 0  # Number of trajectories to visualize
 k_end = None
 # Joint labels for visualization
@@ -292,7 +295,7 @@ combined_state_action = np.vstack(combined_state_action)
 
 # policy data overlay
 # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_11_2025_12_48_57.npz"
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_31_42.npz"
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_49_35.npz"
 train_data_dict = {
     'position': combined_position,
     'velocity': combined_velocity,

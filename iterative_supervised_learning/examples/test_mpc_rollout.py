@@ -6,8 +6,8 @@ import argparse
 from typing import Tuple, List
 import numpy as np
 from datetime import datetime
-# from iterative_supervised_learning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
-from iterative_supervised_learning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
+from iterative_supervised_learning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
+# from iterative_supervised_learning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
 
 if __name__ == "__main__":
     # rollout_mpc
@@ -15,8 +15,8 @@ if __name__ == "__main__":
                                                  sim_time = 10.0,
                                                  current_time = 0.0,
                                                  visualize=True,
-                                                 save_data=False,
+                                                 save_data=True,
                                                  record_video = False,
-                                                 v_des= [0.15,0,0])
+                                                 v_des= [0.15,0.1,0.0])
     print(record_path)
     print(early_termination)
