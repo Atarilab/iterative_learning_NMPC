@@ -50,14 +50,14 @@ from iterative_supervised_learning.utils.RolloutPolicy import rollout_policy
 # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 # v_des = [0.15,0.0,0.0]
 
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/test_training/network/policy_final.pth"
+policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 v_des = [0.15,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
-start_time = 2.0
-# start_time = 0.0
+# start_time = 2.0
+start_time = 0.0
 q_MPC = data_MPC["q"]
 v_MPC = data_MPC["v"]
 

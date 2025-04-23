@@ -7,7 +7,7 @@ from iterative_supervised_learning.utils.database import Database
 
 # --- Configuration ---
 # dataset_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/database_0.hdf5" 
-dataset_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_14_22_27/dataset/database_0.hdf5"
+dataset_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_08_57_33/dataset/database_0.hdf5"
 use_state_mask = True
 distance_plot_save_path = "l2_distances_hist.png"
 

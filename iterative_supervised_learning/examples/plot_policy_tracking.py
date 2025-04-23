@@ -5,19 +5,18 @@ import matplotlib.pyplot as plt
 visualize_length = 10000
 
 # Define realized trajectory file paths
-realized_traj_files = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_13_44_56/dataset/experiment/traj_3578_1.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_13_44_56/dataset/experiment/traj_1894_1.npz",
-    ]
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_13_44_56/dataset/experiment/traj_nominal_04_22_2025_13_45_02.npz"
-
 # realized_traj_files = [
-#     # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_03_2025_11_12_31.npz",
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_03_2025_11_17_57.npz",
-#     # "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_04_2025_11_12_32.npz"
-# ]
-# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_03_2025_11_08_22/dataset/experiment/traj_nominal_04_03_2025_11_08_34.npz"
-# # data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_200_4.npz",
+#     ]
+# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+
+realized_traj_files = [
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_06_13.npz",
+    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_07_28.npz",
+    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_08_43.npz"
+    ]
+data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+
 
 # Load realized data from selected files (choose range a to b)
 a, b = 0, 3  # Define your range here

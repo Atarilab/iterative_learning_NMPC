@@ -9,7 +9,7 @@ from typing import Tuple, List
 import numpy as np
 from datetime import datetime
 
-from iterative_supervised_learning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
+from iterative_supervised_learning.utils.RolloutMPC_force_at_interval import rollout_mpc_phase_percentage_shift
 from iterative_supervised_learning.utils.database import Database
 import random
 import hydra
@@ -24,12 +24,69 @@ nq = 19
 nv = 17
 replan_freq = 50
 t0 = 0.0
-v_des = [0.15, 0.0, 0.0]
+# v_des = [0.15, 0.0, 0.0]
 n_state = 44
 
 def contact_vec_to_frame_names(contact_vec: np.ndarray) -> List[str]:
     frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
     return [frame_names[i] for i in range(len(frame_names)) if contact_vec[i] == 1]
+
+def generate_force_perturbation_schedule_every_n_steps(
+    start_step: int,
+    end_step: int,
+    every_n_timesteps: int,
+    sim_dt: float
+):
+    """
+    Generate force perturbation schedule based on simulation steps.
+
+    Args:
+        start_step (int): Step at which perturbations begin.
+        end_step (int): Step at which perturbations stop.
+        every_n_timesteps (int): Apply a perturbation every N timesteps.
+        sim_dt (float): Simulator timestep (used to convert steps to time).
+
+    Returns:
+        force_start_times (List[float])
+        force_durations (List[float])
+        force_vecs (List[np.ndarray])
+    """
+    force_start_times = []
+    force_durations = []
+    force_vecs = []
+
+    for step in range(start_step, end_step, every_n_timesteps):
+        direction = np.random.choice(["x+", "x-","y+","y-"])
+        sign = np.random.choice([-1.0, 1.0])
+
+        if direction == "x+":
+            magnitude = np.random.uniform(45.0, 55.0)
+            force = np.array([
+                magnitude, 0.0, 0.0,
+                0.0, 0.0, 0.0
+            ])
+        if direction == "x-":
+            magnitude = np.random.uniform(20.0, 35.0)
+            force = np.array([
+                -magnitude, 0.0, 0.0,
+                0.0, 0.0, 0.0
+            ])
+        if direction == "y-" or direction == "y+":
+            magnitude = np.random.uniform(25.0, 35.0) * sign
+            force = np.array([
+                0.0, magnitude, 0.0,
+                0.0, 0.0, 0.0
+            ])
+
+        duration = np.random.uniform(0.2, 0.4)  # seconds
+        start_time = step * sim_dt
+
+        force_start_times.append(start_time)
+        force_durations.append(duration)
+        force_vecs.append(force)
+
+    return force_start_times, force_durations, force_vecs
+
 
 class DataCollection():
     def __init__(self, cfg):
@@ -81,12 +138,13 @@ class DataCollection():
         print(f"Dataset saved at iteration {iteration+1}")
     
     def save_ood_val_set_dummy(self, experiment_dir, states, vc_goals, cc_goals, actions,file_name):
+        ood_range = 500
         if "nominal" not in file_name.lower():
             self.ood_database.append(
-                states=states[:1000],
-                vc_goals=vc_goals[:1000],
-                cc_goals=cc_goals[:1000],
-                actions=actions[:1000]
+                states=states[:ood_range],
+                vc_goals=vc_goals[:ood_range],
+                cc_goals=cc_goals[:ood_range],
+                actions=actions[:ood_range]
             )
 
     def save_ood_val_set_l2_distance(self, experiment_dir, states, vc_goals, cc_goals, actions, times, file_name, distance_threshold=4.0):
@@ -126,103 +184,62 @@ class DataCollection():
 
         print(f"Added {num_added} OOD samples from {file_name}")
 
+    
 
     def run(self):        
         experiment_dir = os.path.join(self.data_save_path, "experiment")
         os.makedirs(experiment_dir, exist_ok=True)
 
-        _, record_path_nominal = rollout_mpc_phase_percentage_shift(
-            show_plot=False,
-            visualize=True,
-            record_video=False,
-            v_des=v_des,
-            sim_time=4.0,
-            save_data=True,
-            record_dir=experiment_dir,
-            nominal_flag=True
+        goal_list = [0.0, 0.15, 0.3]
+        # for i in range(3):
+        #     v_des = [goal_list[i], 0.0, 0.0]
+        #     _, record_path_nominal = rollout_mpc_phase_percentage_shift(
+        #         show_plot=False,
+        #         visualize=True,
+        #         record_video=False,
+        #         v_des=v_des,
+        #         sim_time=10.0,
+        #         save_data=True,
+        #         record_dir=experiment_dir,
+        #         nominal_flag=True
+        #     )
+            
+        # force_start_times = [3.0, 6.0, 9.0]
+        # force_durations = [0.3, 0.3, 0.3]
+        # force_vecs = [
+        #     np.array([50.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        #     np.array([0.0, 30.0, 0.0, 0.0, 0.0, 0.0]),
+        #     np.array([30.0, 40.0, 0.0, 0.0, 0.0, 0.0]),
+        # ]
+        
+        sim_time = 120
+        start_step = int(1.0 / SIM_DT)
+        end_step = int((sim_time-1) / SIM_DT)
+        every_n_timesteps = 2000  # every 3 seconds at 1 kHz
+
+        force_start_times, force_durations, force_vecs = generate_force_perturbation_schedule_every_n_steps(
+            start_step=start_step,
+            end_step=end_step,
+            every_n_timesteps=every_n_timesteps,
+            sim_dt=SIM_DT
         )
-        
-        print("loading nominal traj data from path = ")
-        print(record_path_nominal)
-        data = np.load(record_path_nominal)
-        state = data["state"]
-        feet_pos = data["feet_pos_w"]
-        nominal_v = data["v"]
-        nominal_q = data["q"]
-        vc_goals = data["vc_goals"][0]
-        cc_goals = None
-        actions = data["ctrl"]
-        contact_vec = data["contact_vec"]
-        
-        # # sample replanning points
-        # replanning_points = []
-        # gait_period = 0.5
-        # num_replanning = int(gait_period * 1000 / replan_freq)
-        # start_timestep = t0 * 1000
-        # for i in range(num_replanning):
-        #     next_replanning_point = int(i * replan_freq + start_timestep)
-        #     replanning_points.append(next_replanning_point)
-        # print("Replanning points:", replanning_points)
-        
-        # sample 20 replanning points evenly across the reference trajectory
-        replanning_points = []
-        gait_period = 0.5
-        num_replanning = 10
-        start_timestep = t0 * 1000
-        # traj_length = len(state)
-        traj_length = 3500
-        replanning_points = np.linspace(0, traj_length - 1, num_replanning, dtype=int).tolist()
-        print(f"Evenly spaced replanning points (total {num_replanning}):", replanning_points)
 
-        for i_replanning in replanning_points:
-            print(f"Replanning at step {i_replanning}")
-            q0 = nominal_q[i_replanning]
-            # fix mpc base ref starts from 0 problem
-            q0[0] = 0
-            v0 = nominal_v[i_replanning]
-            current_contact_vec = contact_vec[i_replanning]
-            ee_in_contact = contact_vec_to_frame_names(current_contact_vec)
-
-            for j in range(self.num_pertubations_per_replanning):
-                phase_percentage = state[:, 0]
-                randomize_on_given_state = np.concatenate((q0, v0, np.array([phase_percentage[i_replanning]])))
-                current_time = np.round(i_replanning * SIM_DT, 4)
-
-                early_termination = False
-                while True:
-                    # force_start_offset = np.random.uniform(0.0, 0.05)
-                    force_start_offset = 0.0
-                    force_start_time = force_start_offset
-                    force_duration = np.random.uniform(0.2, 0.4)
-
-                    force_direction = np.random.uniform(-1.0, 1.0, size=3)
-                    force_direction /= np.linalg.norm(force_direction) + 1e-6
-                    magnitude = np.random.uniform(50.0, 70.0)
-                    # magnitude = 0
-                    force_vec = np.concatenate([magnitude * force_direction, np.zeros(3)])
-
-                    print(f"Random push: start={force_start_time:.2f}s, duration={force_duration:.2f}s, vec={force_vec[:3]}")
-                    
-                    early_termination, record_path_replanning = rollout_mpc_phase_percentage_shift(
-                        randomize_on_given_state=randomize_on_given_state,
-                        v_des=v_des,
-                        sim_time=1.5,
-                        current_time=current_time,
-                        show_plot=False,
-                        visualize=True,
-                        record_video=True,
-                        save_data=True,
-                        record_dir=experiment_dir,
-                        ee_in_contact=ee_in_contact,
-                        nominal_flag=False,
-                        replanning_point=i_replanning,
-                        nth_traj_per_replanning=j+1,
-                        force_start_time=force_start_time,
-                        force_duration=force_duration,
-                        force_vec=force_vec,
-                    )
-                    if not early_termination:
-                        break
+ 
+        for i in range(3):
+            v_des = [goal_list[i], 0.0, 0.0]
+            _, record_path = rollout_mpc_phase_percentage_shift(
+                show_plot=False,
+                visualize=True,
+                record_video=False,
+                v_des=v_des,
+                sim_time=sim_time,
+                save_data=True,
+                record_dir=experiment_dir,
+                nominal_flag=False,
+                force_start_times=force_start_times,
+                force_durations=force_durations,
+                force_vecs=force_vecs,
+            )
 
         for file_name in os.listdir(experiment_dir):
             file_path = os.path.join(experiment_dir, file_name)
@@ -248,8 +265,8 @@ class DataCollection():
                 )
 
                 if "nominal" not in file_name.lower():
-                    # self.save_ood_val_set_dummy(experiment_dir, states, vc_goals, cc_goals, actions, file_name)
-                    self.save_ood_val_set_l2_distance(experiment_dir, states, vc_goals, cc_goals, actions, times, file_name, distance_threshold=4.0)
+                    self.save_ood_val_set_dummy(experiment_dir, states, vc_goals, cc_goals, actions, file_name)
+                    # self.save_ood_val_set_l2_distance(experiment_dir, states, vc_goals, cc_goals, actions, times, file_name, distance_threshold=4.0)
 
         self.save_dataset(iteration=0)
         ood_save_path = os.path.join(self.data_save_path, "ood_val_data.npz")

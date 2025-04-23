@@ -151,9 +151,9 @@ def plot_pca_state_action_overlay(train_state_action, policy_npz_path, title="PC
     # Plot
     plt.figure(figsize=(8, 6))
     plt.scatter(pcs_train[:, 0], pcs_train[:, 1], alpha=0.2, s=5, label="Training State+Action")
-    plt.plot(pcs_policy[:, 0], pcs_policy[:, 1], color='red', linewidth=2, label="Policy Trajectory")
-    plt.scatter(pcs_policy[0, 0], pcs_policy[0, 1], color='green', label='Start', zorder=5)
-    plt.scatter(pcs_policy[-1, 0], pcs_policy[-1, 1], color='black', label='End', zorder=5)
+    # plt.plot(pcs_policy[:, 0], pcs_policy[:, 1], color='red', linewidth=2, label="Policy Trajectory")
+    # plt.scatter(pcs_policy[0, 0], pcs_policy[0, 1], color='green', label='Start', zorder=5)
+    # plt.scatter(pcs_policy[-1, 0], pcs_policy[-1, 1], color='black', label='End', zorder=5)
 
     plt.title(title)
     plt.xlabel("PC 1")
@@ -223,8 +223,7 @@ def plot_pca_state_action_with_pc3_overlay(train_state_action, policy_npz_path, 
 # data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment"
 # data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment"
 
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_14_22_27/dataset/experiment"
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_22_2025_13_56_55/dataset/experiment"
+data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_18_38_44/dataset/experiment"
 k_start = 0  # Number of trajectories to visualize
 k_end = None
 # Joint labels for visualization
