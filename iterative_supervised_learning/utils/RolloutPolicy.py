@@ -48,22 +48,30 @@ kp = 20.0
 kd = 1.5
 
 # Define joint limits (same as training bounds)
-ACTION_LOWER_BOUND = np.array([
-    -0.3525,  0.7601, -2.6448,
-    -0.1028,  0.7304, -2.6479,
-    -0.3680,  0.4636, -2.6051,
-    -0.0686,  0.4897, -2.5900
-])
+# ACTION_LOWER_BOUND = np.array([
+#     -0.3525,  0.7601, -2.6448,
+#     -0.1028,  0.7304, -2.6479,
+#     -0.3680,  0.4636, -2.6051,
+#     -0.0686,  0.4897, -2.5900
+# ])
 
-ACTION_UPPER_BOUND = np.array([
-     0.1015,  1.3639, -0.8029,
-     0.3631,  1.3506, -0.7623,
-     0.0669,  1.2999, -0.4892,
-     0.3810,  1.3099, -0.5059
-])
-ACTION_LOWER_BOUND -= 0.05
-ACTION_UPPER_BOUND += 0.05
+# ACTION_UPPER_BOUND = np.array([
+#      0.1015,  1.3639, -0.8029,
+#      0.3631,  1.3506, -0.7623,
+#      0.0669,  1.2999, -0.4892,
+#      0.3810,  1.3099, -0.5059
+# ])
+# ACTION_LOWER_BOUND -= 0.05
+# ACTION_UPPER_BOUND += 0.05
 
+# Put this at the top of your file
+def tic():
+    return time.time()
+
+def toc(t_start, label="Elapsed time"):
+    t_elapsed = time.time() - t_start
+    print(f"[⏱️] {label}: {t_elapsed:.6f} seconds")
+    return t_elapsed
 
 def get_phase_percentage(t:int):
     """get current gait phase percentage based on gait period
@@ -74,16 +82,16 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
-    # # get rid of phase percentage
-    # return 0
+    # get rid of phase percentage
+    return 0
 
-    # for trot
-    gait_period = 0.5
-    if t < t0:
-        return 0
-    else:
-        phi = ((t-t0) % gait_period)/gait_period
-        return phi
+    # # for trot
+    # gait_period = 0.5
+    # if t < t0:
+    #     return 0
+    # else:
+    #     phi = ((t-t0) % gait_period)/gait_period
+    #     return phi
 
 # Data recorder
 class StateDataRecorder(DataRecorder):
@@ -209,7 +217,7 @@ class PolicyController(Controller):
                  device: str = "cpu",
                  mj_model = None,
                  start_time: float = 0.0,
-                 reference_path: str = ""):
+                 reference_path: str = "",):
         super().__init__()
         
         # initialize policy network
@@ -302,10 +310,14 @@ class PolicyController(Controller):
         x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
         
         # get policy output
+        t_start = tic()
         with torch.no_grad():  # Disable gradient tracking
             y_tensor = self.policy_net(x_tensor)
+            # if self.device.type == "cuda":
+            #     torch.cuda.synchronize()
 
         action_policy = y_tensor.detach().cpu().numpy().reshape(-1)
+        toc(t_start, label="Policy inference")
         # Clamp the action to joint limits
         # action_policy = np.clip(action_policy, ACTION_LOWER_BOUND, ACTION_UPPER_BOUND)
 
@@ -371,7 +383,8 @@ def rollout_policy(
     norm_policy_input: bool = True,
     initial_state = [],
     start_time: float = 0.0,
-    data_MPC_path : str = ""
+    data_MPC_path : str = "",
+    interactive: bool = False,
 ):  
     # set up robot description
     robot_desc = get_robot_description(robot_name)
@@ -381,6 +394,8 @@ def rollout_policy(
     v0 = initial_state[1]
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
+    sim.apply_force = False
+    sim.force_schedules = []
     sim.setup()
     sim.set_initial_state(q0,v0)
     
@@ -413,7 +428,7 @@ def rollout_policy(
         use_viewer=visualize,
         controller=controller,
         record_video=record_video,
-        data_recorder=data_recorder
+        data_recorder=data_recorder,
     )
     print("🎉 Policy rollout finished successfully.")
     
