@@ -173,22 +173,26 @@ class LocomotionMPC(PinController):
         self.sim_step : int = 0
         self.plan_step : int = 0
         self.current_opt_node : int = 0
-        self.delay : int = 0
+        
+        # Precompute arrays for interpolation
+        self.n_interp_plan = round(self.config_opt.time_horizon / self.sim_dt) + 1
+        self.time_plan_base = np.linspace(0., self.config_opt.time_horizon, self.n_interp_plan)
+        self.time_plan = np.copy(self.time_plan_base)
+        self.time_sol = np.linspace(0., self.config_opt.time_horizon, self.config_opt.n_nodes + 1)
+        self.id_repeat = np.int32(np.linspace(0, 1, self.n_interp_plan)*(self.config_opt.n_nodes-1))
         
         # Init arrays
         self.v_des : np.ndarray = np.zeros(3)
         self.w_des : np.ndarray = np.zeros(3)
         self.base_ref_vel_tracking : np.ndarray = np.zeros(12)
-        self.n_interp_plan = round(self.config_opt.time_horizon / self.sim_dt)
-        self.id_repeat = np.int32(np.linspace(0, 1, self.n_interp_plan)*(self.config_opt.n_nodes-1))
         self.q_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
         self.v_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
         self.a_plan : np.ndarray = np.zeros((self.n_interp_plan, self.nv))
         self.f_plan : np.ndarray = np.zeros((self.n_interp_plan, self.n_foot, 3))
         self.time_traj : np.ndarray = np.zeros(self.n_interp_plan)
-        self.qref_pd : np.ndarray = np.zeros((self.nq))
-
+        
         # For plots
+        self.t_full = []
         self.q_plan_full = []
         self.q_full = []
         self.v_plan_full = []
@@ -196,7 +200,8 @@ class LocomotionMPC(PinController):
         self.a_full = []
         self.f_full = []
         self.tau_full = []
-        self.dt_full = []
+        self.first_plan_step = 0
+        self.last_plan_step = 0
 
         # Setup timings
         self.timings = defaultdict(list)
@@ -224,16 +229,15 @@ class LocomotionMPC(PinController):
     def _step(self) -> None:
         self.increment_base_ref_position()
         self.sim_step += 1
-        self.plan_step += 1
 
     def _record_plan(self) -> None:
         """
         Record trajectory of the last plan until self.plan_step.
         """
-        self.q_full.append(self.q_plan[self.delay:self.plan_step].copy())
-        self.v_full.append(self.v_plan[self.delay:self.plan_step].copy())
-        self.a_full.append(self.a_plan[self.delay:self.plan_step].copy())
-        self.f_full.append(self.f_plan[self.delay:self.plan_step].copy())
+        self.q_full.append(self.q_plan[self.first_plan_step:self.last_plan_step+1].copy())
+        self.v_full.append(self.v_plan[self.first_plan_step:self.last_plan_step+1].copy())
+        self.a_full.append(self.a_plan[self.first_plan_step:self.last_plan_step+1].copy())
+        self.f_full.append(self.f_plan[self.first_plan_step:self.last_plan_step+1].copy())
 
     def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
         """
@@ -274,39 +278,14 @@ class LocomotionMPC(PinController):
         # Terminal reference, copy base ref
         base_ref_e = base_ref.copy()
 
-        # Compute velocity in global frame
-        # Apply angular velocity
-        # R_yaw = pin.rpy.rpyToMatrix(self.w_des * t_horizon)
-        # base_ref_e[6:9] = R_yaw @ base_ref[6:9]
-
-        if self.velocity_goal:
-            pos_ref = np.round(q[:3], 2)
-            yaw_ref = q[3]
-        else:
-            pos_ref = self.base_ref_vel_tracking[:3]
-            yaw_ref = self.base_ref_vel_tracking[3]
-        yaw_ref = self.base_ref_vel_tracking[3]
+        yaw_ref = q[3]
         pos_ref = np.round(q[:3], 2)
 
         base_ref_e[:2] = pos_ref[:2] + v_des_glob[:2] * t_horizon
         base_ref[:2] = pos_ref[:2] + v_des_glob[:2] * t_horizon
         base_ref_e[3] = yaw_ref + self.w_des[-1] * t_horizon
         base_ref[3] = yaw_ref + self.w_des[-1] * t_horizon
-        # Clip base ref in direction of the motion
-        # (don't go too far if the robot is too slow)
-        # base_ref_e[:2] = np.clip(base_ref_e[:2],
-        #         -base_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
-        #          base_ref[:2] + v_des_glob[:2] * t_horizon * 1.2,
-        #         )
         
-        # base_ref_e[3] = yaw_ref + self.w_des[-1] * t_horizon
-        # base_ref_e[3] = np.clip(base_ref_e[3],
-        #         -yaw_ref + self.w_des[-1] * t_horizon * 1.5,
-        #          yaw_ref + self.w_des[-1] * t_horizon * 1.5,
-        #         )
-        # # Set the base ref inbetween
-        # base_ref[:2] += (base_ref_e[:2] - base_ref[:2]) * 0.75
-        # base_ref[3] += (base_ref_e[3] - base_ref[3]) * 0.75
         # Base vertical vel
         base_ref_e[8] = 0.
         # Base pitch roll
@@ -352,11 +331,6 @@ class LocomotionMPC(PinController):
         # Height to config
         base_ref[2] = self.config_gait.nom_height + self.height_offset
         base_ref_e[2] = self.config_gait.nom_height + self.height_offset
-
-        # Linear velocity
-        # t_plan = self.config_gait.nominal_period
-        # v_ref = (center_last_cnt - center_first_cnt) / t_plan
-        # base_ref[6:8] = v_ref[:2]
 
         return base_ref, base_ref_e
 
@@ -406,22 +380,6 @@ class LocomotionMPC(PinController):
         q_sol, v_sol, a_sol, f_sol, dt_sol = self.solver.solve()
 
         return q_sol, v_sol, a_sol, f_sol, dt_sol
-
-    def interpolate_state_trajectory(self,
-                        q_sol : np.ndarray,
-                        v_sol : np.ndarray,
-                        a_sol : np.ndarray,
-                        dt_sol : np.ndarray,
-                        ) -> Tuple[np.ndarray,np.ndarray]:
-        """
-        Interpolate solution found by the solver at sim dt time intervals.
-        Repeat for inputs.
-        Linear interpolation for states.
-        """
-        time_traj = np.cumsum(dt_sol)
-        time_traj = np.concatenate(([0.], time_traj))
-        q_plan, v_plan = self.interpolate_trajectory_with_derivatives(time_traj, q_sol, v_sol, a_sol)
-        return q_plan, v_plan
             
     def interpolate_trajectory_with_derivatives(
         self,
@@ -485,15 +443,17 @@ class LocomotionMPC(PinController):
                 
                 # Find the corresponding optimization node
                 q, v = self.solver.dyn.convert_from_mujoco(q_mj, v_mj)
-                q_sol, v_sol, a_sol, _, dt_sol = self.optimize(q, v)
-                self.q_plan[:], self.v_plan[:] = self.interpolate_state_trajectory(q_sol, v_sol, a_sol, dt_sol)
-                self.plan_step = 0
+                q_sol, v_sol, a_sol, _, _ = self.optimize(q, v)
+                # Interpolate plan at sim_dt interval
+                self.q_plan[:], self.v_plan[:] = self.interpolate_trajectory_with_derivatives(self.time_sol, q_sol, v_sol, a_sol)
+                self.plan_step = 1
                 self.first_solve = False
             
             # Simulation step
             q_mj, v_mj = self.solver.dyn.convert_to_mujoco(self.q_plan[self.plan_step], self.v_plan[self.plan_step])
             q_full_traj.append(q_mj)
             self._step()
+            self.plan_step += 1
             sim_time = sim_time + self.sim_dt
 
         q_full_traj_arr = np.array(q_full_traj)
@@ -534,12 +494,11 @@ class LocomotionMPC(PinController):
             # Increment the optimization node every dt_nodes
             # TODO: This may be changed in case of dt time optimization
             # One may update the opt node according to the last dt results
-            if t >= (self.current_opt_node+1) * self.dt_nodes:
+            while t > (self.current_opt_node) * self.dt_nodes:
                 self.current_opt_node += 1
         
         # Start a new optimization asynchronously if it's time to replan
         if self._replan():
-
             # Set solver parameters on first iteration
             self.set_convergence_on_first_iter()
             
@@ -565,29 +524,26 @@ class LocomotionMPC(PinController):
         if (self.plan_submitted and self.optimize_future.done()):
             try:
                 # Retrieve new plan from future
-                q_sol, v_sol, a_sol, f_sol, dt_sol = self.optimize_future.result()
-
-                # Record trajectory
+                q_sol, v_sol, a_sol, f_sol, _ = self.optimize_future.result()
+                
+                # Record last plan before updating it
                 if not self.first_solve:
+                    self.last_plan_step = self.plan_step
                     self._record_plan()
-
+                
                 # Interpolate plan at sim_dt interval
-                self.q_plan[:], self.v_plan[:] = self.interpolate_state_trajectory(q_sol, v_sol, a_sol, dt_sol)
+                self.time_plan[:] = self.time_plan_base + self.start_time
+                self.q_plan[:], self.v_plan[:] = self.interpolate_trajectory_with_derivatives(self.time_sol, q_sol, v_sol, a_sol)
                 # Zero order interpolation (repeat) for actions
                 self.a_plan[:] = np.take_along_axis(a_sol, self.id_repeat.reshape(-1, 1), 0)
                 self.f_plan[:] = np.take_along_axis(f_sol, self.id_repeat.reshape(-1, 1, 1), 0)
 
-                # Apply delay, not for first iteration
-                if (self.solve_async and not self.first_solve):
-                    replanning_time = t - self.start_time
-                    # replanning_time -= 4.0e-3
-                    self.delay = math.ceil(replanning_time / self.sim_dt) - 1
-                else:
-                    self.delay = 0
-
-                self.plan_step = self.delay
+                if self.first_solve:
+                    self.t0 = sim_time
+                    
                 self.plan_submitted = False
                 self.first_solve = False
+                self.plan_step = 0
                 
                 # Plot current state vs optimization plan
                 # self.plot_current_vs_plan(q_mj, v_mj)
@@ -601,6 +557,16 @@ class LocomotionMPC(PinController):
                 self.executor.shutdown(wait=False, cancel_futures=True)
                 time.sleep(0.1)
                 
+        # Apply delay
+        if self.solve_async and not self.first_solve:
+            is_first_plan_step = self.plan_step == 0
+            
+            while t > self.time_plan[self.plan_step]:
+                self.plan_step += 1
+            
+            if is_first_plan_step:
+                self.first_plan_step = self.plan_step
+                
         # Wait for to solver to plan the first trajectory -> PD controller
         if self.first_solve:
             torques_ff = np.zeros(self.nu)
@@ -611,11 +577,12 @@ class LocomotionMPC(PinController):
         # Compute inverse dynamics torques from solver
         else:
             # Record true state
+            self.t_full.append(sim_time)
             self.q_plan_full.append(q.copy())
-            self.v_plan_full.append(v)
+            self.v_plan_full.append(v.copy())
             torques_ff = self.solver.dyn.id_torques(
-                self.q_plan[self.plan_step],
-                self.v_plan[self.plan_step],
+                q,
+                v,
                 self.a_plan[self.plan_step],
                 self.f_plan[self.plan_step],
             )
