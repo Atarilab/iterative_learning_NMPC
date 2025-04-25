@@ -6,7 +6,7 @@ import numpy as np
 from mj_pin.abstract import VisualCallback, DataRecorder # type: ignore
 from mj_pin.simulator import Simulator # type: ignore
 from mj_pin.utils import get_robot_description   # type: ignore
-
+from mpc_controller.config.quadruped.utils import get_quadruped_config
 from mpc_controller.mpc import LocomotionMPC
 
 SIM_DT = 1.0e-3
@@ -67,7 +67,7 @@ class StateDataRecorder(DataRecorder):
         except Exception as e:
             print(f"Error saving data: {e}")
 
-    def record(self, mj_data) -> None:
+    def _record(self, mj_data) -> None:
         """
         Record simulation data at the current simulation step.
         """
@@ -82,10 +82,14 @@ def run_traj_opt(args):
     robot_desc = get_robot_description(args.robot_name)
     feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 
+    config_gait, config_opt, config_cost = get_quadruped_config(args.gait_name, args.robot_name)
+
     mpc = LocomotionMPC(
         path_urdf=robot_desc.urdf_path,
         feet_frame_names = feet_frame_names,
-        robot_name=args.robot_name,
+        config_opt=config_opt,
+        config_gait=config_gait,
+        config_cost=config_cost,
         joint_ref = robot_desc.q0,
         sim_dt=SIM_DT,
         print_info=True,
@@ -96,10 +100,32 @@ def run_traj_opt(args):
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     q0_mj, v0_mj = sim.get_initial_state()
     q0, v0 = mpc.solver.dyn.convert_from_mujoco(q0_mj, v0_mj)
-    q_plan, v_plan, _, _, dt_plan = mpc.optimize(q0, v0)
-        
-    q_plan_mj = np.array([mpc.solver.dyn.convert_to_mujoco(q_plan[i], v_plan[i])[0] for i in range(len(q_plan))])
-    time_traj = np.concatenate(([0], np.cumsum(dt_plan)))
+    q_sol, v_sol, a_sol, f_sol, dt_sol = mpc.optimize(q0, v0)
+    
+    # Interpolate plan at sim_dt interval
+    mpc.q_plan[:], mpc.v_plan[:] = mpc.interpolate_state_trajectory(q_sol, v_sol, a_sol, dt_sol)
+    # Zero order interpolation (repeat) for actions
+    mpc.a_plan[:] = np.take_along_axis(a_sol, mpc.id_repeat.reshape(-1, 1), 0)
+    mpc.f_plan[:] = np.take_along_axis(f_sol, mpc.id_repeat.reshape(-1, 1, 1), 0)
+    mpc.tau_full[:] = np.array([mpc.solver.dyn.id_torques(
+                                mpc.q_plan[step],
+                                mpc.v_plan[step],
+                                mpc.a_plan[step],
+                                mpc.f_plan[step],
+                            ) for step in range(len(mpc.a_plan))])
+    
+    # Plot interpolated plan
+    mpc.delay, mpc.plan_step = 0, -1
+    mpc._record_plan()
+    mpc.plot_traj("q")
+    mpc.plot_traj("v")
+    mpc.plot_traj("f")
+    mpc.plot_traj("tau")
+    mpc.show_plots()
+    
+    # Visualize in mujoco
+    q_plan_mj = np.array([mpc.solver.dyn.convert_to_mujoco(q_sol[i], v_sol[i])[0] for i in range(len(q_sol))])
+    time_traj = np.concatenate(([0], np.cumsum(dt_sol)))
 
     sim.vs.set_high_quality()
     sim.visualize_trajectory(q_plan_mj, time_traj, record_video=args.record_video)
@@ -109,10 +135,14 @@ def run_mpc(args):
     robot_desc = get_robot_description(args.robot_name)
     feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 
+    config_gait, config_opt, config_cost = get_quadruped_config(args.gait_name, args.robot_name)
+
     mpc = LocomotionMPC(
         path_urdf=robot_desc.urdf_path,
         feet_frame_names = feet_frame_names,
-        robot_name=args.robot_name,
+        config_opt=config_opt,
+        config_gait=config_gait,
+        config_cost=config_cost,
         joint_ref = robot_desc.q0,
         interactive_goal=args.interactive,
         sim_dt=SIM_DT,
@@ -121,19 +151,18 @@ def run_mpc(args):
         )
     if not args.interactive:
         mpc.set_command(args.v_des, 0.0)
-
+        
     # Simulator with visual callback and state data recorder
     vis_feet_pos = ReferenceVisualCallback(mpc)
     data_recorder = StateDataRecorder(args.record_dir) if args.save_data else None
 
     sim = Simulator(robot_desc.xml_scene_path, sim_dt=SIM_DT, viewer_dt=VIEWER_DT)
     sim.vs.track_obj = "base"
-    # sim.vs.set_front_view()
     sim.run(
         sim_time=args.sim_time,
         controller=mpc,
         visual_callback=vis_feet_pos,
-        data_recorder=data_recorder,
+        data_recorder=data_recorder
         )
     
     mpc.print_timings()
@@ -148,10 +177,14 @@ def run_open_loop(args):
     robot_desc = get_robot_description(args.robot_name)
     feet_frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 
+    config_gait, config_opt, config_cost = get_quadruped_config(args.gait_name, args.robot_name)
+
     mpc = LocomotionMPC(
         path_urdf=robot_desc.urdf_path,
         feet_frame_names = feet_frame_names,
-        robot_name=args.robot_name,
+        config_opt=config_opt,
+        config_gait=config_gait,
+        config_cost=config_cost,
         joint_ref = robot_desc.q0,
         interactive_goal=False,
         sim_dt=SIM_DT,
@@ -172,11 +205,12 @@ def run_open_loop(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run MPC simulations.")
     parser.add_argument('--mode', type=str, default="close_loop", choices=['traj_opt', 'open_loop', 'close_loop'], help='Mode to run the simulation.')
-    parser.add_argument('--sim_time', type=float, default=50, help='Simulation time.')
+    parser.add_argument('--sim_time', type=float, default=5, help='Simulation time.')
     parser.add_argument('--robot_name', type=str, default='go2', help='Name of the robot.')
+    parser.add_argument('--gait_name', type=str, default='trot', help='Name of the gait to use.')
     parser.add_argument('--record_dir', type=str, default='./data/', help='Directory to save recorded data.')
-    parser.add_argument('--v_des', type=float, nargs=3, default=[0.3, 0.1, 0.0], help='Desired velocity.')
-    parser.add_argument('--save_data', action='store_true', default=True, help='Flag to save data.')
+    parser.add_argument('--v_des', type=float, nargs=3, default=[0.5, 0.0, 0.0], help='Desired velocity.')
+    parser.add_argument('--save_data', action='store_true', help='Flag to save data.')
     parser.add_argument('--interactive', action='store_true', help='Use keyboard to set the velocity goal (zqsd).')
     parser.add_argument('--record_video', action='store_true', help='Record a video of the viewer.')
     args = parser.parse_args()

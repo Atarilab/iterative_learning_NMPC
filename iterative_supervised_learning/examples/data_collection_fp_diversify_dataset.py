@@ -26,6 +26,7 @@ replan_freq = 50
 t0 = 0.0
 # v_des = [0.15, 0.0, 0.0]
 n_state = 44
+sim_time = 360
 
 def contact_vec_to_frame_names(contact_vec: np.ndarray) -> List[str]:
     frame_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
@@ -191,18 +192,18 @@ class DataCollection():
         os.makedirs(experiment_dir, exist_ok=True)
 
         goal_list = [0.0, 0.15, 0.3]
-        # for i in range(3):
-        #     v_des = [goal_list[i], 0.0, 0.0]
-        #     _, record_path_nominal = rollout_mpc_phase_percentage_shift(
-        #         show_plot=False,
-        #         visualize=True,
-        #         record_video=False,
-        #         v_des=v_des,
-        #         sim_time=10.0,
-        #         save_data=True,
-        #         record_dir=experiment_dir,
-        #         nominal_flag=True
-        #     )
+        for i in range(3):
+            v_des = [goal_list[i], 0.0, 0.0]
+            _, record_path_nominal = rollout_mpc_phase_percentage_shift(
+                show_plot=False,
+                visualize=True,
+                record_video=False,
+                v_des=v_des,
+                sim_time=180,
+                save_data=True,
+                record_dir=experiment_dir,
+                nominal_flag=True
+            )
             
         # force_start_times = [3.0, 6.0, 9.0]
         # force_durations = [0.3, 0.3, 0.3]
@@ -212,10 +213,10 @@ class DataCollection():
         #     np.array([30.0, 40.0, 0.0, 0.0, 0.0, 0.0]),
         # ]
         
-        sim_time = 120
+        
         start_step = int(1.0 / SIM_DT)
         end_step = int((sim_time-1) / SIM_DT)
-        every_n_timesteps = 2000  # every 3 seconds at 1 kHz
+        every_n_timesteps = 3000  # every 3 seconds at 1 kHz
 
         force_start_times, force_durations, force_vecs = generate_force_perturbation_schedule_every_n_steps(
             start_step=start_step,
