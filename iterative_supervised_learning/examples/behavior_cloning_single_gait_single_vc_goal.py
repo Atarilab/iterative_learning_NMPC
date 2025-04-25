@@ -1,1 +1,0 @@
-# This script is for training a policy to mimic MPC expert for one single gait and one single vc_goal
