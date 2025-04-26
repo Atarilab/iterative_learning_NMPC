@@ -12,8 +12,8 @@ from .transform import *
 from .profiling import time_fn, print_timings
 from mj_pin.utils import pin_frame_pos
 
+
 class QuadrupedAcadosSolver(AcadosSolverHelper):
-    NAME = "quadruped_solver"
 
     def __init__(self,
                  path_urdf : str,
@@ -50,7 +50,7 @@ class QuadrupedAcadosSolver(AcadosSolverHelper):
         super().__init__(
             problem,
             self.config_opt.n_nodes,
-            QuadrupedAcadosSolver.NAME,
+            self.config_opt.solver_name,
             self.config_cost.reg_eps,
             self.config_cost.reg_eps_e,
             )

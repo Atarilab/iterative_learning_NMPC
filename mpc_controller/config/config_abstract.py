@@ -68,6 +68,8 @@ class MPCOptConfig():
     torque_limit: bool = True
     # Friction coefficient
     mu: float = 0.7
+    # Solver_name 
+    solver_name : str = "solver"
     # Outer loop SQP tolerance
     nlp_tol: float = 1.e-1
     # Inner loop interior point method tolerance
