@@ -200,9 +200,8 @@ class LocomotionMPC(PinController):
         self.a_full = []
         self.f_full = []
         self.tau_full = []
-        self.first_plan_step = 0
-        self.last_plan_step = 0
-
+        self.plan_step_to_record = []
+        
         # Setup timings
         self.timings = defaultdict(list)
 
@@ -234,11 +233,14 @@ class LocomotionMPC(PinController):
         """
         Record trajectory of the last plan until self.plan_step.
         """
-        self.q_full.append(self.q_plan[self.first_plan_step:self.last_plan_step+1].copy())
-        self.v_full.append(self.v_plan[self.first_plan_step:self.last_plan_step+1].copy())
-        self.a_full.append(self.a_plan[self.first_plan_step:self.last_plan_step+1].copy())
-        self.f_full.append(self.f_plan[self.first_plan_step:self.last_plan_step+1].copy())
-
+        id = np.array(self.plan_step_to_record, dtype=np.int32)
+        id = np.expand_dims(id, -1)
+        self.q_full.append(np.take_along_axis(self.q_plan, id, axis=0))
+        self.v_full.append(np.take_along_axis(self.v_plan, id, axis=0))
+        self.a_full.append(np.take_along_axis(self.a_plan, id, axis=0))
+        id = np.expand_dims(id, -1)
+        self.f_full.append(np.take_along_axis(self.f_plan, id, axis=0))
+ 
     def set_command(self, v_des: np.ndarray = np.zeros((3,)), w_yaw: float = 0.) -> None:
         """
         Set velocity commands for the MPC.
@@ -518,7 +520,7 @@ class LocomotionMPC(PinController):
 
             # Wait for the solver if no delay
             while not self.solve_async and not self.optimize_future.done():
-                time.sleep(5.0e-4)
+                time.sleep(1.0e-4)
 
         # Check if the future is done and if the new plan is ready to be used
         if (self.plan_submitted and self.optimize_future.done()):
@@ -528,8 +530,9 @@ class LocomotionMPC(PinController):
                 
                 # Record last plan before updating it
                 if not self.first_solve:
-                    self.last_plan_step = self.plan_step
                     self._record_plan()
+                else:
+                    self.t0 = sim_time
                 
                 # Interpolate plan at sim_dt interval
                 self.time_plan[:] = self.time_plan_base + self.start_time
@@ -538,12 +541,10 @@ class LocomotionMPC(PinController):
                 self.a_plan[:] = np.take_along_axis(a_sol, self.id_repeat.reshape(-1, 1), 0)
                 self.f_plan[:] = np.take_along_axis(f_sol, self.id_repeat.reshape(-1, 1, 1), 0)
 
-                if self.first_solve:
-                    self.t0 = sim_time
-                    
                 self.plan_submitted = False
                 self.first_solve = False
                 self.plan_step = 0
+                self.plan_step_to_record = []
                 
                 # Plot current state vs optimization plan
                 # self.plot_current_vs_plan(q_mj, v_mj)
@@ -558,19 +559,17 @@ class LocomotionMPC(PinController):
                 time.sleep(0.1)
                 
         # Apply delay
-        if self.solve_async and not self.first_solve:
-            is_first_plan_step = self.plan_step == 0
-            
-            while t > self.time_plan[self.plan_step]:
+        if not self.first_solve:           
+            if self.solve_async:
+                while t > self.time_plan[self.plan_step]:
+                    self.plan_step += 1
+            else:
                 self.plan_step += 1
-            
-            if is_first_plan_step:
-                self.first_plan_step = self.plan_step
-                
+
         # Wait for to solver to plan the first trajectory -> PD controller
         if self.first_solve:
             torques_ff = np.zeros(self.nu)
-            self.t0 = t
+            self.t0 = sim_time
             # Set PD reference as first state
             if np.all(self.q_plan[0, :] == 0.):
                 self.q_plan[:] = q.reshape(1, -1)
@@ -580,6 +579,8 @@ class LocomotionMPC(PinController):
             self.t_full.append(sim_time)
             self.q_plan_full.append(q.copy())
             self.v_plan_full.append(v.copy())
+            self.plan_step_to_record.append(self.plan_step)
+            
             torques_ff = self.solver.dyn.id_torques(
                 q,
                 v,
