@@ -1,6 +1,0 @@
-3 hidden layer 
-512 nodes
-learning rate = 0.002
-epoch = 300
-but working policy emerges at 200
-batch size = 512
