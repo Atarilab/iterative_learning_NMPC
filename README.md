@@ -1,7 +1,18 @@
 # ATARI_NMPC
 Atarilab NMPC
 
-## Project Description
+## For Alireza
+I have been working on the behavior cloning part for some time now, here is a simple guide for using the package.
+
+1- run "pip install -e . " at workspace folder will install all packages Behavior Cloning, DAgger(to do) and mpc_controller.
+
+2- I recommend run test_mpc_rollout.py and test_policy_rollout.py first to make sure you have the necessary environment for testing. They can be found under ~/workspace/Behavior_Cloning/examples
+
+3- If you are running data_collection scripts and you feel the mpc is running too slowly, it is possible to switch off recompiliing of MPC in ~/workspace/mpc_controller/config/quadruped/mpc_opt.py
+
+4- if any question occurs, please contact me on slack.
+
+## Introduction
 ATARI_NMPC is a Nonlinear Model Predictive Control (NMPC) framework designed for quadruped robots. It leverages the Acados solver for efficient optimization and Pinocchio for robot dynamics. The framework is modular, allowing easy adaptation to different quadruped robots by configuring URDF paths, gait parameters, and control settings.
 
 This is a new fork from Victor's infrastructural repo ATARI-NMPC, aiming to test our iterative supervised learning algorithm based on Xun Pua's code.
