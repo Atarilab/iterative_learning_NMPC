@@ -12,8 +12,8 @@ from mj_pin.abstract import VisualCallback, DataRecorder, Controller # type: ign
 from mj_pin.simulator import Simulator # type: ignore
 from mj_pin.utils import get_robot_description, mj_frame_pos, mj_joint_name2act_id, mj_joint_name2dof   # type: ignore
 
-from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.database import Database
 
 import torch
 import random
@@ -439,10 +439,10 @@ if __name__ == '__main__':
     # define policy, database path for policy rollout, and data_MPC_path for setting initial conditions
     # v_des = [0.15,0,0]
     # TODO: maybe I can store the path in a config file so that I don't need to change everytime I want to do a test
-    # policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/working_policy/policy_200.pth"
+    # policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/working_policy/policy_200.pth"
     
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/network/policy_final.pth"
-    data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/dataset/experiment/traj_nominal_03_27_2025_14_12_25.npz"
+    policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/network/policy_final.pth"
+    data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_27_2025_14_12_19/dataset/experiment/traj_nominal_03_27_2025_14_12_25.npz"
     v_des = [0.3,0.0,0.0]
     
     # extract initial states from start time

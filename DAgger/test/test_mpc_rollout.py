@@ -1,13 +1,13 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../../..')
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 
 import argparse
 from typing import Tuple, List
 import numpy as np
 from datetime import datetime
-from iterative_supervised_learning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
-# from iterative_supervised_learning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
+from Behavior_Cloning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
+# from Behavior_Cloning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
 
 if __name__ == "__main__":
     # rollout_mpc

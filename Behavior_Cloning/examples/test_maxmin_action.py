@@ -23,7 +23,7 @@ def extract_action_bounds(npz_path):
 
 # Example usage
 if __name__ == "__main__":
-    npz_file_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/traj_nominal_04_07_2025_14_08_03.npz"  # ← replace with your actual file
+    npz_file_path = "/home/atari/workspace/Behavior_Cloning/examples/data/traj_nominal_04_07_2025_14_08_03.npz"  # ← replace with your actual file
     if not os.path.exists(npz_file_path):
         raise FileNotFoundError(f"Could not find file at: {npz_file_path}")
     extract_action_bounds(npz_file_path)

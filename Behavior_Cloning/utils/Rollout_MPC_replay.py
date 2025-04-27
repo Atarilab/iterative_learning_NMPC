@@ -14,8 +14,8 @@ from mj_pin.abstract import VisualCallback, DataRecorder, Controller # type: ign
 from mj_pin.simulator import Simulator # type: ignore
 from mj_pin.utils import get_robot_description, mj_frame_pos, mj_joint_name2act_id, mj_joint_name2dof   # type: ignore
 
-from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.database import Database
 
 import torch
 from tqdm import tqdm
@@ -286,7 +286,7 @@ def rollout_replay(
 
 if __name__ == '__main__':
     # define the MPC recording you want to replay
-    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/example_traj_smoothed.npz"
+    data_path = "/home/atari/workspace/Behavior_Cloning/examples/data/example_traj_smoothed.npz"
     rollout_replay(
         data_path = data_path,
         sim_time = 4.0,

@@ -1,4 +1,6 @@
 ## NOTE: This script is for data collection for behavior cloning.
+# this script is to collect a lot of data in one rollout by perturbing the robot every three seconds
+# this script wants to combine dataset from three desired velocities together to see if that improves compounding error problem.
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
@@ -9,8 +11,8 @@ from typing import Tuple, List
 import numpy as np
 from datetime import datetime
 
-from iterative_supervised_learning.utils.RolloutMPC_force_at_interval import rollout_mpc_phase_percentage_shift
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.RolloutMPC_force_at_interval import rollout_mpc_phase_percentage_shift
+from Behavior_Cloning.utils.database import Database
 import random
 import hydra
 import h5py

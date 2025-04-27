@@ -3,7 +3,7 @@ from scipy.signal import butter, filtfilt
 import os
 
 # ========================= CONFIGURATION =========================
-NPZ_PATH = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_15_2025_10_21_38/dataset/experiment/traj_nominal_04_15_2025_10_21_45.npz"    # Input .npz file
+NPZ_PATH = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_15_2025_10_21_38/dataset/experiment/traj_nominal_04_15_2025_10_21_45.npz"    # Input .npz file
 OUTPUT_PATH = './data/example_traj_smoothed.npz'  # Output file
 CUTOFF_HZ = 5.0    # Cutoff frequency (Hz)
 FS = 100.0          # Sampling rate (Hz) — adjust to your data

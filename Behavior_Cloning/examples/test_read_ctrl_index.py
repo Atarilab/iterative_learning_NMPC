@@ -1,7 +1,7 @@
 import numpy as np
 
 # === Define your npz file path and index here ===
-npz_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_08_57_33/dataset/experiment/traj_nominal_04_23_2025_08_57_39.npz"
+npz_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_08_57_33/dataset/experiment/traj_nominal_04_23_2025_08_57_39.npz"
 n = 1944  # which entry you want to check
 
 # === Load the npz file ===

@@ -29,7 +29,7 @@ joint_labels = [
 visualize_length = 1500
 
 # Directory containing data
-directory_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/to_be_visualized"
+directory_path = "/home/atari/workspace/Behavior_Cloning/examples/data/to_be_visualized"
 
 # Load the first k files from the directory
 k1 = 0  # Number of files to visualize

@@ -4,8 +4,8 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 
 import numpy as np
-from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.database import Database
 
 n_state = 44 # with base_wrt_feet
 # n_state = 36 # without base_wrt_feet
@@ -14,9 +14,9 @@ n_action = 12
 
 if __name__ == "__main__":
     # initialize some path
-    policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/network/policy_final.pth"
-    data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/kp20_kd1.5.npz"
-    database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/database_0.hdf5"
+    policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/network/policy_final.pth"
+    data_path = "/home/atari/workspace/Behavior_Cloning/examples/data/kp20_kd1.5.npz"
+    database_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_05_2025_15_10_53/dataset/database_0.hdf5"
     norm_policy_input = True
     v_des = [0.3,0.0,0.0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

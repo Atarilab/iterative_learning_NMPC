@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.database import Database
 
 # --- Configuration ---
-# dataset_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/database_0.hdf5" 
-dataset_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_08_57_33/dataset/database_0.hdf5"
+# dataset_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/database_0.hdf5" 
+dataset_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_08_57_33/dataset/database_0.hdf5"
 use_state_mask = True
 distance_plot_save_path = "l2_distances_hist.png"
 

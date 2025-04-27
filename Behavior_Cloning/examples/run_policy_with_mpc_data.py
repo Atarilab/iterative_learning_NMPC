@@ -3,8 +3,8 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import numpy as np
 import torch
-from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.database import Database
 
 # define global variables
 SIM_DT = 1.0e-3
@@ -23,16 +23,16 @@ v_des = [0.15,0.0,0.0]
 action_policy_his = []
 
 # read data from mpc file
-data_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
+data_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/experiment/simulation_data_03_18_2025_11_08_03.npz"
 data = np.load(data_path)
 state_his = data["state"]
 
 # initialize policy network
 # this is a partially working network
-# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
+# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_07_2025_15_50_55/network/policy_100.pth"
 
 # network that fixes control signal mismatch
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/network/policy_final.pth"
+policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/network/policy_final.pth"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=3,
@@ -44,7 +44,7 @@ print(policy_net)
 
 # initialize input normalization parameters
 norm_policy_input = True
-database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/database_0.hdf5"
+database_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_18_2025_11_07_47/dataset/database_0.hdf5"
 if norm_policy_input and database_path:
     db = Database(limit=10000000, norm_input=True)
     db.load_saved_database(database_path)

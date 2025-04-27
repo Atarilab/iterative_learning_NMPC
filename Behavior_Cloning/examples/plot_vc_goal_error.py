@@ -49,13 +49,13 @@ visualization_length = 3000
 timesteps = np.arange(visualization_length)
 
 # Load MPC data
-mpc_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_03_26_2025_14_10_11.npz"
+mpc_path = "/home/atari/workspace/Behavior_Cloning/examples/data/simulation_data_03_26_2025_14_10_11.npz"
 data_mpc = np.load(mpc_path)
 vx_mpc = data_mpc["v"][:visualization_length, 0]
 vy_mpc = data_mpc["v"][:visualization_length, 1]
 
 # load policy data
-policy_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/working_policy_traj.npz"
+policy_path = "/home/atari/workspace/Behavior_Cloning/utils/data/working_policy_traj.npz"
 data_policy = np.load(policy_path)
 vx_policy = data_policy["v"][:visualization_length, 0]
 vy_policy = data_policy["v"][:visualization_length, 1]

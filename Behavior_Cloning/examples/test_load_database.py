@@ -3,11 +3,11 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 import numpy as np
 import torch
-# from iterative_supervised_learning.utils.database_rewrite import Database  # Ensure this imports the correct Database class
-from iterative_supervised_learning.utils.database import Database
+# from Behavior_Cloning.utils.database_rewrite import Database  # Ensure this imports the correct Database class
+from Behavior_Cloning.utils.database import Database
 
 # Path to the saved database (Update this if needed)
-database_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_55_56/dataset/database_0.hdf5"
+database_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_55_56/dataset/database_0.hdf5"
 # Initialize Database with a suitable limit
 db = Database(limit=10000000,norm_input=True)  # Ensure the limit is large enough to load the full dataset
 

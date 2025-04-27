@@ -9,8 +9,8 @@ from typing import Tuple, List
 import numpy as np
 from datetime import datetime
 
-from iterative_supervised_learning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.RolloutMPC_force_perturbation import rollout_mpc_phase_percentage_shift
+from Behavior_Cloning.utils.database import Database
 import random
 import hydra
 import h5py

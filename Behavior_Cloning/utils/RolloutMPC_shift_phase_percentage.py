@@ -1,6 +1,8 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) )
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from typing import Tuple, List, Dict
 import pinocchio as pin
 import numpy as np

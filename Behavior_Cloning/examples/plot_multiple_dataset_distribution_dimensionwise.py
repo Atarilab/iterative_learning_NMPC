@@ -5,9 +5,9 @@ import os
 
 # List of dataset directories to compare
 data_dirs = [
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/experiment",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/dataset/experiment",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/experiment"
+    "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_11_2025_15_59_31/dataset/experiment",
+    "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_13_2025_10_25_00/dataset/experiment",
+    "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_16_2025_15_56_16/dataset/experiment"
 ]
 k = None  # If None, use all trajectories
 

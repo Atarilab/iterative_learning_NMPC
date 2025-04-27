@@ -6,16 +6,16 @@ visualize_length = 10000
 
 # Define realized trajectory file paths
 # realized_traj_files = [
-#     "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_200_4.npz",
+#     "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_200_4.npz",
 #     ]
-# data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
 
 realized_traj_files = [
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_06_13.npz",
-    # "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_07_28.npz",
-    "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_08_43.npz"
+    # "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_06_13.npz",
+    # "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_07_28.npz",
+    "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_08_43.npz"
     ]
-data_MPC_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
 
 
 # Load realized data from selected files (choose range a to b)
@@ -50,7 +50,7 @@ reference_base_pos = data_MPC["q"][:visualize_length, :3]
 reference_base_vel = data_MPC["v"][:visualize_length, :3]
 
 # Load policy-generated actions
-# policy_action_path = "/home/atari/workspace/iterative_supervised_learning/utils/data/action_policy_history.npz"
+# policy_action_path = "/home/atari/workspace/Behavior_Cloning/utils/data/action_policy_history.npz"
 # policy_data = np.load(policy_action_path)
 # action_policy_his = policy_data["action_policy_his"][:visualize_length, :]
 

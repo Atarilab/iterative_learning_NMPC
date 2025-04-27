@@ -1,4 +1,5 @@
 ## NOTE: This script is for data collection for behavior cloning.
+# in this script, I try to pass a initial state from reference traj and perturb with nullspace perturbation method.
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
@@ -10,8 +11,8 @@ import os
 import numpy as np
 from datetime import datetime
 
-from iterative_supervised_learning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
+from Behavior_Cloning.utils.database import Database
 import random
 import hydra
 import h5py

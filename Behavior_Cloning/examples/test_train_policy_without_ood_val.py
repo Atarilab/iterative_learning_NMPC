@@ -17,8 +17,8 @@ import wandb
 from tqdm import tqdm
 from datetime import datetime
 
-from iterative_supervised_learning.utils.network import GoalConditionedPolicyNet
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.database import Database
 
 # Set random seed for reproducibility
 seed = 42

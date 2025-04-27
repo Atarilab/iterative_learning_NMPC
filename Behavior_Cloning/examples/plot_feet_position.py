@@ -95,7 +95,7 @@ def plot_base_wrt_feet(base_wrt_feet, num_samples=20):
 
 
 if __name__ == "__main__":
-    file_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_02_27_2025_13_16_19.npz"
+    file_path = "/home/atari/workspace/Behavior_Cloning/examples/data/simulation_data_02_27_2025_13_16_19.npz"
     data = np.load(file_path)
     feet_positions = data["feet_pos_w"]
     base_wrt_feet = data["base_wrt_feet"]

@@ -212,18 +212,18 @@ def plot_pca_state_action_with_pc3_overlay(train_state_action, policy_npz_path, 
 
 ## Example usage
 # Set directory path and number of trajectories to visualize
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment"
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_03_2025_12_20_02/dataset/experiment"
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_15_09_58/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_03_2025_12_20_02/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_01_2025_15_09_58/dataset/experiment"
 
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_10_2025_09_33_49/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_10_2025_09_33_49/dataset/experiment"
 
 # dataset that gives me the best policy
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_09_42_07/dataset/experiment"
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment"
-# data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_09_42_07/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment"
+# data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_15_57_03/dataset/experiment"
 
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_23_2025_18_38_44/dataset/experiment"
+data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_18_38_44/dataset/experiment"
 k_start = 0  # Number of trajectories to visualize
 k_end = None
 # Joint labels for visualization
@@ -293,8 +293,8 @@ combined_state_action = np.vstack(combined_state_action)
 # plot_pca_on_combined_array(combined_PD_target, "Combined PD Targets")
 
 # policy data overlay
-# policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_11_2025_12_48_57.npz"
-policy_path = "/home/atari/workspace/iterative_supervised_learning/examples/data/simulation_data_04_17_2025_12_49_35.npz"
+# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/simulation_data_04_11_2025_12_48_57.npz"
+policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/simulation_data_04_17_2025_12_49_35.npz"
 train_data_dict = {
     'position': combined_position,
     'velocity': combined_velocity,

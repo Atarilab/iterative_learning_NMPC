@@ -6,8 +6,8 @@ from scipy.signal import savgol_filter
 from tqdm import tqdm
 
 # ============================== CONFIGURATION ==============================
-NPZ_DIR = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment'                      # Folder containing your .npz files
-HDF5_OUTPUT_PATH = '/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/smoothed_dataset.hdf5'     # Output path for merged and smoothed dataset
+NPZ_DIR = '/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment'                      # Folder containing your .npz files
+HDF5_OUTPUT_PATH = '/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/smoothed_dataset.hdf5'     # Output path for merged and smoothed dataset
 WINDOW = 5                              # Savitzky-Golay window size (must be odd)
 POLYORDER = 2                           # Polynomial order for smoothing
 SMOOTH_KEYS = ['state', 'action']      # Keys to smooth (if present in npz)

@@ -7,7 +7,7 @@ import hydra
 import h5py
 import numpy as np
 from datetime import datetime
-from iterative_supervised_learning.utils.database import Database
+from Behavior_Cloning.utils.database import Database
 
 class DatasetCollector:
     def __init__(self, cfg, experiment_dir):
@@ -75,7 +75,7 @@ class DatasetCollector:
 # Example usage:
 @hydra.main(config_path='cfgs', config_name='data_collection_config.yaml',version_base="1.1")
 def main(cfg):
-    collector = DatasetCollector(cfg, experiment_dir="/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_27_2025_11_53_51/dataset/experiment")
+    collector = DatasetCollector(cfg, experiment_dir="/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_27_2025_11_53_51/dataset/experiment")
     collector.load_data_from_npz_files()
     collector.save_dataset(iteration=0)
 

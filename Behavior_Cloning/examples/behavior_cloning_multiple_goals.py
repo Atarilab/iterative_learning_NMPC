@@ -1,1 +1,0 @@
-## NOTE: This script is for behavior cloning on a list of datasets (related to multiple goals), ideally the trained policy_0 will generalize to every goal in the goal space.

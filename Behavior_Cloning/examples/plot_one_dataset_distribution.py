@@ -4,7 +4,7 @@ import seaborn as sns
 import os
 
 # Set directory path and number of trajectories to visualize
-data_dir = "/home/atari/workspace/iterative_supervised_learning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment"
+data_dir = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_18_2025_10_13_05/dataset/experiment"
 k_start = 10  # Number of trajectories to visualize
 k_end = 15
 # Joint labels for visualization
