@@ -102,7 +102,7 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/$USERNAME/acados/lib"
 ENV ACADOS_SOURCE_DIR="/home/$USERNAME/acados"
 
 # Clone and install mj_pin_utils
-RUN git clone https://github.com/Atarilab/mj_pin_utils.git && \
+RUN git clone https://github.com/Chiniklas/mj_pin_utils.git && \
     bash -c "source /home/$USERNAME/miniconda/etc/profile.d/conda.sh && conda activate atari_mpc && \
     conda develop ./mj_pin_utils"
 
