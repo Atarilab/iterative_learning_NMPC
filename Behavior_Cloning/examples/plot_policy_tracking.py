@@ -10,13 +10,15 @@ visualize_length = 10000
 #     ]
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
 
-realized_traj_files = [
-    # "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_06_13.npz",
-    # "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_07_28.npz",
-    "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_23_2025_19_06_12/dataset/experiment/traj_04_23_2025_19_08_43.npz"
-    ]
-data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
+# realized_traj_files = [
+#    "/home/atari/workspace/Behavior_Cloning/utils/data/simulation_data_04_28_2025_09_36_44.npz"
+#     ]
+# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 
+realized_traj_files = [
+   "/home/atari/workspace/Behavior_Cloning/utils/data/simulation_data_04_28_2025_09_43_37.npz"
+    ]
+data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_450_2.npz"
 
 # Load realized data from selected files (choose range a to b)
 a, b = 0, 3  # Define your range here

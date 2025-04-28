@@ -17,6 +17,6 @@ if __name__ == "__main__":
                                                  visualize=True,
                                                  save_data=True,
                                                  record_video = False,
-                                                 v_des= [0.15,0.1,0.0])
+                                                 v_des= [0.15,0.0,0.0])
     print(record_path)
     print(early_termination)

@@ -41,7 +41,10 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
-       
+    
+    # get rid or phase percentage
+    return 0
+  
     # for trot
     gait_period = 0.5
     if t < t0:
@@ -274,6 +277,12 @@ def rollout_replay(
     else:
         data_recorder = None
 
+    # set initial state
+    data = np.load(data_path)
+    q_mj = data["q"][0]
+    v_mj = data["v"][0]
+    sim.set_initial_state(q0=q_mj,v0=v_mj)
+    
     sim.run(
         sim_time=sim_time,
         use_viewer=visualize,
@@ -286,10 +295,10 @@ def rollout_replay(
 
 if __name__ == '__main__':
     # define the MPC recording you want to replay
-    data_path = "/home/atari/workspace/Behavior_Cloning/examples/data/example_traj_smoothed.npz"
+    data_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_01_2025_17_30_52/dataset/experiment/traj_50_8.npz"
     rollout_replay(
         data_path = data_path,
-        sim_time = 4.0,
+        sim_time = 2.0,
         v_des = [0.15,0.0,0.0],
         save_data=True,
         start_time=0.0)

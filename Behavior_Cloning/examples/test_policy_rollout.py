@@ -48,7 +48,7 @@ input()
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=15.0, 
+                sim_time=12.0, 
                 v_des = v_des, 
                 record_video=True,
                 norm_policy_input=True,

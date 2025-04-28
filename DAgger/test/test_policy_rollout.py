@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')
 
 import numpy as np
-from Behavior_Cloning.utils.RolloutPolicy import rollout_policy
+from DAgger.utils.RolloutPolicy import rollout_policy
 import random
 import torch
 
