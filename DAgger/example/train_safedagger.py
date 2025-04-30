@@ -153,7 +153,16 @@ class BehavioralCloning:
             num_hidden_layer=self.cfg.num_hidden_layer,
             hidden_dim=self.cfg.hidden_dim
         )
-       
+        
+        # Load pretrained policy if provided
+        if self.cfg.pretrained_policy_path and os.path.exists(self.cfg.pretrained_policy_path):
+            print(f"Loading pretrained policy from {self.cfg.pretrained_policy_path}")
+            checkpoint = torch.load(self.cfg.pretrained_policy_path, map_location=self.device, weights_only=False)
+            self.network.load_state_dict(checkpoint['network_state_dict'])
+            
+            # if self.normalize_policy_input:
+            #     self.mean_std = checkpoint.get('norm_policy_input', self.mean_std)
+
         # Print model architecture
         print("\n=== Initialized Network Structure ===")
         print(self.network)
@@ -179,7 +188,7 @@ class BehavioralCloning:
         wandb.finish()
 
 
-@hydra.main(config_path='cfgs', config_name='bc_config_without_ood_val.yaml')
+@hydra.main(config_path='../cfgs', config_name='train_safedagger.yaml')
 def main(cfg):
     bc = BehavioralCloning(cfg)
     bc.run()
