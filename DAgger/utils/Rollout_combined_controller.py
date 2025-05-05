@@ -10,7 +10,7 @@ from mj_pin.utils import get_robot_description, mj_frame_pos, mj_joint_name2act_
 
 from mpc_controller.mpc import LocomotionMPC
 from DAgger.utils.RolloutPolicy import PolicyController, rollout_policy
-from DAgger.utils.RolloutMPC_shift_phase_percentage import rollout_mpc_phase_percentage_shift
+from DAgger.utils.RolloutMPC import rollout_mpc_phase_percentage_shift
 import scipy.spatial.transform as st
 import mujoco 
 import matplotlib.pyplot as plt

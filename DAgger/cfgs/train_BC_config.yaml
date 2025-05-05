@@ -6,15 +6,18 @@ defaults:
 # ------- Desired Motion parameters -----------------------------------
 # specify the gait, bound or jump or trot or combined
 gaits: ["trot"]  # trot, jump, bound
-robot_name: "go2"
-goal_type: 'vc'
+
 # desired velocity
 vx_des_min: 0.0 # m_s
 vx_des_max: 0.3  # m/s
-vy_des_min: 0.0 # m_s
-vy_des_max: 0.0  # m/s
+vy_des_min: -0.1 # m_s
+vy_des_max: 0.1  # m/s
 w_des_min: 0.0  # rad/s
 w_des_max: 0.0   # rad/s
+
+# Evaluation
+num_rollouts_eval: 10
+num_pertubations_per_replanning_eval: 1
 
 # Pertubation variables
 mu_base_pos: 
@@ -52,7 +55,7 @@ sigma_vel: # joint velocity
 
 
 # ------- Model Parameters -----------------------------------
-action_type: "pd_target" # "pd_target", "torque", "structured"
+action_type: "pd_target" #"pd_target", "torque", "structured"
 normalize_policy_input: True
 
 # ------- Saving Paths ----------------------------------
@@ -61,25 +64,31 @@ data_save_path: "./data" # folder to store database snapshots
 suffix: '' # suffix model name for saving
 
 #------------------ Simulation Rollout Parameters ----------------------------
-episode_length: 2000 # steps in rollout
-sim_time: 2.0
+episode_length: 5000  # steps in rollout
 sim_dt: 0.001
 
 #------------------ Data related Parameters ----------------------------
-# state with base_wrt_feet
-n_state: 47 # state:44 + goal:3
-# state without base_wrt_feet
-# n_state: 39
-# n_action: 12
+n_state: 44 # input size 47 = n_state 44 + n_goals 3 # with base_wrt_feet
+# n_state: 36 # without base_wrt_feet
+n_action: 12
 goal_horizon: 1
 kp: 20
 kd: 1.5
 
-#---------- Data Collection Variables --------------------------
-n_iteration: 4
-num_pertubations_per_replanning: 1
 #---------- Data buffer variables --------------------------
 database_size: 10000000
+database_path: "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_05_2025_14_49_01/dataset/database_final.hdf5"
+#---------- Network parameters-------------
+num_hidden_layer: 3
+hidden_dim: 512
+batch_norm: True
+goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint
+
+#---------- Training parameters-------------
+batch_size: 1024
+learning_rate: 0.001
+n_epoch: 500 # default=150
+n_train_frac: 0.9 # fraction of the data used for training
 
 
 hydra:

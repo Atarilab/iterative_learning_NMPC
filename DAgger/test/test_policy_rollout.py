@@ -57,8 +57,12 @@ torch.manual_seed(seed)
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 # v_des = [0.15,0.0,0.0]
 
-# survives 60s, maybe forever, starting from 1s, really nice!
-policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/Apr_29_2025_19_43_55/network/policy_30.pth"
+# # locosafedagger --> survives 60s, maybe forever, starting from 1s, really nice!
+# policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/Apr_29_2025_19_43_55/network/policy_30.pth"
+# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
+# v_des = [0.15,0.0,0.0]
+
+policy_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_05_2025_14_49_01/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 v_des = [0.15,0.0,0.0]
 
@@ -78,7 +82,7 @@ input()
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=90.0, 
+                sim_time=10.0, 
                 v_des = v_des, 
                 record_video=False,
                 norm_policy_input=True,
