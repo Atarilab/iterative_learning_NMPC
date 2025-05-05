@@ -1,0 +1,1 @@
+# This script does behavior cloning on omini-vc goals and returns a suboptimal polivy
