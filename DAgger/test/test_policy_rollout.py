@@ -12,14 +12,6 @@ np.random.seed(seed)
 random.seed(seed)
 torch.manual_seed(seed)
 
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/network/policy_450.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
-# v_des = [0.15,0.0,0.0]
-
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_28_2025_16_25_40/network/policy_final.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Mar_28_2025_15_09_14/dataset/experiment/traj_nominal_03_28_2025_15_09_18.npz"
-# v_des = [0.15,0.0,0.0]
-
 # this works ok, config: no phase percentage, improved nullspace perturbation, 150000 data points
 # policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_01_2025_16_00_31/network/policy_400.pth"
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_01_2025_16_00_31/dataset/experiment/traj_nominal_04_01_2025_16_00_34.npz"
@@ -35,36 +27,14 @@ torch.manual_seed(seed)
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_02_2025_13_34_41/dataset/experiment/traj_nominal_04_02_2025_13_34_50.npz"
 # v_des = [0.15,0.0,0.0]
 
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_02_2025_14_52_53/network/policy_final.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_02_2025_14_52_53/dataset/experiment/traj_nominal_04_02_2025_14_53_00.npz"
-# v_des = [0.15,0.0,0.0]
-
-# replanning across 5 gait cycles
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_03_2025_10_51_25/network/policy_final.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_03_2025_10_51_25/dataset/experiment/traj_nominal_04_03_2025_10_51_31.npz"
-# v_des = [0.15,0.0,0.0]
-
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/network/policy_final.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_04_2025_09_04_52/dataset/experiment/traj_nominal_04_04_2025_09_04_59.npz"
-# v_des = [0.15,0.0,0.0]
-
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_10_2025_09_33_49/network/policy_final.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_10_2025_09_33_49/dataset/experiment/traj_nominal_04_10_2025_09_33_56.npz"
-# v_des = [0.15,0.0,0.0]
-
-# # force perturbation(best for now, start from 1.0s)
-# policy_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/network/policy_400.pth"
-# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-# v_des = [0.15,0.0,0.0]
-
 # # locosafedagger --> survives 60s, maybe forever, starting from 1s, really nice!
 # policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/Apr_29_2025_19_43_55/network/policy_30.pth"
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 # v_des = [0.15,0.0,0.0]
 
-policy_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_05_2025_14_49_01/network/policy_final.pth"
+policy_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-v_des = [0.15,0.0,0.0]
+v_des = [-0.1,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
@@ -82,7 +52,7 @@ input()
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=10.0, 
+                sim_time=5.0, 
                 v_des = v_des, 
                 record_video=False,
                 norm_policy_input=True,

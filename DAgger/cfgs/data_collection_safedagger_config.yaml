@@ -12,7 +12,7 @@ goal_type: 'vc'
 vx_des_min: 0.0 # m_s
 vx_des_max: 0.3  # m/s
 vy_des_min: 0.0 # m_s
-vy_des_max: 0.0  # m/s
+vy_des_max: 0.3  # m/s
 w_des_min: 0.0  # rad/s
 w_des_max: 0.0   # rad/s
 

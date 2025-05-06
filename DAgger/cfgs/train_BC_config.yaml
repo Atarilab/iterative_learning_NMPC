@@ -77,7 +77,7 @@ kd: 1.5
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_05_2025_14_49_01/dataset/database_final.hdf5"
+database_path: "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/dataset/database_final.hdf5"
 #---------- Network parameters-------------
 num_hidden_layer: 3
 hidden_dim: 512
@@ -87,7 +87,7 @@ goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint
 #---------- Training parameters-------------
 batch_size: 1024
 learning_rate: 0.001
-n_epoch: 500 # default=150
+n_epoch: 250 # default=150
 n_train_frac: 0.9 # fraction of the data used for training
 
 
