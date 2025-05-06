@@ -32,9 +32,15 @@ torch.manual_seed(seed)
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
 # v_des = [0.15,0.0,0.0]
 
-policy_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/network/policy_final.pth"
+# omini-directional vc policy pretrained on 120k data points
+# policy_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/network/policy_final.pth"
+# data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
+# v_des = [-0.1,0.0,0.0]
+
+# policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_11_50_25/network/policy_30.pth"
+policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_12_44_23/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-v_des = [-0.1,0.0,0.0]
+v_des = [0.1,0.1,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)

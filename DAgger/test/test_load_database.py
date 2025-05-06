@@ -7,7 +7,7 @@ import torch
 from DAgger.utils.database import Database
 
 # Path to the saved database (Update this if needed)
-database_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/dataset/database_final.hdf5"
+database_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_12_44_23/dataset/database_0.hdf5"
 # Initialize Database with a suitable limit
 db = Database(limit=10000000,norm_input=True)  # Ensure the limit is large enough to load the full dataset
 

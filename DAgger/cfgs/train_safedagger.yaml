@@ -77,7 +77,7 @@ kd: 1.5
 
 #---------- Data buffer variables --------------------------
 database_size: 10000000
-database_path: "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/Apr_29_2025_19_43_55/dataset/agg_dataset1.hdf5"
+database_path: "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_12_44_23/dataset/agg_dataset1.hdf5"
 #---------- Network parameters-------------
 num_hidden_layer: 3
 hidden_dim: 512
@@ -87,9 +87,9 @@ goal_type: 'vc'  # cc: contact constraint, vc: veloctiy constraint
 #---------- Training parameters-------------
 batch_size: 1024
 learning_rate: 0.001
-n_epoch: 50 # default=150
+n_epoch: 300 # default=150
 n_train_frac: 0.9 # fraction of the data used for training
-pretrained_policy_path: /home/atari/workspace/DAgger/example/data/SafeDagger/policy_pretrain.pth # or null if not loading
+pretrained_policy_path: /home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_11_50_25/network/policy_30.pth # or null if not loading
 
 
 hydra:

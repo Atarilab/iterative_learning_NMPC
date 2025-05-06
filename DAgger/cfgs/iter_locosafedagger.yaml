@@ -1,0 +1,88 @@
+defaults:
+  - _self_
+  - override hydra/launcher: submitit_local
+
+# -------- Pipeline Control --------
+n_iteration: 3
+
+# -------- Paths --------
+output_root: ./data
+policy_path: null  # internal use (dynamically overridden)
+data_save_path: null  # internal use
+pretrain_dataset_path: /home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/dataset/database_final.hdf5
+initial_policy_path: /home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/network/policy_final.pth
+reference_mpc_path: /home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz
+
+# -------- Motion / Perturbation Settings --------
+gaits: ["trot"]
+vx_des_min: 0.0
+vx_des_max: 0.3
+vy_des_min: 0.0
+vy_des_max: 0.3
+w_des_min: 0.0
+w_des_max: 0.0
+num_pertubations_per_replanning: 1
+
+# Perturbation settings by gait
+mu_base_pos:
+  trot: 0.0
+sigma_base_pos:
+  trot: 0.1
+mu_joint_pos:
+  trot: 0.0
+sigma_joint_pos:
+  trot: 0.2
+mu_base_ori:
+  trot: 0.0
+sigma_base_ori:
+  trot: 0.7
+mu_vel:
+  trot: 0.0
+sigma_vel:
+  trot: 0.2
+
+# -------- Model / Policy --------
+robot_name: "go2"
+goal_type: "vc"
+action_type: "pd_target"
+normalize_policy_input: true
+n_state: 44
+n_action: 12
+goal_horizon: 1
+kp: 20
+kd: 1.5
+
+# -------- Network / Training --------
+batch_size: 512
+learning_rate: 0.001
+n_epoch: 100
+n_train_frac: 0.9
+num_hidden_layer: 3
+hidden_dim: 512
+
+# -------- Data Management --------
+database_size: 10000000
+episode_length: 2000
+sim_dt: 0.001
+sim_time: 2.0
+save_data: true
+suffix: ""
+
+# -------- Hydra --------
+hydra:
+  job:
+    chdir: False
+  run:
+    dir: ${output_root}/hydra_logs/${now:%Y_%m_%d}_${now:%H_%M_%S}
+  sweep:
+    dir: ${output_root}/${now:%Y_%m_%d}_${now:%H_%M_%S}
+    subdir: ${hydra.job.num}
+  launcher:
+    timeout_min: 4300
+    cpus_per_task: 10
+    gpus_per_node: 1
+    tasks_per_node: 1
+    mem_gb: 160
+    nodes: 1
+    submitit_folder: ./exp/${now:%Y.%m.%d}/${now:%H%M%S}_${gaits}/.slurm
+
