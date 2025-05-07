@@ -29,12 +29,18 @@ v_des = [0.15, 0.0, 0.0]
 n_state = 44
 
 class DataCollection():
-    def __init__(self, cfg):
+    def __init__(self, 
+                 cfg,
+                 iter_index: int = 0,
+                 previous_dataset_path: str = None,
+                 previous_policy_path: str = None):
+        # fixed parameters
         self.cfg = cfg
         self.episode_length = cfg.episode_length
         self.sim_dt = cfg.sim_dt
+        self.sim_time = cfg.sim_time
         self.n_iteration = cfg.n_iteration
-        self.num_pertubations_per_replanning = cfg.num_pertubations_per_replanning
+        # self.num_pertubations_per_replanning = cfg.num_pertubations_per_replanning
         
         self.gaits = cfg.gaits
         self.feet_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
@@ -43,12 +49,22 @@ class DataCollection():
         self.vy_range = (cfg.vy_des_min, cfg.vy_des_max)
         self.w_range = (cfg.w_des_min, cfg.w_des_max)
         
+        # parameters from higher layer 
+        self.iter_index = iter_index
+        self.previous_dataset_path = previous_dataset_path
+        self.previous_policy_path = previous_policy_path
+        
+        # internal parameters
         self.database = Database(limit=cfg.database_size, norm_input=True)
         self.data_save_path = self._prepare_save_path()
         self.ood_database = Database(limit=cfg.database_size, norm_input=True)
 
     def _prepare_save_path(self):
-        return self.cfg.data_save_path
+        """
+        Constructs the dataset save path dynamically using `run_dir` and `iter_index`.
+        """
+        base_dir = self.cfg.run_dir  # already resolved by Hydra
+        return os.path.join(base_dir, f"iter_{self.iter_index}", "dataset")
 
     def save_dataset(self, iteration):
         os.makedirs(self.data_save_path, exist_ok=True)
@@ -114,7 +130,7 @@ class DataCollection():
             if agg_traj_times is not None:
                 f.create_dataset('traj_times', data=agg_traj_times)
 
-        print(f"Appended dataset saved to: {output_path}")
+        # print(f"Appended dataset saved to: {output_path}")
 
     
     def run(self):
@@ -130,7 +146,7 @@ class DataCollection():
         control_mode = "policy"
         
         # simulator related parameters
-        sim_time = 20.0
+        # sim_time = 20.0
         start_time = 0.0
         initial_state = []
         v_des = np.array([0.15, 0.0, 0.0])
@@ -143,7 +159,7 @@ class DataCollection():
         # mpc related parameters
         
         # policy related parameters
-        policy_path = self.cfg.policy_path
+        policy_path = self.previous_policy_path
         reference_mpc_path = self.cfg.reference_mpc_path
         data = np.load(reference_mpc_path)
         q0 = data["q"][int(start_time * 1000)]
@@ -154,7 +170,7 @@ class DataCollection():
         rollout_combined_controller(
             control_mode=control_mode,
             robot_name=robot_name,
-            sim_time=sim_time,
+            sim_time=self.sim_time,
             start_time=start_time,
             initial_state=initial_state,
             v_des=v_des,
@@ -203,23 +219,24 @@ class DataCollection():
                     traj_id=traj_ids,
                     times=times
                 )
-                
+        # save expert dataset as database_0.hdf5      
         self.save_dataset(iteration=0)
         
-        # Perform aggregation
-        if self.cfg.pretrain_dataset_path:
-            print("Aggregating with base dataset...")
-            
-            # Output path for the aggregated dataset
-            agg_dataset_path = os.path.join(self.data_save_path, "agg_dataset.hdf5")
-            
-            self.append_to_dataset(
-                base_dataset_path=self.cfg.pretrain_dataset_path,
-                output_path=agg_dataset_path
-            )
-            
-            print(f"✅ Aggregated dataset saved to: {agg_dataset_path}")
-            input()
+        ## Perform aggregation
+        # Output path for the aggregated dataset
+        agg_dataset_path = os.path.join(self.data_save_path, "agg_dataset.hdf5")
+        
+        self.append_to_dataset(
+            base_dataset_path=self.previous_dataset_path,
+            output_path=agg_dataset_path
+        )
+        
+        if total_timesteps > 0:
+            ratio = expert_timesteps / total_timesteps
+            print(f"📊 Expert Influence Ratio: {expert_timesteps}/{total_timesteps} = {ratio:.3f}")
+        else:
+            print("No timesteps processed; cannot compute expert influence.")
+        # input()
 
 @hydra.main(config_path='../cfgs', config_name='iter_locosafedagger.yaml', version_base="1.1")
 def main(cfg):

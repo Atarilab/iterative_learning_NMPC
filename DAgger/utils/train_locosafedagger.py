@@ -32,19 +32,25 @@ wandb.login()
 
 
 class BehavioralCloning:
-    def __init__(self, cfg):
+    def __init__(self, 
+                 cfg,
+                 previous_policy_path=None,
+                 current_dataset_path=None):
+        
         self.cfg = cfg
+        
+        ## import some iterative parameters
+        self.previous_policy_path = previous_policy_path
+        self.current_dataset_path = current_dataset_path
         
         # define device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {self.device}")
-
+        
+        ## import some fixed parameters
         # Model Parameters
         self.n_state = cfg.n_state + 3
         self.n_action = cfg.n_action
-        
-        # # only for contact conditioned goals
-        # self.goal_horizon = cfg.goal_horizon
         
         # define input normalization
         self.normalize_policy_input = cfg.normalize_policy_input
@@ -155,13 +161,10 @@ class BehavioralCloning:
         )
         
         # Load pretrained policy if provided
-        if self.cfg.pretrained_policy_path and os.path.exists(self.cfg.pretrained_policy_path):
-            print(f"Loading pretrained policy from {self.cfg.pretrained_policy_path}")
-            checkpoint = torch.load(self.cfg.pretrained_policy_path, map_location=self.device, weights_only=False)
+        if self.previous_policy_path and os.path.exists(self.previous_policy_path):
+            print(f"Loading previous policy from {self.previous_policy_path}")
+            checkpoint = torch.load(self.previous_policy_path, map_location=self.device, weights_only=False)
             self.network.load_state_dict(checkpoint['network_state_dict'])
-            
-            # if self.normalize_policy_input:
-            #     self.mean_std = checkpoint.get('norm_policy_input', self.mean_std)
 
         # Print model architecture
         print("\n=== Initialized Network Structure ===")
@@ -172,7 +175,7 @@ class BehavioralCloning:
         
         # Load database
         self.database = Database(limit=self.cfg.database_size, norm_input=self.normalize_policy_input)
-        filename = self.cfg.database_path
+        filename = self.current_dataset_path
         self.database.load_saved_database(filename)
         self.mean_std = self.database.get_database_mean_std()
         # print(self.mean_std)
