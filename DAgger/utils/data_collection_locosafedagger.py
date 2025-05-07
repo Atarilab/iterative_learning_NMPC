@@ -48,12 +48,8 @@ class DataCollection():
         self.ood_database = Database(limit=cfg.database_size, norm_input=True)
 
     def _prepare_save_path(self):
-        current_time = datetime.now().strftime("%b_%d_%Y_%H_%M_%S")
-        base_path = f"{self.cfg.data_save_path}/SafeDagger/{'_'.join(self.gaits)}/"
-        if self.cfg.suffix:
-            base_path += f"_{self.cfg.suffix}/"
-        return os.path.join(base_path, current_time, "dataset")
-    
+        return self.cfg.data_save_path
+
     def save_dataset(self, iteration):
         os.makedirs(self.data_save_path, exist_ok=True)
         data_len = len(self.database)
@@ -79,7 +75,7 @@ class DataCollection():
     
     def append_to_dataset(self, base_dataset_path: str, output_path: str = None):
         print("running append_to_dataset")
-        input()
+        # input()
         assert os.path.exists(base_dataset_path), f"Base dataset file not found: {base_dataset_path}"
         
         with h5py.File(base_dataset_path, 'r') as f:
@@ -124,7 +120,10 @@ class DataCollection():
     def run(self):
         experiment_dir = os.path.join(self.data_save_path, "experiment")
         os.makedirs(experiment_dir, exist_ok=True)
-        
+        # Add these counters at the beginning of run()
+        total_timesteps = 0
+        expert_timesteps = 0
+
         ## settings
         # define robot related parameters
         robot_name = "go2"
@@ -144,8 +143,8 @@ class DataCollection():
         # mpc related parameters
         
         # policy related parameters
-        policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_11_50_25/network/policy_30.pth"
-        reference_mpc_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
+        policy_path = self.cfg.policy_path
+        reference_mpc_path = self.cfg.reference_mpc_path
         data = np.load(reference_mpc_path)
         q0 = data["q"][int(start_time * 1000)]
         v0 = data["v"][int(start_time * 1000)]
@@ -180,6 +179,9 @@ class DataCollection():
                     continue
 
                 is_expert_mask = data["is_expert"].astype(bool)
+                total_timesteps += len(is_expert_mask)
+                expert_timesteps += np.sum(is_expert_mask)
+                
                 if not np.any(is_expert_mask):
                     print(f"No expert data in {file_path}, skipping.")
                     continue
@@ -201,19 +203,30 @@ class DataCollection():
                     traj_id=traj_ids,
                     times=times
                 )
-
-        
+                
         self.save_dataset(iteration=0)
+        
+        # Perform aggregation
+        if self.cfg.pretrain_dataset_path:
+            print("Aggregating with base dataset...")
+            
+            # Output path for the aggregated dataset
+            agg_dataset_path = os.path.join(self.data_save_path, "agg_dataset.hdf5")
+            
+            self.append_to_dataset(
+                base_dataset_path=self.cfg.pretrain_dataset_path,
+                output_path=agg_dataset_path
+            )
+            
+            print(f"✅ Aggregated dataset saved to: {agg_dataset_path}")
+            input()
 
-@hydra.main(config_path='../cfgs', config_name='data_collection_safedagger_config.yaml', version_base="1.1")
+@hydra.main(config_path='../cfgs', config_name='iter_locosafedagger.yaml', version_base="1.1")
 def main(cfg):
+    if cfg.policy_path is None:
+        cfg.policy_path = cfg.initial_policy_path
     dc = DataCollection(cfg)
     dc.run()
-    
-    # pretrain_dataset_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/dataset/database_final.hdf5"
-    pretrain_dataset_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_11_50_25/dataset/agg_dataset1.hdf5"
-    output_path = os.path.join(dc.data_save_path, "agg_dataset1.hdf5")
-    dc.append_to_dataset(pretrain_dataset_path, output_path)
-    
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

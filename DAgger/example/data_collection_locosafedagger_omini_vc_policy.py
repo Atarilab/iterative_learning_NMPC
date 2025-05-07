@@ -1,4 +1,4 @@
-## NOTE: This script is for data collection for safedagger.
+## NOTE: This script is for data collection for safedagger, but designed for multiple vc goals.
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../..')

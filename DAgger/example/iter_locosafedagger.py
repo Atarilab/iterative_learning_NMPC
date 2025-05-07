@@ -13,52 +13,50 @@ random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-def run_data_collection(cfg, policy_path, reference_mpc_path, output_dir):
-    cfg.policy_path = policy_path
-    cfg.reference_mpc_path = reference_mpc_path
-    cfg.data_save_path = output_dir
-    dc = DataCollection(cfg)
-    dc.run()
-    return os.path.join(dc.data_save_path, "dataset/database_0.hdf5")
+class SafeDAggerPipeline:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.policy_path = cfg.initial_policy_path
+        self.aggregated_dataset = cfg.pretrain_dataset_path
+        self.base_run_dir = cfg.run_dir
 
-def run_training(cfg, dataset_path, pretrained_path=None, output_policy_dir=None):
-    cfg.database_path = dataset_path
-    cfg.pretrained_policy_path = pretrained_path or ""
-    bc = BehavioralCloning(cfg)
-    bc.run()
-    return os.path.join(os.path.dirname(dataset_path), "../network/policy_final.pth")
+    def run_data_collection(self, iter_index):
+        self.cfg.iter_index = iter_index
+        self.cfg.policy_path = self.policy_path
+        self.cfg.reference_mpc_path = self.cfg.reference_mpc_path  # no-op for clarity
 
-def run_pipeline(cfg, n_iterations):
-    # Start from pretraining dataset
-    aggregated_dataset = cfg.pretrain_dataset_path
+        dc = DataCollection(self.cfg)
+        dc.run()
 
-    for i in range(n_iterations):
-        print(f"\n🔁 Starting SafeDAgger Iteration {i}")
+        return os.path.join(self.cfg.data_save_path, "agg_dataset.hdf5")
 
-        # === Collect new expert data ===
-        current_policy = cfg.initial_policy_path if i == 0 else policy_path
-        print(f"Current policy path: {current_policy}")
-        input()
-        
-        output_dir = os.path.join(cfg.output_root, f"iter_{i}")
-        print(f"Output directory: {output_dir}")
-        input()
-        
-        new_data_path = run_data_collection(cfg, current_policy, cfg.reference_mpc_path, output_dir)
+    def run_training(self):
+        # No modification of cfg — use locals only
+        training_cfg = OmegaConf.merge(self.cfg, OmegaConf.create({
+            "database_path": self.aggregated_dataset,
+            "pretrained_policy_path": self.policy_path,
+        }))
+        bc = BehavioralCloning(training_cfg)
+        bc.run()
 
-        # === Aggregate ===
-        agg_output_path = os.path.join(output_dir, f"agg_dataset_{i+1}.hdf5")
-        dc = DataCollection(cfg)
-        dc.append_to_dataset(base_dataset_path=aggregated_dataset, output_path=agg_output_path)
-        aggregated_dataset = agg_output_path  # use for next iteration
+        trained_policy_path = os.path.join(os.path.dirname(self.aggregated_dataset), "../network/policy_final.pth")
+        return trained_policy_path
 
-        # === Train new policy ===
-        policy_path = run_training(cfg, dataset_path=aggregated_dataset, pretrained_path=current_policy)
-        print(f"✅ Policy saved: {policy_path}")
+    def run(self):
+        for i in range(self.cfg.n_iteration):
+            print(f"\n🔁 Starting SafeDAgger Iteration {i}")
+
+            new_dataset_path = self.run_data_collection(i)
+            self.aggregated_dataset = new_dataset_path
+
+            self.policy_path = self.run_training()
+            print(f"✅ Policy saved: {self.policy_path}")
+
 
 @hydra.main(config_path="../cfgs", config_name="iter_locosafedagger.yaml")
 def main(cfg):
-    run_pipeline(cfg, cfg.n_iteration)
+    pipeline = SafeDAggerPipeline(cfg)
+    pipeline.run()
 
 if __name__ == "__main__":
     main()

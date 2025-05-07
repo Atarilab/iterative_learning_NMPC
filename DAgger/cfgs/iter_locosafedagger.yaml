@@ -4,11 +4,17 @@ defaults:
 
 # -------- Pipeline Control --------
 n_iteration: 3
+iter_index: 0  # dynamically set at runtime by the loop
 
 # -------- Paths --------
-output_root: ./data
-policy_path: null  # internal use (dynamically overridden)
-data_save_path: null  # internal use
+# -------- Paths --------
+output_root: ./data/multigoal-locosafedagger
+run_dir: ${output_root}/${now:%b_%d_%Y_%H_%M_%S}
+data_save_path: ${run_dir}/iter_${iter_index}/dataset
+
+policy_path: null
+pretrained_policy_path: ""     # ← ADD THIS LINE
+database_path: "" 
 pretrain_dataset_path: /home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/dataset/database_final.hdf5
 initial_policy_path: /home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/network/policy_final.pth
 reference_mpc_path: /home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz
@@ -23,7 +29,6 @@ w_des_min: 0.0
 w_des_max: 0.0
 num_pertubations_per_replanning: 1
 
-# Perturbation settings by gait
 mu_base_pos:
   trot: 0.0
 sigma_base_pos:
@@ -73,7 +78,7 @@ hydra:
   job:
     chdir: False
   run:
-    dir: ${output_root}/hydra_logs/${now:%Y_%m_%d}_${now:%H_%M_%S}
+    dir: ${run_dir}/hydra_logs
   sweep:
     dir: ${output_root}/${now:%Y_%m_%d}_${now:%H_%M_%S}
     subdir: ${hydra.job.num}
@@ -85,4 +90,3 @@ hydra:
     mem_gb: 160
     nodes: 1
     submitit_folder: ./exp/${now:%Y.%m.%d}/${now:%H%M%S}_${gaits}/.slurm
-
