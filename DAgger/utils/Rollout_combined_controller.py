@@ -398,7 +398,6 @@ def rollout_combined_controller(
     save_data: bool = True,
     record_dir: str = "./data/",
     interactive: bool = False,
-    # mpc related
     
     # policy related
     policy_path: str = "",
@@ -417,7 +416,7 @@ def rollout_combined_controller(
     feet_name = ["FL", "FR", "RL", "RR"]
     
     # define mpc related parameters
-    interactive = False
+    # interactive = False
     
     # define policy related parameters
     

@@ -19,15 +19,6 @@ import scipy.spatial.transform as st
 import pinocchio as pin
 from mj_pin.utils import get_robot_description
 
-# global parameters
-SIM_DT = 0.001
-nq = 19
-nv = 17
-replan_freq = 50
-t0 = 0.0
-v_des = [0.15, 0.0, 0.0]
-n_state = 44
-
 class DataCollection():
     def __init__(self, 
                  cfg,
@@ -39,9 +30,15 @@ class DataCollection():
         self.episode_length = cfg.episode_length
         self.sim_dt = cfg.sim_dt
         self.sim_time = cfg.sim_time
-        self.n_iteration = cfg.n_iteration
-        # self.num_pertubations_per_replanning = cfg.num_pertubations_per_replanning
+        self.start_time = cfg.start_time
+        self.visualize = cfg.visualize
+        self.save_data = cfg.save_data
+        self.record_video = cfg.record_video
+        self.interactive = cfg.interactive
+        self.v_des = cfg.v_des
+        self.initial_control_mode = cfg.initial_control_mode
         
+        self.robot_name = cfg.robot_name
         self.gaits = cfg.gaits
         self.feet_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
         
@@ -63,7 +60,7 @@ class DataCollection():
         """
         Constructs the dataset save path dynamically using `run_dir` and `iter_index`.
         """
-        base_dir = self.cfg.run_dir  # already resolved by Hydra
+        base_dir = self.cfg.run_dir
         return os.path.join(base_dir, f"iter_{self.iter_index}", "dataset")
 
     def save_dataset(self, iteration):
@@ -130,57 +127,42 @@ class DataCollection():
             if agg_traj_times is not None:
                 f.create_dataset('traj_times', data=agg_traj_times)
 
-        # print(f"Appended dataset saved to: {output_path}")
-
-    
     def run(self):
         experiment_dir = os.path.join(self.data_save_path, "experiment")
         os.makedirs(experiment_dir, exist_ok=True)
-        # Add these counters at the beginning of run()
+        # for calculation of expert influence
         total_timesteps = 0
         expert_timesteps = 0
-
-        ## settings
-        # define robot related parameters
-        robot_name = "go2"
-        control_mode = "policy"
         
-        # simulator related parameters
-        # sim_time = 20.0
-        start_time = 0.0
-        initial_state = []
-        v_des = np.array([0.15, 0.0, 0.0])
-        record_video = False
-        visualize = True
-        save_data = True
-        record_dir = "./data/"
-        interactive = False
-        
-        # mpc related parameters
-        
-        # policy related parameters
+        # policy initialization
         policy_path = self.previous_policy_path
         reference_mpc_path = self.cfg.reference_mpc_path
         data = np.load(reference_mpc_path)
-        q0 = data["q"][int(start_time * 1000)]
-        v0 = data["v"][int(start_time * 1000)]
+        initial_state = []
+        q0 = data["q"][int(self.start_time * 1000)]
+        v0 = data["v"][int(self.start_time * 1000)]
         initial_state = [q0, v0]
         
         # call rollout function
         rollout_combined_controller(
-            control_mode=control_mode,
-            robot_name=robot_name,
+            # initialization
+            robot_name=self.robot_name,
             sim_time=self.sim_time,
-            start_time=start_time,
-            initial_state=initial_state,
-            v_des=v_des,
-            record_video=record_video,
-            visualize=visualize,
-            save_data=save_data,
-            record_dir=experiment_dir,
-            interactive=interactive,
+            start_time=self.start_time,
             policy_path=policy_path,
-            reference_mpc_path=reference_mpc_path
+            reference_mpc_path=reference_mpc_path,
+            initial_state=initial_state,
+            control_mode=self.initial_control_mode,
+            
+            # goal
+            v_des=self.v_des,
+            
+            # simulation control
+            record_video=self.record_video,
+            visualize=self.visualize,
+            save_data=self.save_data,
+            record_dir=experiment_dir,
+            interactive=self.interactive,    
         )
 
         for file_name in os.listdir(experiment_dir):

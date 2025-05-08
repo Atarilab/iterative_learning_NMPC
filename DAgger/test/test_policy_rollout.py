@@ -35,13 +35,11 @@ torch.manual_seed(seed)
 # omini-directional vc policy pretrained on 120k data points
 # policy_path = "/home/atari/workspace/DAgger/example/data/behavior_cloning/trot/May_06_2025_11_21_24/network/policy_final.pth"
 # data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-# v_des = [-0.1,0.0,0.0]
+# v_des = [0.0,0.1,0.0]
 
-# policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_11_50_25/network/policy_30.pth"
-# policy_path = "/home/atari/workspace/DAgger/example/data/SafeDagger/trot/May_06_2025_12_44_23/network/policy_final.pth"
-policy_path = "/home/atari/workspace/DAgger/example/data/multigoal-locosafedagger/May_07_2025_16_13_26/iter_4/network/policy_final.pth"
+policy_path = "/home/atari/workspace/DAgger/example/data/multigoal-locosafedagger/May_08_2025_12_06_04/iter_4/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-v_des = [0.0,0.1,0.0]
+v_des = [0.2,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
@@ -59,11 +57,11 @@ input()
 
 # rollout policy
 rollout_policy(policy_path, 
-                sim_time=30.0, 
+                sim_time=10.0, 
                 v_des = v_des, 
                 record_video=False,
                 norm_policy_input=True,
-                save_data=False,
+                save_data=True,
                 initial_state = initial_state,
                 start_time = start_time,
                 data_MPC_path=data_MPC_path,

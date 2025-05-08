@@ -93,6 +93,31 @@ def get_phase_percentage(t:int):
     #     phi = ((t-t0) % gait_period)/gait_period
     #     return phi
 
+def get_feet_in_contact_by_id(mj_data, geom_to_frame_name: Dict[int, str], ground_geom_id: int = 0) -> List[str]:
+    """
+    Get the list of feet in contact, returning Pinocchio frame names (e.g., 'FL_foot').
+
+    Args:
+        mj_data: MuJoCo mjData.
+        geom_to_frame_name: Dictionary mapping geom_id (int) to Pinocchio frame name (str).
+        ground_geom_id (int): The geom ID of the ground.
+
+    Returns:
+        List[str]: Frame names of feet in contact (e.g., ['FL_foot', 'RR_foot']).
+    """
+    contact_feet = []
+
+    for i in range(mj_data.ncon):
+        contact = mj_data.contact[i]
+        g1, g2 = contact.geom1, contact.geom2
+
+        if g1 == ground_geom_id and g2 in geom_to_frame_name:
+            contact_feet.append(geom_to_frame_name[g2])
+        elif g2 == ground_geom_id and g1 in geom_to_frame_name:
+            contact_feet.append(geom_to_frame_name[g1])
+
+    return contact_feet
+
 # Data recorder
 class StateDataRecorder(DataRecorder):
     def __init__(
@@ -100,7 +125,10 @@ class StateDataRecorder(DataRecorder):
         record_dir: str = "",
         record_step: int = 1,
         v_des: np.ndarray = np.array([0,0,0]),
-        current_time: float = 0.0) -> None:
+        current_time: float = 0.0,
+        nominal_flag = True,
+        replanning_point = 0,
+        nth_traj_per_replanning = 0) -> None:
         """
         A simple data recorder that saves simulation data to a .npz file.
         """
@@ -109,6 +137,9 @@ class StateDataRecorder(DataRecorder):
         self.vc_goals = v_des
         self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
         self.current_time = current_time
+        self.nominal_flag = nominal_flag
+        self.replanning_point = replanning_point
+        self.nth_traj_per_replanning_point = nth_traj_per_replanning
         
         # initialization of robot model
         self.feet_names = ["FL", "FR", "RL", "RR"]
@@ -129,15 +160,20 @@ class StateDataRecorder(DataRecorder):
                      "state":[],
                      "action":[],
                      "vc_goals":[],
-                     "cc_goals":[]}
+                     "cc_goals":[],
+                     "contact_vec":[],
+                     "is_expert": []}
 
     def save(self) -> None:
         if not self.record_dir:
             self.record_dir = os.getcwd()
         os.makedirs(self.record_dir, exist_ok=True)
-
         timestamp = self.get_date_time_str()
-        file_path = os.path.join(self.record_dir, f"simulation_data_{timestamp}.npz")
+
+        if self.nominal_flag:
+            file_path = os.path.join(self.record_dir, f"traj_nominal_{timestamp}.npz")
+        else:
+            file_path = os.path.join(self.record_dir, f"traj_{self.replanning_point}_{self.nth_traj_per_replanning_point}.npz")
 
         try:
             # Uncomment to save data
@@ -148,7 +184,7 @@ class StateDataRecorder(DataRecorder):
             print(f"Error saving data: {e}")
             return ""
     
-    def record(self, mj_data) -> None:
+    def record(self, mj_data,is_expert = 0) -> None:
         """
         Record simulation data at the current simulation step.
         """
@@ -156,6 +192,8 @@ class StateDataRecorder(DataRecorder):
         q = mj_data.qpos.copy()
         v = mj_data.qvel.copy()
         self.data["time"].append(round(mj_data.time + self.current_time, 4))
+        # print("current time is = ",round(mj_data.time + self.current_time, 4))
+        
         self.data["q"].append(q) # in the order of [FL,FR,RL,RR]
         self.data["v"].append(v) # in the order of [FL,FR,RL,RR]
         self.data["ctrl"].append(mj_data.ctrl.copy()) # in the order of [FR,FL,RR,RL]
@@ -167,9 +205,6 @@ class StateDataRecorder(DataRecorder):
         
         for i, f_name in enumerate(self.feet_names):
             feet_pos = mj_frame_pos(self.mj_model, mj_data, f_name)
-            # print(f"{f_name} feet_pos = {feet_pos}")
-            if feet_pos[-1] <= 0.005:
-                ee_in_contact.append(f_name)
             feet_pos_all.extend(feet_pos)
             base_wrt_feet[2*i:2*i+2] = (q[:3] - feet_pos)[:2]
         
@@ -178,16 +213,39 @@ class StateDataRecorder(DataRecorder):
         # base with right to feet in world frame
         self.data["base_wrt_feet"].append(np.array(base_wrt_feet))
         
+        geom_to_frame_name = {
+            20: "FL_foot",
+            32: "FR_foot",
+            44: "RL_foot",
+            56: "RR_foot"
+        }
+
+        ee_in_contact = get_feet_in_contact_by_id(mj_data, geom_to_frame_name)
+        
+        contact_vec = np.array([
+            int("FL_foot" in ee_in_contact),
+            int("FR_foot" in ee_in_contact),
+            int("RL_foot" in ee_in_contact),
+            int("RR_foot" in ee_in_contact)
+        ])
+        self.data["contact_vec"].append(contact_vec)
+        
         ## form state variable
         # the format of state = [[phase_percentage],v,q[2:],base_wrt_feet]
         # if in replanning step, phase percentage is not starting from 0
         phase_percentage = np.round([get_phase_percentage(mj_data.time + self.current_time)], 4)
-        
+        # phase_percentage = np.round([get_phase_percentage(mj_data.time)], 4)
         #==========================================================================================
         # state with base_wrt_feet
         state = np.concatenate([phase_percentage, v, q[2:], base_wrt_feet])
+        
+        # # state without base_wrt_feet
+        # state = np.concatenate([phase_percentage, v, q[2:]])
+        
         self.data["state"].append(np.array(state)) # here is unnormalized state
         #=========================================================================================
+        
+        
         # transform action from torque to PD target and store
         tau_frflrrrl = mj_data.ctrl.copy() # in the order of [FR,FL,RR,RL]
         FR_torque = tau_frflrrrl[0:3]
@@ -195,9 +253,21 @@ class StateDataRecorder(DataRecorder):
         RR_torque = tau_frflrrrl[6:9]
         RL_torque = tau_frflrrrl[9:]
         tau_flfrrlrr = np.concatenate([FL_torque,FR_torque,RL_torque,RR_torque])
+        # print("tau is = ", tau_frflrrrl)
+        # print("FR torque is ")
+        # print(FR_torque)
+        # print("FL torque is ")
+        # print(FL_torque)
+        # print("RR torque is ")
+        # print(RR_torque)
+        # print("RL torque is ")
+        # print(RL_torque)
+        # print("transformed tau is = ")
+        # print(tau_flfrrlrr)
+        # input()
         
-        # calculate realized PD target and store
         action = (tau_flfrrlrr + kd * v[6:])/kp + q[7:] # in the order of [FL,FR,RL,RR]
+        # print("current action is = ",action)
         self.data["action"].append(np.array(action))
         
         # record the velocity conditioned goals
@@ -206,6 +276,9 @@ class StateDataRecorder(DataRecorder):
         # record contact conditioned goals(currently just a random noise)
         self.cc_goals = np.random.normal(loc=0.0, scale=0.1, size=(8,))
         self.data["cc_goals"].append(self.cc_goals)
+        
+        # record expert flag
+        self.data["is_expert"].append(is_expert)
         
 class PolicyController(Controller):
     def __init__(self, policy_path: str, 
