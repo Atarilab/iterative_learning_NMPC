@@ -268,7 +268,7 @@ class CombinedController(Controller):
         self.mpc_min_steps = 2500  # minimum steps to stay in MPC (0.2s if dt=0.001s)
 
     
-    def check_unsafe_state(self, mj_data):
+    def check_unsafe_state_v1(self, mj_data):
         """Check if robot is in unsafe/fall-prone or stall-prone state."""
         # --- Access base orientation ---
         base_quat = mj_data.qpos[3:7]
@@ -288,7 +288,8 @@ class CombinedController(Controller):
         # --- Thresholds ---
         roll_thresh = np.deg2rad(30)   # 30 degrees
         pitch_thresh = np.deg2rad(10)  # 30 degrees
-        height_thresh = 0.18           # meters
+        height_lower_bound = 0.18           # meters
+        height_upper_bound = 0.45          # meters
         ang_vel_thresh = 5.0           # rad/s
         stall_vel_thresh = 0.015        # m/s, if lower than this = stall
         stall_time_window = 0.2        # s (not used yet, can improve)
@@ -297,7 +298,8 @@ class CombinedController(Controller):
         fall_detected = (
             abs(roll) > roll_thresh or
             abs(pitch) > pitch_thresh or
-            base_height < height_thresh or
+            base_height < height_lower_bound or
+            base_height > height_upper_bound or
             np.linalg.norm(base_ang_vel) > ang_vel_thresh
         )
 
@@ -319,7 +321,6 @@ class CombinedController(Controller):
 
         return unsafe
 
-
     def check_unsafe_state_dummy(self, mj_data):
         """Hard-coded switch to MPC after 2.0 seconds."""
         sim_time = mj_data.time  # get simulation time from MuJoCo data
@@ -328,6 +329,81 @@ class CombinedController(Controller):
         else:
             return False  # stay with policy
 
+    def check_unsafe_state_v2(self, mj_data):
+        """Check if robot is in unsafe/fall-prone or joint-limit-violating state."""
+        q = mj_data.qpos
+        v = mj_data.qvel
+
+        # --- Extract base pose ---
+        base_quat = q[3:7]
+        base_rotmat = pin.Quaternion(*base_quat).toRotationMatrix()
+        rpy = pin.rpy.matrixToRpy(base_rotmat)
+        roll, pitch, _ = rpy
+        base_height = q[2]
+
+        # --- Thresholds ---
+        roll_thresh = np.deg2rad(25)
+        pitch_thresh = np.deg2rad(25)
+        height_bounds = (0.18, 0.45)
+
+        # --- Joint Limits from Table ---
+        joint_deg = np.rad2deg(q[7:])  # convert joint positions to degrees
+
+        joint_names = [
+            "FL_hip", "FL_thigh", "FL_knee",
+            "FR_hip", "FR_thigh", "FR_knee",
+            "RL_hip", "RL_thigh", "RL_knee",
+            "RR_hip", "RR_thigh", "RR_knee"
+        ]
+
+        joint_bounds= {
+            # Hip abduction/adduction (hip roll)
+            "FL_hip": (-70, 70),   # aggressive range observed
+            "FR_hip": (-70, 30),
+            "RL_hip": (-20, 50),
+            "RR_hip": (-45, 20),
+
+            # Hip flexion/extension (hip pitch)
+            "FL_thigh": (25, 80),
+            "FR_thigh": (25, 70),
+            "RL_thigh": (45, 110),
+            "RR_thigh": (55, 115),
+
+            # Knee flexion/extension (knee pitch)
+            "FL_knee": (-150, -60),
+            "FR_knee": (-155, -60),
+            "RL_knee": (-145, -60),
+            "RR_knee": (-140, -60),
+        }
+
+
+
+        # --- Check base pose ---
+        unsafe_pose = (
+            abs(roll) > roll_thresh or
+            abs(pitch) > pitch_thresh or
+            base_height < height_bounds[0] or base_height > height_bounds[1]
+        )
+
+        # --- Check joint limits ---
+        joint_violation = False
+        for i, name in enumerate(joint_names):
+            lower, upper = joint_bounds[name]
+            if not (lower <= joint_deg[i] <= upper):
+                print(f"⚠️ Joint {name} out of bounds: {joint_deg[i]:.2f} deg (limit: {lower}, {upper})")
+                joint_violation = True
+
+        # --- Final check ---
+        unsafe = unsafe_pose or joint_violation
+
+        # --- Debug ---
+        print(f"Base height: {base_height:.3f} | Roll: {np.rad2deg(roll):.2f}°, Pitch: {np.rad2deg(pitch):.2f}°")
+        print(f"Unsafe base: {unsafe_pose}, Unsafe joints: {joint_violation}")
+        print(f"Unsafe: {unsafe}")
+
+        return unsafe
+
+        
     
     def set_current_control_mode(self, mj_data):
         if self.control_mode == "mpc":
@@ -338,7 +414,7 @@ class CombinedController(Controller):
                 return
             else:
                 # After minimum time, allow normal switching
-                unsafe = self.check_unsafe_state(mj_data)
+                unsafe = self.check_unsafe_state_v2(mj_data)
                 if unsafe:
                     self.control_mode = "mpc"
                     # No change -> no need to pause
@@ -349,7 +425,7 @@ class CombinedController(Controller):
                     self.mpc_active_counter = 0  # Reset counter when returning to policy
         else:
             # Currently in policy mode
-            unsafe = self.check_unsafe_state(mj_data)
+            unsafe = self.check_unsafe_state_v2(mj_data)
             if unsafe:
                 print("[INFO] Switching to MPC controller.")
                 # input("[PAUSE] Press Enter to continue...")

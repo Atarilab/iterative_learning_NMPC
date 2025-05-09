@@ -40,9 +40,16 @@ w_des_max: 0.0
 episode_length: 2000
 sim_dt: 0.001
 sim_time: 20
+start_time: 0.0
+visualize: True
+save_data: True
+record_video: False
+interactive: False
+v_des: [0.15, 0.0, 0.0]
+initial_control_mode: "policy"
 
 # -------- Policy Training --------
-normalize_policy_input: true
+normalize_policy_input: True
 batch_size: 512
 learning_rate: 0.001
 n_epoch: 50
@@ -52,7 +59,6 @@ hidden_dim: 512
 
 # -------- Data Management --------
 database_size: 10000000
-save_data: true
 suffix: ""
 
 # -------- Hydra --------
