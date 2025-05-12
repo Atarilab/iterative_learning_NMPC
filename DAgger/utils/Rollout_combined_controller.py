@@ -25,6 +25,39 @@ kp = 20
 kd = 1.5
 
 # VisualCallback
+class ReferenceVisualCallback(VisualCallback):
+    def __init__(self, combined_controller, simulator=None, update_step=1):
+        super().__init__(update_step)
+        self.controller = combined_controller
+        self.mpc = self.controller.mpc_controller
+        self.simulator = simulator
+        self.radius = 0.01
+
+    def add_visuals(self, mj_data):
+        # === Contact points
+        for i, foot_cnt in enumerate(self.mpc.solver.dyn.feet):
+            cnt_pos = self.mpc.solver.params[foot_cnt.plane_point.name]
+            cnt_pos_unique = np.unique(cnt_pos, axis=1).T
+            for pos in cnt_pos_unique:
+                if np.sum(pos) == 0.:
+                    continue
+                self.add_sphere(pos, self.radius, self.colors.id(i))
+
+       # Use color to indicate which controller is active
+        if self.controller.control_mode == "mpc":
+            rgba = self.colors.name("black")  # Expert: MPC
+        else:
+            rgba = self.colors.name("blue")   # Learner: policy
+
+        # Current MPC reference
+        base_ref = self.mpc.solver.cost_ref[self.mpc.solver.dyn.base_cost.name][:, 0]
+        self.add_box(base_ref[:3], rot_euler=base_ref[3:6][::-1], size=[0.08, 0.04, 0.04], rgba=rgba)
+
+        # Terminal MPC reference (optional, could remain black)
+        term_ref = self.mpc.solver.cost_ref_terminal[self.mpc.solver.dyn.base_cost.name]
+        self.add_box(term_ref[:3], rot_euler=term_ref[3:6][::-1], size=[0.08, 0.04, 0.04],  rgba=rgba)
+
+
 
 # State Data Recorder
 class StateDataRecorder(DataRecorder):
@@ -243,7 +276,7 @@ class CombinedController(Controller):
                  v_des: np.ndarray = np.array([0.3, 0.0, 0.0]),
                  mj_model = None,
                  control_mode: str = "policy",
-                 nu: int = 12):
+                 nu: int = 12) -> None:
         super().__init__()
         
         # initialization
@@ -266,7 +299,9 @@ class CombinedController(Controller):
         # about switching
         self.mpc_active_counter = 0
         self.mpc_min_steps = 2500  # minimum steps to stay in MPC (0.2s if dt=0.001s)
-
+        # the first 50 timesteps let policy take over
+        self.step_counter = 0
+        self.delay_steps = 100
     
     def check_unsafe_state_v1(self, mj_data):
         """Check if robot is in unsafe/fall-prone or stall-prone state."""
@@ -345,6 +380,7 @@ class CombinedController(Controller):
         roll_thresh = np.deg2rad(25)
         pitch_thresh = np.deg2rad(25)
         height_bounds = (0.18, 0.45)
+        vel_tracking_tol = 0.10 
 
         # --- Joint Limits from Table ---
         joint_deg = np.rad2deg(q[7:])  # convert joint positions to degrees
@@ -359,24 +395,22 @@ class CombinedController(Controller):
         joint_bounds= {
             # Hip abduction/adduction (hip roll)
             "FL_hip": (-70, 70),   # aggressive range observed
-            "FR_hip": (-70, 30),
-            "RL_hip": (-20, 50),
-            "RR_hip": (-45, 20),
+            "FR_hip": (-70, 70),
+            "RL_hip": (-45, 50),
+            "RR_hip": (-45, 50),
 
             # Hip flexion/extension (hip pitch)
             "FL_thigh": (25, 80),
-            "FR_thigh": (25, 70),
-            "RL_thigh": (45, 110),
-            "RR_thigh": (55, 115),
+            "FR_thigh": (25, 80),
+            "RL_thigh": (45, 115),
+            "RR_thigh": (45, 115),
 
             # Knee flexion/extension (knee pitch)
-            "FL_knee": (-150, -60),
+            "FL_knee": (-155, -60),
             "FR_knee": (-155, -60),
             "RL_knee": (-145, -60),
-            "RR_knee": (-140, -60),
+            "RR_knee": (-145, -60),
         }
-
-
 
         # --- Check base pose ---
         unsafe_pose = (
@@ -392,20 +426,35 @@ class CombinedController(Controller):
             if not (lower <= joint_deg[i] <= upper):
                 print(f"⚠️ Joint {name} out of bounds: {joint_deg[i]:.2f} deg (limit: {lower}, {upper})")
                 joint_violation = True
+        
+        # --- Base velocity tracking ---
+        base_lin_vel_xy = v[0:2]         # only vx, vy
+        goal_vel_xy = self.v_des[0:2]    # only vx_des, vy_des
+        vel_error = np.abs(base_lin_vel_xy - goal_vel_xy)
+        unsafe_vel_tracking = np.any(vel_error > vel_tracking_tol)
 
         # --- Final check ---
-        unsafe = unsafe_pose or joint_violation
+        unsafe = unsafe_pose or joint_violation or unsafe_vel_tracking
 
         # --- Debug ---
         print(f"Base height: {base_height:.3f} | Roll: {np.rad2deg(roll):.2f}°, Pitch: {np.rad2deg(pitch):.2f}°")
         print(f"Unsafe base: {unsafe_pose}, Unsafe joints: {joint_violation}")
+        print(f"Base vel [vx, vy]: {base_lin_vel_xy}, Goal: {goal_vel_xy}, Error: {vel_error}")
+        print(f"Unsafe velocity tracking: {unsafe_vel_tracking}")
         print(f"Unsafe: {unsafe}")
 
         return unsafe
 
         
-    
     def set_current_control_mode(self, mj_data):
+        self.step_counter += 1
+
+        if self.step_counter < self.delay_steps:
+            # Always run policy for initial N steps
+            print("[INFO] Running POLICY controller for initial phase.")
+            self.control_mode = "policy"
+            return
+        
         if self.control_mode == "mpc":
             # If already in MPC, stay at least for mpc_min_steps
             self.mpc_active_counter += 1
@@ -428,7 +477,7 @@ class CombinedController(Controller):
             unsafe = self.check_unsafe_state_v2(mj_data)
             if unsafe:
                 print("[INFO] Switching to MPC controller.")
-                # input("[PAUSE] Press Enter to continue...")
+                input("[PAUSE] Press Enter to continue...")
                 self.control_mode = "mpc"
                 self.mpc_active_counter = 0  # Reset counter when entering MPC
 
@@ -468,7 +517,7 @@ def rollout_combined_controller(
     sim_time: float = 2.0,
     start_time: float = 0.0,
     initial_state = [],
-    v_des: np.ndarray = np.array([0.3, 0.0, 0.0]),
+    v_des: np.ndarray = np.array([0.0, 0.0, 0.0]),
     record_video: bool = False,
     visualize: bool = True,
     save_data: bool = True,
@@ -514,8 +563,6 @@ def rollout_combined_controller(
         
     joint_name2act_id= mj_joint_name2dof(sim.mj_model)
     print("Joint to Actuator ID Mapping:", joint_name2act_id)
-    
-    # setup visual callback
     
     # setup data recorder
     # for now
@@ -566,8 +613,12 @@ def rollout_combined_controller(
         joint_name2act_id=joint_name2act_id,
         mj_model=sim.mj_model,
         nu = n_action,
+        v_des=v_des,
     )
     print("Combined controller initialized")
+    
+    # setup visual callback
+    vis_feet_pos = ReferenceVisualCallback(combined_controller, simulator=sim)
     
     sim.run(
         sim_time=sim_time,
@@ -575,6 +626,7 @@ def rollout_combined_controller(
         controller=combined_controller,
         record_video=record_video,
         data_recorder=data_recorder,
+        visual_callback=vis_feet_pos,
     )
     print("🎉 Policy rollout finished successfully.")
     

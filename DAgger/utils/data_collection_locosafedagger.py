@@ -23,8 +23,10 @@ class DataCollection():
     def __init__(self, 
                  cfg,
                  iter_index: int = 0,
+                 goal_index: int = 0,
                  previous_dataset_path: str = None,
-                 previous_policy_path: str = None):
+                 previous_policy_path: str = None,
+                 goal: List[float] = [0.0, 0.0, 0.0]):
         # fixed parameters
         self.cfg = cfg
         self.episode_length = cfg.episode_length
@@ -35,7 +37,7 @@ class DataCollection():
         self.save_data = cfg.save_data
         self.record_video = cfg.record_video
         self.interactive = cfg.interactive
-        self.v_des = cfg.v_des
+        self.v_des = goal
         self.initial_control_mode = cfg.initial_control_mode
         
         self.robot_name = cfg.robot_name
@@ -48,6 +50,7 @@ class DataCollection():
         
         # parameters from higher layer 
         self.iter_index = iter_index
+        self.goal_index = goal_index
         self.previous_dataset_path = previous_dataset_path
         self.previous_policy_path = previous_policy_path
         
@@ -61,7 +64,7 @@ class DataCollection():
         Constructs the dataset save path dynamically using `run_dir` and `iter_index`.
         """
         base_dir = self.cfg.run_dir
-        return os.path.join(base_dir, f"iter_{self.iter_index}", "dataset")
+        return os.path.join(base_dir, f"goal_{self.goal_index}",f"iter_{self.iter_index}", "dataset")
 
     def save_dataset(self, iteration):
         os.makedirs(self.data_save_path, exist_ok=True)

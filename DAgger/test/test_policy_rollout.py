@@ -39,7 +39,7 @@ torch.manual_seed(seed)
 
 policy_path = "/home/atari/workspace/DAgger/example/data/multigoal-locosafedagger/May_08_2025_12_06_04/iter_4/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-v_des = [0.2,0.0,0.0]
+v_des = [0.5,0.0,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
@@ -61,7 +61,7 @@ rollout_policy(policy_path,
                 v_des = v_des, 
                 record_video=False,
                 norm_policy_input=True,
-                save_data=True,
+                save_data=False,
                 initial_state = initial_state,
                 start_time = start_time,
                 data_MPC_path=data_MPC_path,
