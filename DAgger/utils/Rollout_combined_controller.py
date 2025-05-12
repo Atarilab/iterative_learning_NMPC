@@ -396,20 +396,20 @@ class CombinedController(Controller):
             # Hip abduction/adduction (hip roll)
             "FL_hip": (-70, 70),   # aggressive range observed
             "FR_hip": (-70, 70),
-            "RL_hip": (-45, 50),
-            "RR_hip": (-45, 50),
+            "RL_hip": (-70, 70),
+            "RR_hip": (-70, 70),
 
             # Hip flexion/extension (hip pitch)
-            "FL_thigh": (25, 80),
-            "FR_thigh": (25, 80),
-            "RL_thigh": (45, 115),
-            "RR_thigh": (45, 115),
+            "FL_thigh": (25, 115),
+            "FR_thigh": (25, 115),
+            "RL_thigh": (25, 115),
+            "RR_thigh": (25, 115),
 
             # Knee flexion/extension (knee pitch)
             "FL_knee": (-155, -60),
             "FR_knee": (-155, -60),
-            "RL_knee": (-145, -60),
-            "RR_knee": (-145, -60),
+            "RL_knee": (-155, -60),
+            "RR_knee": (-155, -60),
         }
 
         # --- Check base pose ---

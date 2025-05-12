@@ -51,49 +51,61 @@ class SafeDAggerPipeline:
         trained_policy_path = os.path.join(os.path.dirname(self.aggregated_dataset), "../network/policy_final.pth")
         return trained_policy_path
 
-    def run(self,goal_index, goal):
-        for i in range(self.cfg.n_iteration):
-            print(f"\n🔁 Starting SafeDAgger Iteration {i}")
-            if i == 0:
-                self.policy_path = self.cfg.initial_policy_path
-                self.aggregated_dataset = self.cfg.pretrain_dataset_path
+    def run(self):
+        goal_list = [[0.15, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                    [-0.15, 0.0, 0.0]]
 
-            print(f"Current policy path: {self.policy_path}")
-            print(f"Previous dataset path: {self.aggregated_dataset}")
-            input()
-            
-            print("Starting data collection...")
-            new_dataset_path = self.run_data_collection(iter_index = i,
-                                                        goal_index = goal_index,
-                                                        previous_dataset_path = self.aggregated_dataset,
-                                                        current_policy_path = self.policy_path,
-                                                        goal = goal)
-            # prepare dataset for training and next iteration
-            self.aggregated_dataset = new_dataset_path
-            print(f"✅ Aggregated dataset saved: {self.aggregated_dataset}")
-            input()
-            
-            print("Starting training...")
-            print(f"Current policy path: {self.policy_path}")
-            print(f"Previous dataset path: {self.aggregated_dataset}")
-            input()
-            self.policy_path = self.run_training(previous_policy_path=self.policy_path,
-                                                 current_dataset_path=self.aggregated_dataset)
-            print(f"✅ Policy saved: {self.policy_path}")
-            input()
+        for goal_index, goal in enumerate(goal_list):
+            print("\n" + "=" * 50)
+            print(f"🚩 Starting training for Goal {goal_index}: {goal}")
+            print("=" * 50)
+
+            for iter_index in range(self.cfg.n_iteration):
+                print(f"\n🔁 Iteration {iter_index} for Goal {goal_index}")
+                
+                # === Initialize only once for first goal & iteration ===
+                if goal_index == 0 and iter_index == 0:
+                    self.policy_path = self.cfg.initial_policy_path
+                    self.aggregated_dataset = self.cfg.pretrain_dataset_path
+                
+                # === Logging current setup ===
+                print(f"Current policy: {self.policy_path}")
+                print(f"Previous dataset: {self.aggregated_dataset}")
+                print(f"Goal: {goal}")
+                print(f"Save Path: goal_{goal_index}/iter_{iter_index}")
+                input()
+
+                # === Data collection ===
+                print("Starting data collection...")
+                new_dataset_path = self.run_data_collection(
+                    iter_index=iter_index,
+                    goal_index=goal_index,
+                    previous_dataset_path=self.aggregated_dataset,
+                    current_policy_path=self.policy_path,
+                    goal=goal
+                )
+                self.aggregated_dataset = new_dataset_path  # Update for training
+                print(f"✅ Aggregated dataset saved: {self.aggregated_dataset}")
+                input()
+
+                # === Training ===
+                print("Starting training...")
+                self.policy_path = self.run_training(
+                    previous_policy_path=self.policy_path,
+                    current_dataset_path=self.aggregated_dataset
+                )
+                print(f"✅ Policy saved: {self.policy_path}")
+                input()
+
+            # Optionally: store final policy per goal
+            print(f"🎉 Finished all iterations for goal {goal_index}")
 
 
 @hydra.main(config_path="../cfgs", config_name="iter_locosafedagger.yaml")
 def main(cfg):
     pipeline = SafeDAggerPipeline(cfg)
-    goal_list = [[0.15,0.0,0.0],
-                 [0.0,0.0,0.0],
-                 [-0.15,0.0,0.0]]
-    for idx, goal in enumerate(goal_list):
-        print("\n" + "="*50)
-        print(f"🚩 Starting rollout for Goal {idx+1}: {goal}")
-        print("="*50)
-        pipeline.run(goal)
+    pipeline.run()
 
 
 if __name__ == "__main__":
