@@ -39,9 +39,9 @@ torch.manual_seed(seed)
 
 policy_path = "/home/atari/workspace/DAgger/example/data/multigoal-locosafedagger/May_12_2025_16_03_52/goal_2/iter_3/network/policy_final.pth"
 data_MPC_path = "/home/atari/workspace/Behavior_Cloning/examples/data/behavior_cloning/trot/Apr_16_2025_13_02_09/dataset/experiment/traj_nominal_04_16_2025_13_02_15.npz"
-# v_des = [0.45,0.0,0.0]
+v_des = [0.45,0.0,0.0]
 # v_des = [-0.5,0.0,0.0]
-v_des = [0.0,0.25,0.0]
+# v_des = [0.0,0.25,0.0]
 
 # extract initial states from start time
 data_MPC = np.load(data_MPC_path)
