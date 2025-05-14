@@ -477,7 +477,7 @@ class CombinedController(Controller):
             unsafe = self.check_unsafe_state_v2(mj_data)
             if unsafe:
                 print("[INFO] Switching to MPC controller.")
-                input("[PAUSE] Press Enter to continue...")
+                # input("[PAUSE] Press Enter to continue...")
                 self.control_mode = "mpc"
                 self.mpc_active_counter = 0  # Reset counter when entering MPC
 

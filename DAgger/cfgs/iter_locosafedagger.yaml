@@ -50,9 +50,9 @@ initial_control_mode: "policy"
 
 # -------- Policy Training --------
 normalize_policy_input: True
-batch_size: 1024
+batch_size: 256
 learning_rate: 0.001
-n_epoch: 50
+n_epoch: 15
 n_train_frac: 0.9
 num_hidden_layer: 3
 hidden_dim: 512
