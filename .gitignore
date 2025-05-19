@@ -168,5 +168,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 Behavior_Cloning/examples/data/
-DAgger/examples/data/
+DAgger/example/data/
 *.hdf5
