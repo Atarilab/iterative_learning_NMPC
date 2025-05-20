@@ -330,27 +330,63 @@ class Rollout_MPC():
         self.save_data = cfg.save_data
         self.record_dir = cfg.record_dir
         self.sim_time = cfg.sim_time
-        self.current_time = cfg.current_time
         
         # perturbation setting
-        self.nominal_flag = cfg.nominal_flag
         self.randomize_on_given_state = None
         self.ee_in_contact = []
+        
+        # replanning related
+        self.current_time = cfg.current_time
         self.nominal_flag = cfg.nominal_flag
         self.replanning_point = 0
         self.nth_traj_per_replanning = 0
+        self.current_phase_percentage = None
+        self.q0 = None
+        self.v0 = None
+        
+        # force perturbation related
         self.force_start_time = None
         self.force_duration = None
         self.force_vec = None
         
         print("All config initialization for MPC rollout finished")
-    
-    def reset(self,
-              record_dir):
-        self.record_dir = record_dir
-        # reset a lot of parameters
         
+    def setup_nominal_rollout(self,
+              sim_time = 2.0,
+              current_time = 0.0,
+              record_dir = "."):
+        # this function is for customizing some parameters
+        self.sim_time = sim_time
+        self.current_time = current_time
+        self.record_dir = record_dir
     
+    def setup_force_perturbation(self,
+              record_dir = ".",
+              replan_instruction = None,
+              perturbation = None,
+              sim_time = 2.0):
+        
+
+        # unpack replan_instruction and perturbation if given
+        if replan_instruction is not None:
+            self.current_time = replan_instruction["current_time"]
+            self.current_phase_percentage = replan_instruction["current_phase_percentage"]
+            self.q0 = replan_instruction["q0"]
+            self.v0 = replan_instruction["v0"]
+            self.replanning_point = replan_instruction["replanning_point"]
+            self.nth_traj_per_replanning = replan_instruction["nth_traj_per_replanning"]
+            self.nominal_flag = replan_instruction["nominal_flag"
+                                                   ]
+        if perturbation is not None:
+            force_struct = perturbation
+            self.force_start_time = force_struct["start_time"]
+            self.force_duration = force_struct["duration"]
+            self.force_vec = force_struct["force_vec"]
+            
+        # update internal parameters
+        self.sim_time = sim_time
+        self.record_dir = record_dir
+         
     def setup_mpc(self):
         # initialize mpc controller
         self.mpc = LocomotionMPC(
@@ -398,28 +434,52 @@ class Rollout_MPC():
         print("Visual Callback initialized")
         
     def setup(self):
+        # default setup
         self.setup_mpc()
         self.setup_simulator()
     
-    def setup_force_perturbation(self,force_struct):
-        force_struct = {}
-        return force_struct
-    
     def setup_nullspace_perturbation(self):
         pass
+    
+    def check_early_termination(self,
+                                save_data,
+                                record_dir):
+        record_path = ""
+        if save_data and os.path.exists(record_dir):
+            # Find the latest file in the directory by modification time
+            record_path = max([os.path.join(record_dir, f) for f in os.listdir(record_dir)], key=os.path.getmtime)
+            print(f"Latest file found: {record_path}")
+        else:
+            print("Data not saved or record_dir not exist!")
+            return
+        data = np.load(record_path)
+        sim_over = data["time"][-1]
+        tolerance = 1e-2
+        early_termination = False
+        if (self.sim_time - (sim_over - self.current_time)) > tolerance:
+            early_termination = True
+        return early_termination, sim_over, record_path
                 
     def run(self):
-        # TODO: initialize force perturbation
-        pass
+        # NOTE: if force perturbation is activated, always call setup_force_perturbation before executing run
+        # NOTE: if nullspace perturbation is activated, always call setup_nullspace_perturbation before executing run
         
-        # TODO: initialize nullspace perturbation
-        pass
-        
-        # setup
         self.setup()
-        # start simulation
-        q_mj = self.robot_desc.q0
-        v_mj = np.zeros(self.mpc.pin_model.nv)
+        print("Default setup finished")
+        # Based on whether perturbed, set perturbation related parameters
+        if self.nominal_flag:
+            q_mj = self.robot_desc.q0
+            v_mj = np.zeros(self.mpc.pin_model.nv)
+        else:
+            q_mj = self.q0
+            v_mj = self.v0
+            if self.force_vec is not None and self.force_start_time is not None:
+                self.sim.apply_force = True
+                self.sim.force_body_name = "base"
+                self.sim.force_vec = self.force_vec
+                self.sim.force_start_step = int(self.force_start_time / self.sim.sim_dt)
+                self.sim.force_end_step = int((self.force_start_time + self.force_duration) / self.sim.sim_dt)
+            
         self.sim.set_initial_state(q0 = q_mj, v0 = v_mj)
         self.sim.run(
             sim_time = self.sim_time,
@@ -439,9 +499,22 @@ class Rollout_MPC():
             self.mpc.plot_traj("tau")
             self.mpc.show_plots()
         
-        # TODO: determine if the rollout is early terminated
+        # Determine if the rollout is early terminated
+        early_termination, sim_over, record_path = self.check_early_termination(self.save_data,
+                                                        self.record_dir)
+        
+        # delete file if early termination
+        if early_termination:
+            # delete the file of record_path
+            print("sim_over time = ", sim_over)
+            print("real sim time = ", sim_over - self.current_time)
+            os.remove(record_path)
+            record_path = ""
+        
+        return early_termination, record_path
+        
 
-@hydra.main(config_path="/home/atari/workspace/Behavior_Cloning/examples/cfgs/", config_name="data_collection_experimental.yaml", version_base=None)
+@hydra.main(config_path="../examples/cfgs/", config_name="data_collection_experimental.yaml", version_base=None)
 def main(cfg):
     rollout = Rollout_MPC(cfg)
     # rollout.setup_mpc()

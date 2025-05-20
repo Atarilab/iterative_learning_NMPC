@@ -19,7 +19,7 @@ record_dir : ""
 record_video: False
 SIM_DT: 0.001 # simulation interval
 VIEWER_DT : 1/30. 
-sim_time: 2.0
+sim_time: 2.0 # default sim_time
 current_time: 0.0
 
 # for pertuabation
@@ -27,7 +27,7 @@ replan_freq: 50
 t0: 0.0 # time to start perturbation
 v_des : [0.15,0.0,0.0] # user input --> [vx,vy,w]
 n_iteration: 1 # number of iterations
-num_pertubations_per_replanning: 10 # number of perturbations per replanning
+num_pertubations_per_replanning: 2 # number of perturbations per replanning
 
 force_start_offset : 0.0
 force_duration_range: [0.2,0.4]
@@ -49,8 +49,6 @@ sim_time_nominal: 2.0
 sim_time_perturbation: 1.5
 interactive: False
 nominal_flag: None
-
-
 
 # for policy rollout
 

@@ -36,6 +36,8 @@ class DataCollection():
         # for simulation
         self.episode_length = cfg.episode_length
         self.sim_time = cfg.sim_time
+        self.sim_time_nominal = cfg.sim_time_nominal
+        self.sim_time_perturbation = cfg.sim_time_perturbation
         
         # for perturbation
         self.replan_freq = cfg.replan_freq
@@ -56,16 +58,16 @@ class DataCollection():
         # setup database for data collection
         self.save_data = cfg.save_data
         self.database = Database(limit=cfg.database_size, norm_input=True)
-        self.ood_database = Database(limit=cfg.database_size, norm_input=True)
+        # self.ood_database = Database(limit=cfg.database_size, norm_input=True)
         
         self.data_save_path = self._prepare_save_path()
         self.experiment_data_save_path = self._prepare_experiment_dir()
-        self.ood_data_save_path = self._prepare_ood_save_path()
+        # self.ood_data_save_path = self._prepare_ood_save_path()
         
         print("Data_collection config import successful!")
         print("Experiment data will be saved at path = ", self.experiment_data_save_path)
         print("Combined dataset will be saved at path = ", self.data_save_path)
-        print("OOD dataset will be saved at path = ",self.ood_data_save_path)
+        # print("OOD dataset will be saved at path = ",self.ood_data_save_path)
 
     def _prepare_save_path(self):
         current_time = datetime.now().strftime("%b_%d_%Y_%H_%M_%S")
@@ -85,7 +87,8 @@ class DataCollection():
     def _prepare_ood_save_path(self):
         return None
     
-    def save_dataset(self, iteration):
+    def dump_data_to_hdf5(self, iteration):
+        # this function takes care of dumping data in a hdf5 dataset
         os.makedirs(self.data_save_path, exist_ok=True)
         data_len = len(self.database)
         with h5py.File(f"{self.data_save_path}/database_{iteration}.hdf5", 'w') as hf:
@@ -154,22 +157,32 @@ class DataCollection():
 
         print(f"Added {num_added} OOD samples from {file_name}")
 
-    def run_unperturbed(self):
+    def run_unperturbed(self,record_dir):
+        # customize rollout parameters using reset()
+        self.rollout_mpc_unperturbed.setup_nominal_rollout(
+            sim_time = self.sim_time_nominal,
+            record_dir = record_dir
+        )
         # run
-        self.rollout_mpc_unperturbed.run()
+        early_termination, record_path = self.rollout_mpc_unperturbed.run()
+        return early_termination, record_path
     
     def run_force_perturbed(self,
-                            initial_condition,
-                            perturbation):
-        # TODO: unpack initial condition and perturbation information
-        
-        # reset parameter for a new rollout
-        self.rollout_mpc_force_perturbation.reset()
-        
+                            record_dir,
+                            replan_instructions,
+                            perturbation):    
+        # reset parameter for a new rollout based on replanning and perturbation
+        self.rollout_mpc_force_perturbation.setup_force_perturbation(
+                                                record_dir,
+                                                replan_instructions,
+                                                perturbation,
+                                                sim_time = self.sim_time_perturbation,
+                                                )
         # run
-        self.rollout_mpc_force_perturbation.run()
+        early_termination, record_path = self.rollout_mpc_force_perturbation.run()
+        return early_termination, record_path
         
-    def get_initial_condition(self, record_path_nominal):
+    def get_reference_state(self, record_path_nominal):
         # load nominal trajectory data and get replanning points
         print("loading nominal traj data from path = ")
         print(record_path_nominal)
@@ -182,6 +195,8 @@ class DataCollection():
         cc_goals = None
         actions = data["ctrl"]
         contact_vec = data["contact_vec"]
+        phase_percentage = state[:,0]
+        return phase_percentage,nominal_q,nominal_v
 
     def get_replanning_points(self):
         # sample replanning points
@@ -235,43 +250,8 @@ class DataCollection():
     def save_ood_dataset(self):
         pass
     
-    def run(self):
-        # rollout reference trajectory
-        record_dir_reference_traj = self.run_unperturbed()
-        
-        # get initial condition from reference traj
-        current_phase_percentage, nominal_q, nominal_v = self.get_initial_condition(record_dir_reference_traj)
-        
-        # sample replanning points
-        replanning_points = self.get_replanning_points()
-        
-        # loop over replanning points and do perturbations
-        for i_replanning in replanning_points:
-            print(f"Replanning at step {i_replanning}")
-            q0 = nominal_q[i_replanning]
-            # manually put the robot in the initial position, otherwise it is going to be a MPC tracking reference problem
-            q0[0] = 0
-            v0 = nominal_v[i_replanning]
-            # current_contact_vec = contact_vec[i_replanning]
-            # ee_in_contact = contact_vec_to_frame_names(current_contact_vec)
-            
-            for j in range(self.num_pertubations_per_replanning):
-                # pack replan_instructions
-                current_time = np.round(i_replanning * self.sim_dt, 4)
-                replan_instructions = {
-                        "current_time":current_time,
-                        "current_phase_percentage":current_phase_percentage,
-                        "q0":q0,
-                        "v0":v0                        
-                }
-                
-                early_termination = False
-                # main perturbation loop: loop until there is no early_termination
-                while True:
-                    # pack force struct
-                    force_struct = self.get_force_struct()
-                    early_termination = Rollout_MPC.run()
-
+    def save_training_dataset(self,
+                              experiment_dir):
         for file_name in os.listdir(experiment_dir):
             file_path = os.path.join(experiment_dir, file_name)
             if file_name.endswith(".npz") and os.path.isfile(file_path):
@@ -294,17 +274,58 @@ class DataCollection():
                     traj_id=traj_ids,
                     times=times
                 )
+        self.dump_data_to_hdf5(iteration = 0)
+        
+    def run(self):
+        # rollout reference trajectory
+        _, record_dir_reference_traj = self.run_unperturbed(record_dir=self.experiment_data_save_path)
+        
+        # get initial condition from reference traj
+        reference_phase_percentage, nominal_q, nominal_v= self.get_reference_state(record_dir_reference_traj)
+        
+        # sample replanning points
+        replanning_points = self.get_replanning_points()
+        
+        # loop over replanning points and do perturbations
+        for i_replanning in replanning_points:
+            print(f"Replanning at step {i_replanning}")
+            current_phase_percentage = reference_phase_percentage[i_replanning]
+            q0 = nominal_q[i_replanning]
+            # manually put the robot in the initial position, otherwise it is going to be a MPC tracking reference problem
+            q0[0] = 0
+            v0 = nominal_v[i_replanning]
+            # current_contact_vec = contact_vec[i_replanning]
+            # ee_in_contact = contact_vec_to_frame_names(current_contact_vec)
+            
+            for j in range(self.num_pertubations_per_replanning):
+                # pack replan_instructions
+                current_time = np.round(i_replanning * self.sim_dt, 4)
+                replan_instructions = {
+                        "current_time":current_time,
+                        "current_phase_percentage":current_phase_percentage,
+                        "q0":q0,
+                        "v0":v0,
+                        "replanning_point":i_replanning,
+                        "nth_traj_per_replanning":j+1,
+                        "nominal_flag": False,                        
+                }
+                
+                early_termination = False
+                # main perturbation loop: loop until there is no early_termination
+                while True:
+                    # pack force struct
+                    force_struct = self.get_force_struct()
+                    early_termination, record_path = self.run_force_perturbed(
+                        record_dir = self.experiment_data_save_path,
+                        replan_instructions = replan_instructions,
+                        perturbation = force_struct
+                    )
+                    if not early_termination:
+                        break
 
-                if "nominal" not in file_name.lower():
-                    # self.save_ood_val_set_dummy(experiment_dir, states, vc_goals, cc_goals, actions, file_name)
-                    self.save_ood_val_set_l2_distance(experiment_dir, states, vc_goals, cc_goals, actions, times, file_name, distance_threshold=4.0)
+        self.save_training_dataset(self.experiment_data_save_path)
 
-        self.save_dataset(iteration=0)
-        ood_save_path = os.path.join(self.data_save_path, "ood_val_data.npz")
-        self.ood_database.save_as_npz(ood_save_path)
-        print(f"OOD validation dataset saved to {ood_save_path}")
-
-@hydra.main(config_path='/home/atari/workspace/Behavior_Cloning/examples/cfgs/', config_name='data_collection_experimental.yaml', version_base="1.1")
+@hydra.main(config_path='../examples/cfgs/', config_name='data_collection_experimental.yaml', version_base="1.1")
 def main(cfg):
     dc = DataCollection(cfg)
     # replanning_points = dc.get_replanning_points()
@@ -312,8 +333,10 @@ def main(cfg):
     # print("replanning points = ", replanning_points)
     # print("force_struct = ", force_struct)
     
-    dir = dc.run_unperturbed()
-    print(dir)
+    # _,dir = dc.run_unperturbed(dc.experiment_data_save_path)
+    # print(dir)
 
+    dc.run()
+    
 if __name__ == '__main__':
     main()
