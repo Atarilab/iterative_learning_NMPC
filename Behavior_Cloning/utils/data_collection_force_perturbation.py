@@ -325,7 +325,7 @@ class DataCollection():
 
         self.save_training_dataset(self.experiment_data_save_path)
 
-@hydra.main(config_path='../examples/cfgs/', config_name='data_collection_experimental.yaml', version_base="1.1")
+@hydra.main(config_path='../examples/cfgs/', config_name='bc_experimental.yaml', version_base="1.1")
 def main(cfg):
     dc = DataCollection(cfg)
     # replanning_points = dc.get_replanning_points()

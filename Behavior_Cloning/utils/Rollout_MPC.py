@@ -514,7 +514,7 @@ class Rollout_MPC():
         return early_termination, record_path
         
 
-@hydra.main(config_path="../examples/cfgs/", config_name="data_collection_experimental.yaml", version_base=None)
+@hydra.main(config_path="../examples/cfgs/", config_name="bc_experimental.yaml", version_base=None)
 def main(cfg):
     rollout = Rollout_MPC(cfg)
     # rollout.setup_mpc()

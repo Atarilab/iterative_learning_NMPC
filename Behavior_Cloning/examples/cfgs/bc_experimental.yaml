@@ -6,7 +6,7 @@ defaults:
 # global variables
 # nq : 19 # base_pos[3] + base_ori[4] + joint_pos[12]
 # nv: 17 # base_vel_trans[3] + base_vel_rot[3] + joint_vel[12]
-n_state: 44
+n_state: 44  # input size 47 = n_state 44 + n_goals 3 # with base_wrt_feet
 gaits: ["trot"] # gait names
 gait_period: 0.5 # gait period
 feet_names: ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
@@ -19,7 +19,7 @@ record_dir : ""
 record_video: False
 SIM_DT: 0.001 # simulation interval
 VIEWER_DT : 1/30. 
-sim_time: 2.0 # default sim_time
+sim_time : 2.0
 current_time: 0.0
 
 # for pertuabation
@@ -27,7 +27,7 @@ replan_freq: 50
 t0: 0.0 # time to start perturbation
 v_des : [0.15,0.0,0.0] # user input --> [vx,vy,w]
 n_iteration: 1 # number of iterations
-num_pertubations_per_replanning: 2 # number of perturbations per replanning
+num_pertubations_per_replanning: 10 # number of perturbations per replanning
 
 force_start_offset : 0.0
 force_duration_range: [0.2,0.4]
@@ -35,22 +35,39 @@ force_magnitude_range: [50.0,70.0]
 force_direction_range: [-1.0, 1.0]
 
 # for database
-save_data: True # save data
 database_size: 1000000 # size of the database
 norm_input: True # normalize input
 data_save_path: "./data" # folder to store database snapshots
 suffix: ''
 
 # for mpc rollout
-visualize: True
+save_data: True # save data
+visualize: False
 show_plot: False # show plot
-episode_length: 2000
-sim_time_nominal: 2.0
-sim_time_perturbation: 1.5
 interactive: False
 nominal_flag: None
 
-# for policy rollout
+episode_length: 2000
+sim_time_nominal: 2.0
+sim_time_perturbation: 1.5
+
+#---------- Network parameters-------------
+n_action : 12
+action_type: "pd_target" #"pd_target", "torque", "structured"
+normalize_policy_input: True
+
+database_path: "/home/atari/workspace/Behavior_Cloning/utils/data/behavior_cloning/trot/May_20_2025_13_21_08/dataset/database_0.hdf5"
+num_hidden_layer: 3
+hidden_dim: 512
+batch_norm: True
+goal_type: 'vc'
+
+#---------- Training parameters-------------
+batch_size: 256
+learning_rate: 0.002
+n_epoch: 500 # default=150
+n_train_frac: 0.9 # fraction of the data used for training
+
 
 
 hydra:
