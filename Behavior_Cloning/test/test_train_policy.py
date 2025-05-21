@@ -15,8 +15,8 @@ import wandb
 from tqdm import tqdm
 from datetime import datetime
 
-from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
-from Behavior_Cloning.utils.network_experimental import GoalConditionedPolicyNet_experimental
+# from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.network_experimental import GoalConditionedPolicyNet
 from Behavior_Cloning.utils.database import Database
 
 class BehavioralCloning:
@@ -36,6 +36,8 @@ class BehavioralCloning:
         self.action_type = cfg.action_type
         
         # Training properties
+        self.batch_norm = cfg.batch_norm
+        self.dropout = cfg.dropout
         self.batch_size = cfg.batch_size
         self.learning_rate = cfg.learning_rate
         self.n_epoch = cfg.n_epoch
@@ -49,13 +51,15 @@ class BehavioralCloning:
                            output_size = 0,
                            num_hidden_layer = 3,
                            hidden_dim = 512,
-                           batch_norm = True):
-        network = GoalConditionedPolicyNet_experimental(
+                           batch_norm = True,
+                           dropout = 0.0):
+        network = GoalConditionedPolicyNet(
             input_size,
             output_size,
             num_hidden_layer,
             hidden_dim,
-            batch_norm
+            batch_norm,
+            dropout
         ).to(self.device)
         print("Policy Network initialized")
         return network
@@ -142,7 +146,9 @@ class BehavioralCloning:
             input_size=self.input_size, 
             output_size=self.output_size, 
             num_hidden_layer=self.cfg.num_hidden_layer,
-            hidden_dim=self.cfg.hidden_dim
+            hidden_dim=self.cfg.hidden_dim,
+            batch_norm=self.batch_norm,
+            dropout=self.dropout
         )
         # Print model architecture
         print("\n=== Initialized Network Structure ===")

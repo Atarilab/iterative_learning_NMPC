@@ -4,8 +4,14 @@ import torch.nn.functional as F
 import numpy as np
 
 
-class GoalConditionedPolicyNet_experimental(nn.Module):
-    def __init__(self, input_size:int, output_size:int, num_hidden_layer:int=4, hidden_dim:int=256, batch_norm:bool=False):
+class GoalConditionedPolicyNet(nn.Module):
+    def __init__(self, 
+                 input_size:int, 
+                 output_size:int, 
+                 num_hidden_layer:int=4, 
+                 hidden_dim:int=256, 
+                 batch_norm:bool=False,
+                 dropout:float=0.0):
         """policy network
 
         Args:
@@ -19,11 +25,13 @@ class GoalConditionedPolicyNet_experimental(nn.Module):
         super().__init__()
         
         assert num_hidden_layer > 0, 'number of hidden layers should be greater than 0'
+        assert not (batch_norm and dropout > 0.0), 'Use either batch norm or dropout, not both.'
         
         print('input_size: ', input_size)
         print('num hidden layers: ', num_hidden_layer)
         print('hidden dim: ', hidden_dim)
         print('batch normalization: ', str(batch_norm))
+        print('dropout: ', dropout)
         print('output_size: ', output_size)
         
         # input layer
@@ -32,7 +40,9 @@ class GoalConditionedPolicyNet_experimental(nn.Module):
         # batch norm
         if batch_norm:
             layers.append(nn.BatchNorm1d(hidden_dim))
-                
+        elif dropout > 0.0:
+            layers.append(nn.Dropout(p=dropout))
+        
         # ReLu activation function
         layers.append(nn.ReLU())
             
@@ -44,7 +54,8 @@ class GoalConditionedPolicyNet_experimental(nn.Module):
             # batch normalization if true
             if batch_norm:
                 layers.append(nn.BatchNorm1d(hidden_dim))
-                
+            elif dropout > 0.0:
+                layers.append(nn.Dropout(p=dropout))
             # ReLu activation function
             layers.append(nn.ReLU())
             

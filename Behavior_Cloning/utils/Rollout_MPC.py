@@ -32,16 +32,18 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
-    # get rid of phase percentage
-    return 0
+    gait_period = 0.5
+    t0 = 0.0 # phase_percentage shift
+    
+    # # get rid of phase percentage
+    # return 0
        
-    # # for trot
-    # gait_period = 0.5
-    # if t<t0:
-    #     return 0
-    # else:
-    #     phi = ((t-t0) % gait_period)/gait_period
-    #     return phi
+    # for trot
+    if t<t0:
+        return 0
+    else:
+        phi = ((t-t0) % gait_period)/gait_period
+        return phi
 
 def get_feet_in_contact_by_id(mj_data, geom_to_frame_name: Dict[int, str], ground_geom_id: int = 0) -> List[str]:
     """

@@ -12,7 +12,8 @@ from mj_pin.abstract import VisualCallback, DataRecorder, Controller # type: ign
 from mj_pin.simulator import Simulator # type: ignore
 from mj_pin.utils import get_robot_description, mj_frame_pos, mj_joint_name2act_id, mj_joint_name2dof   # type: ignore
 
-from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+# from Behavior_Cloning.utils.network import GoalConditionedPolicyNet
+from Behavior_Cloning.utils.network_experimental import GoalConditionedPolicyNet
 from Behavior_Cloning.utils.database import Database
 
 import torch
@@ -82,12 +83,14 @@ def get_phase_percentage(t:int):
     Returns:
         phi: current gait phase. between 0 - 1
     """ 
+    gait_period = 0.5
+    t0 = 0.0 # phase_percentage shift
+    
     # get rid of phase percentage
     return 0
-
+       
     # # for trot
-    # gait_period = 0.5
-    # if t < t0:
+    # if t<t0:
     #     return 0
     # else:
     #     phi = ((t-t0) % gait_period)/gait_period
@@ -217,22 +220,49 @@ class PolicyController(Controller):
                  device: str = "cpu",
                  mj_model = None,
                  start_time: float = 0.0,
-                 reference_path: str = "",):
+                 reference_path: str = "",
+                 batch_norm: bool = False,
+                 dropout:float = 0.1) -> None:
         super().__init__()
-        
-        # initialize policy network
+        ##################################################################
+        ## initialize policy network with/without batch norm
         self.device = device
-        self.policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action, num_hidden_layer=3,
-                                                   hidden_dim=HIDDEN_DIM, batch_norm=True)
+        self.policy_net = GoalConditionedPolicyNet(input_size=n_state, 
+                                                   output_size=n_action, 
+                                                   num_hidden_layer=3,
+                                                   hidden_dim=HIDDEN_DIM, 
+                                                   batch_norm=True)
         
         # Load saved state dict and normalization info
         payload = torch.load(policy_path, map_location=device, weights_only = False)
 
         # Reconstruct network architecture
-        self.policy_net = GoalConditionedPolicyNet(input_size=n_state, output_size=n_action,
-                                                num_hidden_layer=3, hidden_dim=HIDDEN_DIM,
-                                                batch_norm=True)
+        self.policy_net = GoalConditionedPolicyNet(input_size=n_state, 
+                                                   output_size=n_action,
+                                                   num_hidden_layer=3, 
+                                                   hidden_dim=HIDDEN_DIM,
+                                                   batch_norm=True)
+        #########################################################################
+        ## initialize policy network with dropout
+        # self.device = device
+        # self.policy_net = GoalConditionedPolicyNet(input_size=n_state, 
+        #                                            output_size=n_action, 
+        #                                            num_hidden_layer=3,
+        #                                            hidden_dim=HIDDEN_DIM, 
+        #                                            batch_norm=False,
+        #                                            dropout=dropout)
+        
+        # # Load saved state dict and normalization info
+        # payload = torch.load(policy_path, map_location=device, weights_only = False)
 
+        # # Reconstruct network architecture
+        # self.policy_net = GoalConditionedPolicyNet(input_size=n_state, 
+        #                                            output_size=n_action,
+        #                                            num_hidden_layer=3, 
+        #                                            hidden_dim=HIDDEN_DIM,
+        #                                            batch_norm=batch_norm,
+        #                                            dropout=dropout)
+        ####################################################################################
         self.policy_net.load_state_dict(payload['network_state_dict'])
         self.policy_net.to(device)
         self.policy_net.eval()
